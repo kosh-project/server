@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+axum = { version = "0.8.9", features = [] }
+hyper = "1.10.1"
+tokio = { version = "1.52.3", features = ["fs", "macros", "net", "rt-multi-thread", "sync"] }
