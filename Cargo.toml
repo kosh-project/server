@@ -4,7 +4,17 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = { version = "0.8.9", features = [] }
+axum = { version = "0.8.9", features = ["multipart"] }
 hyper = "1.10.1"
 rcgen = "0.14.8"
-tokio = { version = "1.52.3", features = ["fs", "macros", "net", "rt-multi-thread", "sync"] }
+serde = "1.0.228"
+serde_json = "1.0.150"
+tokio = { version = "1.52.3", features = ["fs", "full", "macros", "net", "rt-multi-thread", "signal", "sync"] }
+
+[dev-dependencies]
+anyhow = "1.0.102"
+httpc-test = { version = "0.1.10", features = ["color-output", "colored"] }
+rand = "0.10.1"
+reqwest = { version = "0.13.4", features = ["multipart"] }
+serial_test = "3.5.0"
+tmpdir = "1.0.0"
