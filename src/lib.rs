@@ -1,8 +1,11 @@
 use std::fmt::Display;
 
+pub mod state;
+pub use state::AppState;
+
 use axum::{
     Json, Router,
-    extract::Multipart,
+    extract::{Multipart, State},
     response::IntoResponse,
     routing::{get, post},
 };
@@ -20,11 +23,12 @@ where
     eprintln!("\x1b[033m{worker:>12}\x1b[0m -> \x1b[34m{action:<12}\x1b[0m");
 }
 
-pub fn router() -> Router {
+pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(get_health))
         .route("/storage", get(get_storage))
         .route("/upload", post(handle_upload))
+        .with_state(state)
 }
 
 async fn get_health() -> Json<Value> {
@@ -35,6 +39,7 @@ async fn get_health() -> Json<Value> {
 }
 
 async fn handle_upload(
+    State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     debug("HANDLER", "post_upload");
@@ -44,7 +49,7 @@ async fn handle_upload(
 
         debug("MULTI_PART", format!("field : {file_name}"));
 
-        let file_path = format!("./vault/{file_name}");
+        let file_path = state.vault_path().join(file_name);
 
         let mut file = match tokio::fs::File::create(&file_path).await {
             Ok(f) => f,
@@ -77,5 +82,3 @@ async fn get_storage() -> Json<Value> {
         "exists" : true,
     }))
 }
-
-pub fn client() {}

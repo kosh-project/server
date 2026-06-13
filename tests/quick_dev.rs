@@ -1,15 +1,19 @@
-use httpc_test::Result;
+use tmpdir::TmpDir;
 use tokio::net::TcpListener;
-use webdav_server::router;
+use webdav_server::{router, state::AppStateBuilder};
 
 #[tokio::test]
 #[serial_test::serial]
-async fn quick_dev() -> Result<()> {
+async fn quick_dev() -> anyhow::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
 
+    let state = AppStateBuilder::new()
+        .vault_path(TmpDir::new("web-dav_vault").await?.to_path_buf())
+        .build();
+
     tokio::spawn(async move {
-        let _ = axum::serve(listener, router()).await;
+        let _ = axum::serve(listener, router(state)).await;
     });
 
     let client = httpc_test::new_client(format!("http://{addr}"))?;

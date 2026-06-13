@@ -1,23 +1,21 @@
-use std::path::PathBuf;
-
 use hyper::StatusCode;
 use reqwest::multipart;
 use tmpdir::TmpDir;
-use tokio::{fs, io, net::TcpListener};
-use webdav_server::router;
+use tokio::{fs, net::TcpListener};
+use webdav_server::{router, state::AppStateBuilder};
 
 #[tokio::test]
 #[serial_test::serial]
 async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
-    // let vault_dir = TmpDir::new("webdav").await?.to_path_buf();
+    let _tmp = TmpDir::new("webdav").await?;
+    let vault_dir = _tmp.to_path_buf();
 
-    let vault_dir = PathBuf::new().join("./vault");
     tokio::fs::create_dir_all(&vault_dir).await?;
 
     let file_name = "lmao_dead_ok.enc";
     let file_path = vault_dir.join(file_name);
 
-    let file = tokio::fs::OpenOptions::new()
+    let _ = tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .open(&file_path)
@@ -30,7 +28,9 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
 
-    tokio::spawn(async move { axum::serve(listener, router()).await.unwrap() });
+    let state = AppStateBuilder::new().vault_path(vault_dir).build();
+
+    tokio::spawn(async move { axum::serve(listener, router(state)).await.unwrap() });
 
     let file_part = multipart::Part::bytes(fake_encrypted_payload.clone())
         .file_name(file_name)
