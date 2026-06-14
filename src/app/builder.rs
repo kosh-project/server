@@ -1,15 +1,6 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-#[derive(Clone, Default)]
-pub struct AppState {
-    vault_path: PathBuf,
-}
-
-impl AppState {
-    pub fn vault_path(&self) -> &Path {
-        self.vault_path.as_ref()
-    }
-}
+use crate::AppState;
 
 #[derive(Default)]
 pub struct AppStateBuilder(AppState);
