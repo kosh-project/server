@@ -1,0 +1,55 @@
+use std::fmt::Display;
+
+/// Does a debug print
+#[macro_export]
+macro_rules! log {
+    ($msg:expr $(,)?) => {{
+        #[cfg(debug_assertions)]
+        {
+            println!("{:>12}    {}", "", $msg);
+        }
+    }};
+
+    ($worker:expr, $msg:expr $(,)?) => {{
+        #[cfg(debug_assertions)]
+        {
+            println!("\x1b[1m\x1b[34m{:>12}\x1b[0m -> {}", $worker, $msg);
+        }
+    }};
+}
+
+pub trait Color {
+    fn bold(&self) -> String;
+    fn italic (&self) -> String;
+    fn warn(&self) -> String;
+    fn error(&self) -> String;
+    fn debug(&self) -> String;
+    fn info(&self) -> String;
+}
+
+impl <T> Color for T 
+where T : Display {
+    fn bold(&self) -> String {
+        format!("\x1b[1m{self}\x1b[0m")
+    }
+
+    fn debug(&self) -> String {
+        format!("\x1b[90m{self}\x1b[0m")
+    }
+
+    fn error(&self) -> String {
+        format!("\x1b[31m{self}\x1b[0m")
+    }
+
+    fn info(&self) -> String {
+        format!("\x1b[36m{self}\x1b[0m")
+    }
+
+    fn italic (&self) -> String {
+        format!("\x1b[2m{self}\x1b[0m")
+    }
+
+    fn warn(&self) -> String {
+        format!("\x1b[33m{self}\x1b[0m")
+    }
+}
