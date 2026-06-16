@@ -2456,6 +2456,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "thiserror 2.0.18",
  "tmpdir",
  "tokio",
 ]

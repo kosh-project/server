@@ -1,1 +1,5 @@
+# built artifacts' directory
 /target
+
+# temporary test files
+/test
