@@ -1,7 +1,7 @@
 use axum::{Json, Router, routing::{get, post}};
 use serde_json::{Value, json};
 
-use crate::{AppState, api::upload::handle_upload, log};
+use crate::{app::State as AppState, api::upload::handle_upload, log};
 
 pub fn router(state: AppState) -> Router {
     Router::new()

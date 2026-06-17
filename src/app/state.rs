@@ -1,12 +1,18 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
+
+use crate::storage;
 
 #[derive(Clone, Default)]
-pub struct AppState {
-    pub(crate) vault_path: PathBuf,
+pub struct State {
+    pub storage: storage::Service,
 }
 
-impl AppState {
+impl State {
+    // pub fn vault_path(&self) -> &Path {
+    //     todo!()
+    // }
+
     pub fn vault_path(&self) -> &Path {
-        self.vault_path.as_ref()
+        &self.storage.vault_path
     }
 }

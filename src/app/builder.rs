@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::AppState;
+use crate::app::State as AppState;
 
 #[derive(Default)]
 pub struct AppStateBuilder(AppState);
@@ -14,7 +14,7 @@ impl AppStateBuilder {
     where
         P: Into<PathBuf>,
     {
-        self.0.vault_path = path.into();
+        self.0.storage.vault_path = path.into();
         self
     }
 

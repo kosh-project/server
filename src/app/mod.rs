@@ -1,5 +1,5 @@
 pub mod state;
-pub use state::AppState;
+pub use state::State;
 mod builder;
 
 pub use builder::AppStateBuilder;
