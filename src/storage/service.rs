@@ -1,3 +1,4 @@
+use crate::storage::{Error, Result};
 use std::path::PathBuf;
 
 pub struct Service {
