@@ -2,7 +2,7 @@ use hyper::StatusCode;
 use reqwest::multipart;
 use tmpdir::TmpDir;
 use tokio::{fs, net::TcpListener};
-use webdav_server::{api::route::router, app::{AppStateBuilder}};
+use webdav_server::{api::route::router, app::AppStateBuilder, log};
 
 
 #[tokio::test]
@@ -15,12 +15,6 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
 
     let file_name = "lmao_dead_ok.enc";
     let file_path = vault_dir.join(file_name);
-
-    let _ = tokio::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(&file_path)
-        .await?;
 
     let fake_encrypted_payload = (0..1_000_000)
         .map(|_| rand::random::<u8>())
