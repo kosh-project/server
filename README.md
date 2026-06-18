@@ -10,6 +10,6 @@
 - [ ] Invalidate requests with directory traversal
 - [ ] `(new)` TaskRegistry, 
 - [ ] 
-```rust
+```rs
 pub trait ReportProgress
 ```
