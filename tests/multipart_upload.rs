@@ -2,7 +2,7 @@ use hyper::StatusCode;
 use reqwest::multipart;
 use tmpdir::TmpDir;
 use tokio::{fs, net::TcpListener};
-use webdav_server::{api::route::router, app::AppStateBuilder, log};
+use webdav_server::{api::route::router, app::AppStateBuilder};
 
 
 #[tokio::test]

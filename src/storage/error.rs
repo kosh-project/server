@@ -30,6 +30,12 @@ pub enum Error {
     // Hash Mismatch
     // #[error("Metadata Updation Failed, i'll see it")]
     // MetadataUpdation
+    #[error("Failed to rename file : {path}")]
+    RenameError {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
 }
 
 pub type Result<T> = core::result::Result<T, storage::Error>;

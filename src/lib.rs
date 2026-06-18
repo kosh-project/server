@@ -4,4 +4,4 @@ pub mod log;
 pub mod storage;
 
 pub mod error;
-pub use error::Error;
+pub use error::{Error, Result};

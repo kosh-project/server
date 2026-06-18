@@ -4,6 +4,8 @@ use hyper::StatusCode;
 use crate::api::Error as ApiErr;
 use crate::storage::Error as StorageErr;
 
+
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -17,3 +19,6 @@ impl IntoResponse for Error {
         (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response() 
     }
 }
+
+
+pub type Result<T> = core::result::Result<T, Error>;
