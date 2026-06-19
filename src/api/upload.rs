@@ -1,4 +1,4 @@
-use crate::api::{Error::*};
+use crate::api::Error::*;
 use axum::{
     Json,
     extract::{Multipart, State},
@@ -20,7 +20,7 @@ pub(crate) async fn handle_upload(
         let file_name = field.file_name().unwrap_or("unnamed_file").to_string();
         log!("MULTI_PART", format!("field : {file_name}"));
 
-        state.storage.save(&file_name, field).await?;
+        state.storage.try_save(&file_name, field).await?;
     }
 
     Ok(Json(json! ({
