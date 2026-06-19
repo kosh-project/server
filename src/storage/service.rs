@@ -6,6 +6,7 @@ use tokio::fs::{remove_file, rename};
 use tokio::{fs::File, io::AsyncWriteExt};
 
 use crate::log;
+use crate::storage::transaction::{self, Transaction};
 use crate::storage::{Error::*, Result};
 use std::path::{Path, PathBuf};
 
@@ -30,12 +31,12 @@ impl Service {
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
-        let (temp_path, final_path) = self.validate(&file_name)?;
+        let transaction = self.begin_transaction(&file_name)?;
 
-        if let Err(x) = self.try_commit(f_stream, &temp_path, &final_path).await {
-            remove_file(temp_path).await?;
-            return Err(x);
-        }
+        // Deletes temporary file if error occurs
+        // Future : queue this file for gc, after some period
+        // Until this garbage is collected by Gc, upload of same file can be resumed and this garbage can be reused
+        let hash = transaction.commit(f_stream).await?;
 
         log!("STORAGE", "committed: {file_name}");
 
@@ -43,7 +44,7 @@ impl Service {
     }
 
     /// Validates
-    fn validate<T>(&self, file: &T) -> Result<(PathBuf, PathBuf)>
+    fn begin_transaction<T>(&self, file: &T) -> Result<Transaction>
     where
         T: AsRef<str>,
     {
@@ -52,48 +53,13 @@ impl Service {
             return Err(InvalidFileName);
         }
 
-        let final_path = self.vault_path.join(file_name);
+        let target_path = self.vault_path.join(file_name);
         let temp_path = self.vault_path.join(format!("{file_name}.tmp"));
 
-        if final_path.exists() {
+        if target_path.exists() {
             return Err(FileAlreadyExists(file_name.to_string()));
         }
 
-        Ok((temp_path, final_path))
-    }
-
-    async fn try_commit<S, E>(
-        &self,
-        mut f_stream: S,
-        temp_path: &Path,
-        final_path: &Path,
-    ) -> Result<()>
-    where
-        S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
-        E: Into<Box<dyn StdErr + Send + Sync>>,
-    {
-        let mut file = File::create(&temp_path).await.map_err(|e| CreateTempFile {
-            path: temp_path.into(),
-            source: e,
-        })?;
-
-        while let Some(chunk) = f_stream.next().await {
-            let chunk = chunk.map_err(|e| IoErr::new(IoErrKind::Other, e))?;
-
-            file.write_all(&chunk)
-                .await
-                .map_err(|e| WriteChunkFailure {
-                    path: temp_path.into(),
-                    source: e,
-                })?;
-        }
-
-        rename(&temp_path, &final_path)
-            .await
-            .map_err(|e| RenameError {
-                path: final_path.into(),
-                source: e,
-            })?;
-        Ok(())
+        Ok(Transaction::new(temp_path, target_path))
     }
 }
