@@ -2,6 +2,7 @@
 
 
 # ToDo
+- [ ] Upload transaction
 - [ ] Dang it bro
 - [ ] More refactoring
 - [ ] Handle Directory Traversal
@@ -13,3 +14,11 @@
 ```rs
 pub trait ReportProgress
 ```
+
+
+# Features 
+- [ ] Resumable Uploads
+- [ ] Garbage collector
+- [ ] Multiple user sessions
+- [ ] Google Photos/ Drive migration
+- [ ] Resumable uploads
