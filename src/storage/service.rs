@@ -33,9 +33,6 @@ impl Service {
     {
         let transaction = self.begin_transaction(&file_name)?;
 
-        // Deletes temporary file if error occurs
-        // Future : queue this file for gc, after some period
-        // Until this garbage is collected by Gc, upload of same file can be resumed and this garbage can be reused
         let hash = transaction.commit(f_stream).await?;
 
         log!("STORAGE", "committed: {file_name}");
@@ -61,5 +58,64 @@ impl Service {
         }
 
         Ok(Transaction::new(temp_path, target_path))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::ser;
+
+    use super::*;
+
+    use crate::storage::tests::with_temp_service;
+
+    #[tokio::test]
+    async fn reject_invalid_filename() -> crate::storage::Result<()> {
+        with_temp_service(|service| async move {
+            // Reject for any occurrence of forward slash
+            let result = service.begin_transaction(&"o///reo/hiuh//i");
+            assert!(result.is_err());
+            assert!(matches!(result, Err(InvalidFileName)));
+
+
+
+            let result = service.begin_transaction(&"");
+            assert!(result.is_err());
+            assert!(matches!(result, Err(InvalidFileName)));
+
+            let result = service.begin_transaction(&"../../../../etc/passwd");
+            assert!(result.is_err());
+            assert!(matches!(result, Err(InvalidFileName)))
+
+        })
+        .await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn validation_rejects_existing_file() {
+        with_temp_service(async move |service| {
+            let file_name = "etc.passwd";
+            let target_path = service.vault_path.join(file_name);
+
+            let _ = File::create(target_path).await.unwrap();
+
+            let result = service.begin_transaction(&file_name);
+
+            assert!(result.is_err());
+            assert!(matches!(result, Err(FileAlreadyExists(_))));
+        }).await;
+    }
+
+    #[tokio::test]
+    async fn validation_success() {
+        with_temp_service(async move |service| {
+
+            // Valid name rules
+            let result = service.begin_transaction(&"oreo.tmp.jks");
+            assert!(result.is_ok());
+            assert!(matches!(result, Ok(_)));
+        }).await 
     }
 }

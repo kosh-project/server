@@ -4,3 +4,6 @@ pub use service::Service;
 pub mod transaction;
 
 pub use error::{Error, Result};
+
+#[cfg(test)]
+mod tests;
