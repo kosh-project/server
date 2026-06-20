@@ -4,7 +4,7 @@ use crate::{
 };
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
-use sha2::{Digest, Sha256};
+use blake3::Hasher;
 use std::{
     error::Error as StdErr,
     io::{Error as IoErr, ErrorKind as IoErrKind},
@@ -16,7 +16,7 @@ use tokio::{fs::*, io::AsyncWriteExt};
 pub(crate) struct Transaction {
     temp: PathBuf,
     target: PathBuf,
-    hasher: Sha256,
+    hasher: Hasher,
 }
 
 /// Setter and getters
@@ -29,7 +29,7 @@ impl Transaction {
         Self {
             temp: temp_path.into(),
             target: target_path.into(),
-            hasher: Sha256::new(),
+            hasher: Hasher::new(),
         }
     }
 
@@ -50,7 +50,7 @@ impl Transaction {
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
         match self.write_and_commit(f_stream).await {
-            Ok(_) => Ok(encode(self.hasher.finalize().iter())),
+            Ok(_) => Ok(encode(self.hasher.finalize().as_bytes().iter())),
 
             // Deletes temporary file if error occurs
             // Future : queue this file for gc, after some period
@@ -100,7 +100,7 @@ impl Transaction {
                     source: e,
                 })?;
 
-            self.hasher.update(chunk);
+            self.hasher.update(&chunk);
         }
         Ok(())
     }
@@ -117,8 +117,7 @@ impl AsRef<Transaction> for Transaction {
 mod test {
     use bytes::Bytes;
     use std::{io::{Error as IoErr, ErrorKind}, mem::transmute};
-    use sha2::{Digest, Sha256};
-
+    use blake3::Hasher;
 
 
 use crate::{encode, storage::tests::{with_temp_service, with_temp_transaction}};
@@ -141,11 +140,11 @@ use crate::{encode, storage::tests::{with_temp_service, with_temp_transaction}};
 
             assert!(result.is_ok());
 
-            let mut hasher = Sha256::new();
+            let mut hasher = Hasher::new();
             let bytes = tokio::fs::read(target_path).await.unwrap();
-            hasher.update(bytes);
+            hasher.update(&bytes);
             
-            let expected_hash = encode(hasher.finalize().iter());
+            let expected_hash = encode(hasher.finalize().as_bytes().iter());
 
             assert_eq!(expected_hash, result.unwrap()); 
         }).await
