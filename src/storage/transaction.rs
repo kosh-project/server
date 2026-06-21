@@ -122,7 +122,7 @@ mod test {
     use bytes::Bytes;
     use std::io::{Error as IoErr, ErrorKind};
 
-    use crate::{encode, storage::tests::with_temp_transaction};
+    use crate::storage::tests::with_temp_transaction;
 
     #[tokio::test]
     async fn successful_commit_and_hash() {
@@ -145,7 +145,7 @@ mod test {
             let bytes = tokio::fs::read(target_path).await.unwrap();
             hasher.update(&bytes);
 
-            let expected_hash = encode(hasher.finalize().as_bytes().iter());
+            let expected_hash = hasher.finalize().to_string();
 
             assert_eq!(expected_hash, result.unwrap());
         })
