@@ -26,7 +26,7 @@ impl Service {
     }
 
     // Needs more refactoring
-    pub async fn try_save<S, E>(&self, file_name: &str, f_stream: S) -> Result<()>
+    pub async fn try_save<S, E>(&self, file_name: &str, f_stream: S) -> Result<String>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
@@ -37,7 +37,7 @@ impl Service {
 
         log!("STORAGE", "committed: {file_name}");
 
-        Ok(())
+        Ok(hash)
     }
 
     /// Validates
@@ -51,13 +51,12 @@ impl Service {
         }
 
         let target_path = self.vault_path.join(file_name);
-        let temp_path = self.vault_path.join(format!("{file_name}.tmp"));
 
         if target_path.exists() {
             return Err(FileAlreadyExists(file_name.to_string()));
         }
 
-        Ok(Transaction::new(temp_path, target_path))
+        Ok(Transaction::new(&self.vault_path))
     }
 }
 
@@ -77,8 +76,6 @@ mod tests {
             assert!(result.is_err());
             assert!(matches!(result, Err(InvalidFileName)));
 
-
-
             let result = service.begin_transaction(&"");
             assert!(result.is_err());
             assert!(matches!(result, Err(InvalidFileName)));
@@ -86,7 +83,6 @@ mod tests {
             let result = service.begin_transaction(&"../../../../etc/passwd");
             assert!(result.is_err());
             assert!(matches!(result, Err(InvalidFileName)))
-
         })
         .await;
 
@@ -105,17 +101,18 @@ mod tests {
 
             assert!(result.is_err());
             assert!(matches!(result, Err(FileAlreadyExists(_))));
-        }).await;
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn validation_success() {
         with_temp_service(async move |service| {
-
             // Valid name rules
             let result = service.begin_transaction(&"oreo.tmp.jks");
             assert!(result.is_ok());
             assert!(matches!(result, Ok(_)));
-        }).await 
+        })
+        .await
     }
 }

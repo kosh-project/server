@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tmpdir::TmpDir;
 
@@ -20,15 +20,12 @@ where
 
 pub(super) async fn with_temp_transaction<F, T, Fut>(func: F) -> T
 where
-    F: Fn(Transaction) -> Fut,
+    F: Fn(Transaction, PathBuf) -> Fut,
     Fut: Future<Output = T>,
 {
     let temp_dir = TmpDir::new("vault").await.unwrap();
 
-    let transaction = Transaction::new(
-        temp_dir.to_path_buf().join("my_file.tmp"),
-        temp_dir.to_path_buf().join("my_file"),
-    );
+    let transaction = Transaction::new(temp_dir.to_path_buf());
 
-    func(transaction).await
+    func(transaction, temp_dir.to_path_buf()).await
 }

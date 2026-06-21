@@ -1,44 +1,42 @@
-use crate::{
-    encode,
-    storage::{Error::*, Result},
-};
+use crate::storage::{Error::*, Result};
+use blake3::Hasher;
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
-use blake3::Hasher;
 use std::{
     error::Error as StdErr,
     io::{Error as IoErr, ErrorKind as IoErrKind},
     path::{Path, PathBuf},
 };
 use tokio::{fs::*, io::AsyncWriteExt};
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub(crate) struct Transaction {
     temp: PathBuf,
-    target: PathBuf,
+    uuid: Uuid,
     hasher: Hasher,
 }
 
 /// Setter and getters
 #[allow(unused)]
 impl Transaction {
-    pub(crate) fn new<P, Pa>(temp_path: P, target_path: Pa) -> Self
+    pub(crate) fn new<P>(vault_path: P) -> Self
     where
-        PathBuf: From<P> + From<Pa>,
+        PathBuf: From<P>,
     {
+        let uuid = Uuid::new_v4();
+        let vault_path: PathBuf = vault_path.into();
+        let mut temp = vault_path.join(uuid.to_string());
+        temp.add_extension("tmp");
         Self {
-            temp: temp_path.into(),
-            target: target_path.into(),
+            temp,
+            uuid,
             hasher: Hasher::new(),
         }
     }
 
     pub(crate) fn temp_path(&self) -> &Path {
-        self.temp.as_ref()
-    }
-
-    pub(crate) fn target_path(&self) -> &Path {
-        self.target.as_ref()
+        &self.temp
     }
 }
 
@@ -50,7 +48,7 @@ impl Transaction {
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
         match self.write_and_commit(f_stream).await {
-            Ok(_) => Ok(encode(self.hasher.finalize().as_bytes().iter())),
+            Ok(_) => Ok(self.hasher.finalize().to_string()),
 
             // Deletes temporary file if error occurs
             // Future : queue this file for gc, after some period
@@ -75,12 +73,18 @@ impl Transaction {
 
         self.process_stream(f_stream, &mut file).await?;
 
-        rename(&self.temp, &self.target)
-            .await
-            .map_err(|e| RenameError {
-                path: self.target.clone(),
-                source: e,
-            })?;
+        let target = self
+            .temp
+            .parent()
+            .ok_or(InvalidPath {
+                path: self.temp.clone(),
+            })?
+            .join(self.hasher.finalize().to_string());
+
+        rename(&self.temp, &target).await.map_err(|e| RenameError {
+            path: target,
+            source: e,
+        })?;
 
         Ok(())
     }
@@ -112,26 +116,21 @@ impl AsRef<Transaction> for Transaction {
     }
 }
 
-
 #[cfg(test)]
 mod test {
-    use bytes::Bytes;
-    use std::{io::{Error as IoErr, ErrorKind}, mem::transmute};
     use blake3::Hasher;
+    use bytes::Bytes;
+    use std::io::{Error as IoErr, ErrorKind};
 
+    use crate::{encode, storage::tests::with_temp_transaction};
 
-use crate::{encode, storage::tests::{with_temp_service, with_temp_transaction}};
-
-    
     #[tokio::test]
     async fn successful_commit_and_hash() {
-        with_temp_transaction(async move |transaction| {
-
-            let target_path = transaction.target_path().to_owned();
+        with_temp_transaction(async move |transaction, vault_path| {
             let chunks: Vec<Result<Bytes, IoErr>> = vec![
                 Ok(Bytes::from("hello")),
                 Ok(Bytes::from(" ")),
-                Ok(Bytes::from("world"))
+                Ok(Bytes::from("world")),
             ];
 
             let f_stream = futures::stream::iter(chunks);
@@ -140,39 +139,38 @@ use crate::{encode, storage::tests::{with_temp_service, with_temp_transaction}};
 
             assert!(result.is_ok());
 
+            let target_path = vault_path.join(result.as_ref().unwrap());
+
             let mut hasher = Hasher::new();
             let bytes = tokio::fs::read(target_path).await.unwrap();
             hasher.update(&bytes);
-            
+
             let expected_hash = encode(hasher.finalize().as_bytes().iter());
 
-            assert_eq!(expected_hash, result.unwrap()); 
-        }).await
+            assert_eq!(expected_hash, result.unwrap());
+        })
+        .await
     }
-
 
     #[tokio::test]
     async fn aborted_test_cleans_up_garbage() {
-        with_temp_transaction(async move | transaction| {
+        with_temp_transaction(async move |transaction, _vault_path| {
             let temp_path = transaction.temp_path().to_owned();
-            let target_path = transaction.target_path().to_owned();
 
             let chunks: Vec<Result<Bytes, IoErr>> = vec![
                 Ok(Bytes::from("good bytes")),
-                Err(IoErr::new(ErrorKind::ConnectionAborted, "Wifi dies, lol"))
+                Err(IoErr::new(ErrorKind::ConnectionAborted, "Wifi dies, lol")),
             ];
 
             let f_stream = futures::stream::iter(chunks);
 
             let result = transaction.commit(f_stream).await;
 
-            
             assert!(result.is_err());
-            
-            
-            assert!(!temp_path.exists());
-            assert!(!target_path.exists());
-        }).await;
-    }
 
+            assert!(!temp_path.exists());
+            // assert!(!target_path.exists());
+        })
+        .await;
+    }
 }

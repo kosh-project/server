@@ -36,6 +36,8 @@ pub enum Error {
         #[source]
         source: io::Error,
     },
+    #[error("Invalid Path : {path}")]
+    InvalidPath { path: PathBuf },
 }
 
 pub type Result<T> = core::result::Result<T, storage::Error>;
