@@ -1,5 +1,6 @@
 use hyper::StatusCode;
 use reqwest::multipart;
+use sqlx::sqlite::SqlitePoolOptions;
 use tmpdir::TmpDir;
 use tokio::{fs, net::TcpListener};
 use webdav_server::{api::route::router, app::AppStateBuilder};
@@ -22,7 +23,15 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
 
-    let state = AppStateBuilder::new().vault_path(&vault_dir).build();
+    let sql_pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect("sqlite://test/vault/metadata.db")
+        .await?;
+
+    let state = AppStateBuilder::new()
+        .vault_path(&vault_dir)
+        .db(sql_pool)
+        .build();
 
     tokio::spawn(async move { axum::serve(listener, router(state)).await.unwrap() });
 
