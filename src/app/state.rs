@@ -1,10 +1,13 @@
 use std::path::Path;
 
+use sqlx::SqlitePool;
+
 use crate::storage;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct State {
     pub storage: storage::Service,
+    pub db: SqlitePool,
 }
 
 impl State {
