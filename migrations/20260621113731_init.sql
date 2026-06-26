@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     identity_hash BLOB NOT NULL UNIQUE,
-    auto_verifier TEXT NOT NULL
+    auth_verifier TEXT NOT NULL
 );
 
 

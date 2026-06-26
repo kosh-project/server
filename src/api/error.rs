@@ -6,7 +6,7 @@ pub enum Error {
     #[error("Malformed Multipart found")]
     MalformedMultipart,
     #[error("Bad Request")]
-    BadRequest,
+    BadRequest(String),
     #[error("Stream Read Error : ")]
     StreamReadError,
     #[error("Missing Field")]
