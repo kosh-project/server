@@ -13,7 +13,7 @@ use uuid::Uuid;
 #[derive(Debug)]
 pub(crate) struct Transaction {
     temp: PathBuf,
-    uuid: Uuid,
+    _uuid: Uuid,
     hasher: Hasher,
 }
 
@@ -30,7 +30,7 @@ impl Transaction {
         temp.add_extension("tmp");
         Self {
             temp,
-            uuid,
+            _uuid: uuid,
             hasher: Hasher::new(),
         }
     }

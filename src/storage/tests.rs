@@ -1,8 +1,8 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use tmpdir::TmpDir;
 
-use crate::storage::{self, transaction::Transaction};
+use crate::storage::transaction::Transaction;
 
 use super::*;
 
