@@ -36,4 +36,6 @@ jobs:
         run: rustup component add clippy || true
 
       - name: Run cargo test
+        env:
+          SQLX_OFFLINE: true
         run: cargo test --all -- --nocapture
