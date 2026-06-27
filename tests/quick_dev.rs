@@ -11,7 +11,7 @@ async fn quick_dev() -> anyhow::Result<()> {
 
     let sql_pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .connect("sqlite://test/vault/metadata.db")
+        .connect("sqlite::memory:")
         .await?;
 
     let state = AppStateBuilder::new()
