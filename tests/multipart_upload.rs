@@ -25,8 +25,10 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
 
     let sql_pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .connect("sqlite://test/vault/metadata.db")
+        .connect("sqlite::memory:")
         .await?;
+
+    sqlx::migrate!("./migrations").run(&sql_pool).await?;
 
     let state = AppStateBuilder::new()
         .vault_path(&vault_dir)
