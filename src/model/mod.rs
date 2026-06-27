@@ -1,5 +1,6 @@
 pub mod asset;
 pub mod error;
-mod user;
+pub mod sessions;
+pub mod user;
 
 pub use error::{Error, Result};

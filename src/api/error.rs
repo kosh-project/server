@@ -13,6 +13,8 @@ pub enum Error {
     MissingField,
     #[error("IO Error : {}", .0)]
     IoError(#[from] io::Error),
+    #[error("Unauthorized : {}", .0)]
+    Unauthorized(String),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

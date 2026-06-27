@@ -11,6 +11,7 @@ chrono = { version = "0.4.45", features = ["serde"] }
 futures = "0.3.32"
 hex = "0.4.3"
 hyper = "1.10.1"
+rand = "0.10.1"
 rcgen = "0.14.8"
 reqwest = { version = "0.13.4", features = ["json"] }
 serde = "1.0.228"
