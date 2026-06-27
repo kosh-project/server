@@ -32,9 +32,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install Clippy (optional)
-        run: rustup component add clippy || true
-
       - name: Run cargo test
         env:
           SQLX_OFFLINE: true
