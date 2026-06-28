@@ -1,13 +1,16 @@
 use crate::error::Result;
-use crate::model::sessions::Sessions;
+use crate::model::session::Session;
 use crate::model::user::User;
-use crate::{api::Error, app::State as AppState};
+use crate::{
+    api::Error::{BadRequest, Unauthorized},
+    app::State as AppState,
+};
 use axum::Json;
 use axum::extract::State;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
-pub(crate) struct LoginResponse {
+pub struct LoginResponse {
     pub token: String,
 }
 
@@ -21,9 +24,15 @@ pub async fn login(
     State(state): State<AppState>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>> {
-    let user_id = User::verify(&state.db, request.identity_hash, request.auth_verifier).await?;
+    let Ok(identity_hash) = hex::decode(&request.identity_hash) else {
+        Err(BadRequest("identity_hash failed to decode".into()))?
+    };
 
-    let token = Sessions::create(&state.db, user_id).await?;
+    let user_id = User::verify(&state.db, identity_hash, request.auth_verifier)
+        .await?
+        .ok_or(Unauthorized("Invalid Credentials".into()))?;
+
+    let token = Session::create(&state.db, user_id).await?;
 
     Ok(Json(LoginResponse { token }))
 }

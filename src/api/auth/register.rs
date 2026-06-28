@@ -1,10 +1,11 @@
-use crate::api::Error as ApiError;
+use crate::api::Error::BadRequest;
 use crate::app::State as AppState;
+use crate::model::user::User;
 use crate::{Error as AppErr, Result};
 use axum::{Json, extract::State};
 use hyper::StatusCode;
 use serde::Deserialize;
-use sqlx::{Error as SqlErr, Executor};
+use sqlx::Error as SqlErr;
 
 #[derive(Deserialize)]
 pub struct RegisterRequest {
@@ -16,24 +17,28 @@ pub async fn register(
     State(state): State<AppState>,
     Json(register_request): Json<RegisterRequest>,
 ) -> Result<StatusCode> {
-    let hash_bytes = hex::decode(register_request.identity_hash)
-        .map_err(|_| ApiError::BadRequest("Invalid hex string".into()))?;
+    let Ok(identity_hash) =
+        hex::decode(&register_request.identity_hash)
+    else {
+        Err(BadRequest(
+            "identity_hash failed to decode".into(),
+        ))?
+    };
 
-    let result = sqlx::query!(
-        "INSERT INTO users (identity_hash, auth_verifier) VALUES (?, ?)",
-        hash_bytes,
-        register_request.auth_verifier
+    let result = User::create(
+        &state.db,
+        identity_hash,
+        register_request.auth_verifier,
     )
-    .execute(&state.db)
     .await;
 
     match result {
         Ok(_) => Ok(StatusCode::CREATED),
-        Err(SqlErr::Database(db_err)) if db_err.is_unique_violation() => {
-            Err(AppErr::Conflict("User already exists".into()))
-        }
+        Err(AppErr::DatabaseError(SqlErr::Database(
+            err,
+        ))) if err.is_unique_violation() => Err(
+            AppErr::Conflict("User already exists".into()),
+        ),
         Err(e) => Err(e.into()),
     }
 }
-
-pub async fn login() {}

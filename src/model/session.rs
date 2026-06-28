@@ -52,6 +52,11 @@ impl Session {
         Ok(token)
     }
 
+    /// Querries the database and returns [`Option<Session>`] wrapped in [`Result`].
+    /// If any such token exists yields `Some(session)`
+    ///
+    /// # Error
+    /// Returns [`sqlx::Error`] on failed querry to database.
     pub async fn verify(pool: &SqlitePool, token_hash: &[u8]) -> Result<Option<Self>> {
         let session = sqlx::query_as!(
             Session,
@@ -68,6 +73,35 @@ impl Session {
         .fetch_optional(pool)
         .await?;
 
+        let this_moment = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("What")
+            .as_secs();
+
+        if let Some(ref sess) = session
+            && (this_moment < sess.created_at as u64 || this_moment > sess.expires_at as u64)
+        {
+            Self::revoke(pool, token_hash).await?;
+            return Ok(None);
+        }
+
         Ok(session)
+    }
+
+    /// Removes the session entry from sessions entity.
+    ///
+    /// Error
+    /// Fails with [`sqlx::Error`], if querrying with database fails
+    pub async fn revoke(pool: &SqlitePool, token_hash: &[u8]) -> Result<()> {
+        let result = sqlx::query!(
+            r#"
+            DELETE FROM sessions WHERE token_hash = ?
+        "#,
+            token_hash
+        )
+        .execute(pool)
+        .await?;
+
+        Ok(())
     }
 }
