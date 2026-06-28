@@ -1,45 +1,42 @@
-use axum::{
-    Json, Router,
-    extract::Multipart,
-    response::IntoResponse,
-    routing::{get, post},
-};
-use hyper::StatusCode;
-use serde_json::{Value, json};
 use tokio::{
-    io::{self, AsyncWriteExt},
+    io::{self},
     net::TcpListener,
 };
+use webdav_server::{
+    api::route::route_main, app::AppStateBuilder, log,
+};
 
-use std::fmt::Display;
-
-
-
-
+use sqlx::sqlite::SqlitePoolOptions; // You need this import!
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    tokio::fs::create_dir_all("./vault").await?;
+    tokio::fs::create_dir_all("./test/vault").await?;
+    log!("FS", "Initialized vault");
 
-    debug("FS", "Initialized vault");
+    println! {"holy shit {}", "nigga"};
 
-    let app = Router::new()
-        .route("/health", get(get_health))
-        .route("/storage", get(get_storage))
-        .route("/upload", post(handle_upload));
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect("sqlite://test/vault/metadata.db")
+        .await
+        .expect("Failed to connect to SQLite!");
+
+    let app_state = AppStateBuilder::new()
+        .db(pool)
+        .vault_path(std::path::PathBuf::from("./vault"))
+        .build();
+
+    let app = route_main(app_state);
 
     let listener = TcpListener::bind("0.0.0.0:6969").await?;
+    log!("SERVER", "Listening on port 6969");
 
-    debug("SERVER", "Initiated");
     tokio::select! {
-        _ = axum::serve(listener, app) => {
-
-        },
+        _ = axum::serve(listener, app) => {},
         _ = tokio::signal::ctrl_c() => {
-            eprintln!("\nShutting down!");
+            eprintln!("\nKeyboard Interrupt received, Shutting Down!");
         }
     }
 
     Ok(())
 }
-
