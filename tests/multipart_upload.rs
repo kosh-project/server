@@ -3,7 +3,7 @@ use reqwest::multipart;
 use sqlx::sqlite::SqlitePoolOptions;
 use tmpdir::TmpDir;
 use tokio::{fs, net::TcpListener};
-use webdav_server::{api::route::router, app::AppStateBuilder};
+use webdav_server::{api::route::route_main, app::AppStateBuilder};
 
 #[tokio::test]
 #[serial_test::serial]
@@ -34,11 +34,14 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
         .db(sql_pool)
         .build();
 
-    tokio::spawn(async move { axum::serve(listener, router(state)).await.unwrap() });
+    tokio::spawn(async move {
+        axum::serve(listener, route_main(state)).await.unwrap()
+    });
 
-    let file_part = multipart::Part::bytes(fake_encrypted_payload.clone())
-        .file_name(file_name)
-        .mime_str("application/octet-stream")?;
+    let file_part =
+        multipart::Part::bytes(fake_encrypted_payload.clone())
+            .file_name(file_name)
+            .mime_str("application/octet-stream")?;
 
     let form = multipart::Form::new().part("file", file_part);
 
@@ -50,7 +53,11 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
         .send()
         .await?;
 
-    assert_eq!(response.status(), StatusCode::OK, "Server Operation failed",);
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Server Operation failed",
+    );
 
     let response_json: serde_json::Value = response.json().await?;
 

@@ -5,8 +5,6 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Serialize;
-use serde_json::json;
-use tokio::fs::File;
 
 use crate::{app::State as AppState, log};
 
@@ -41,7 +39,7 @@ impl From<Vec<FileStatus>> for UploadResponse {
     }
 }
 
-pub(crate) async fn handle_upload(
+pub async fn upload(
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> crate::Result<impl IntoResponse> {

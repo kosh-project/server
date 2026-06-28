@@ -15,7 +15,7 @@ impl User {
     ///
     /// # Error
     /// - If querrying database causes failure, returns with [`sqlx::sqlite::SqliteQueryResult`]
-    /// -
+    /// - On uniqueness violation, that is, when user already exists, yields [`sqlx::Error::Database`]
     pub async fn create(
         pool: &SqlitePool,
         identity_hash: Vec<u8>,

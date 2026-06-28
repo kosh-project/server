@@ -20,15 +20,17 @@ macro_rules! log {
 
 pub trait Color {
     fn bold(&self) -> String;
-    fn italic (&self) -> String;
+    fn italic(&self) -> String;
     fn warn(&self) -> String;
     fn error(&self) -> String;
     fn debug(&self) -> String;
     fn info(&self) -> String;
 }
 
-impl <T> Color for T 
-where T : Display {
+impl<T> Color for T
+where
+    T: Display,
+{
     fn bold(&self) -> String {
         format!("\x1b[1m{self}\x1b[0m")
     }
@@ -45,7 +47,7 @@ where T : Display {
         format!("\x1b[36m{self}\x1b[0m")
     }
 
-    fn italic (&self) -> String {
+    fn italic(&self) -> String {
         format!("\x1b[2m{self}\x1b[0m")
     }
 

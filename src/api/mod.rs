@@ -1,6 +1,9 @@
 pub mod auth;
+pub mod middleware;
 pub mod route;
-pub mod upload;
+
+mod upload;
+pub use upload::upload;
 
 pub mod error;
 

@@ -1,7 +1,7 @@
 use sqlx::sqlite::SqlitePoolOptions;
 use tmpdir::TmpDir;
 use tokio::net::TcpListener;
-use webdav_server::{api::route::router, app::AppStateBuilder};
+use webdav_server::{api::route::route_main, app::AppStateBuilder};
 
 #[tokio::test]
 #[serial_test::serial]
@@ -20,7 +20,7 @@ async fn quick_dev() -> anyhow::Result<()> {
         .build();
 
     tokio::spawn(async move {
-        let _ = axum::serve(listener, router(state)).await;
+        let _ = axum::serve(listener, route_main(state)).await;
     });
 
     let client = httpc_test::new_client(format!("http://{addr}"))?;

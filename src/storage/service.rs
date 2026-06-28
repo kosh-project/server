@@ -1,14 +1,11 @@
 use bytes::Bytes;
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use std::error::Error as StdErr;
-use std::io::{Error as IoErr, ErrorKind as IoErrKind};
-use tokio::fs::{remove_file, rename};
-use tokio::{fs::File, io::AsyncWriteExt};
 
 use crate::log;
-use crate::storage::transaction::{self, Transaction};
+use crate::storage::transaction::Transaction;
 use crate::storage::{Error::*, Result};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Default, Clone)]
 pub struct Service {
@@ -62,7 +59,7 @@ impl Service {
 
 #[cfg(test)]
 mod tests {
-    use serde::ser;
+    use tokio::fs::File;
 
     use super::*;
 
