@@ -1,8 +1,10 @@
 use bytes::Bytes;
 use futures::Stream;
 use std::error::Error as StdErr;
+use std::fs::metadata;
 
 use crate::log;
+use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
 use crate::storage::{Error::*, Result};
 use std::path::PathBuf;
@@ -23,18 +25,22 @@ impl Service {
     }
 
     // Needs more refactoring
-    pub async fn try_save<S, E>(&self, file_name: &str, f_stream: S) -> Result<String>
+    pub async fn try_save<S, E>(
+        &self,
+        file_name: &str,
+        f_stream: S,
+    ) -> Result<Metadata>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
         let transaction = self.begin_transaction(&file_name)?;
 
-        let hash = transaction.commit(f_stream).await?;
+        let file_metadata = transaction.commit(f_stream).await?;
 
         log!("STORAGE", "committed: {file_name}");
 
-        Ok(hash)
+        Ok(file_metadata)
     }
 
     /// Validates
@@ -43,7 +49,10 @@ impl Service {
         T: AsRef<str>,
     {
         let file_name = file.as_ref();
-        if file_name.is_empty() || file_name.contains('/') || file_name.contains('\\') {
+        if file_name.is_empty()
+            || file_name.contains('/')
+            || file_name.contains('\\')
+        {
             return Err(InvalidFileName);
         }
 
@@ -77,7 +86,8 @@ mod tests {
             assert!(result.is_err());
             assert!(matches!(result, Err(InvalidFileName)));
 
-            let result = service.begin_transaction(&"../../../../etc/passwd");
+            let result =
+                service.begin_transaction(&"../../../../etc/passwd");
             assert!(result.is_err());
             assert!(matches!(result, Err(InvalidFileName)))
         })

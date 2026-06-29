@@ -1,4 +1,4 @@
-use crate::storage::{Error::*, Result};
+use crate::storage::{Error::*, Result, file::Metadata};
 use blake3::Hasher;
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
@@ -42,13 +42,13 @@ impl Transaction {
 
 /// Actions
 impl Transaction {
-    pub async fn commit<S, E>(mut self, f_stream: S) -> Result<String>
+    pub async fn commit<S, E>(mut self, f_stream: S) -> Result<Metadata>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
         match self.write_and_commit(f_stream).await {
-            Ok(_) => Ok(self.hasher.finalize().to_string()),
+            Ok(metadata) => Ok(metadata),
 
             // Deletes temporary file if error occurs
             // Future : queue this file for gc, after some period
@@ -61,14 +61,19 @@ impl Transaction {
         }
     }
 
-    async fn write_and_commit<S, E>(&mut self, f_stream: S) -> Result<()>
+    async fn write_and_commit<S, E>(
+        &mut self,
+        f_stream: S,
+    ) -> Result<Metadata>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
-        let mut file = File::create(&self.temp).await.map_err(|e| CreateTempFile {
-            path: self.temp.clone(),
-            source: e,
+        let mut file = File::create(&self.temp).await.map_err(|e| {
+            CreateTempFile {
+                path: self.temp.clone(),
+                source: e,
+            }
         })?;
 
         self.process_stream(f_stream, &mut file).await?;
@@ -86,23 +91,31 @@ impl Transaction {
             source: e,
         })?;
 
-        Ok(())
+        Metadata::try_new(
+            &file.metadata().await?,
+            self.hasher.finalize(),
+        )
     }
 
-    async fn process_stream<S, E>(&mut self, mut f_stream: S, file: &mut File) -> Result<()>
+    async fn process_stream<S, E>(
+        &mut self,
+        mut f_stream: S,
+        file: &mut File,
+    ) -> Result<()>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
         while let Some(chunk) = f_stream.next().await {
-            let chunk = chunk.map_err(|e| IoErr::new(IoErrKind::Other, e))?;
+            let chunk =
+                chunk.map_err(|e| IoErr::new(IoErrKind::Other, e))?;
 
-            file.write_all(&chunk)
-                .await
-                .map_err(|e| WriteChunkFailure {
+            file.write_all(&chunk).await.map_err(|e| {
+                WriteChunkFailure {
                     path: self.temp.clone(),
                     source: e,
-                })?;
+                }
+            })?;
 
             self.hasher.update(&chunk);
         }
@@ -139,7 +152,10 @@ mod test {
 
             assert!(result.is_ok());
 
-            let target_path = vault_path.join(result.as_ref().unwrap());
+            let metadata = result.as_ref().unwrap();
+
+            let target_path =
+                vault_path.join(metadata.hash.to_string());
 
             let mut hasher = Hasher::new();
             let bytes = tokio::fs::read(target_path).await.unwrap();
@@ -147,7 +163,7 @@ mod test {
 
             let expected_hash = hasher.finalize().to_string();
 
-            assert_eq!(expected_hash, result.unwrap());
+            assert_eq!(expected_hash, metadata.hash.to_string());
         })
         .await
     }
@@ -159,7 +175,10 @@ mod test {
 
             let chunks: Vec<Result<Bytes, IoErr>> = vec![
                 Ok(Bytes::from("good bytes")),
-                Err(IoErr::new(ErrorKind::ConnectionAborted, "Wifi dies, lol")),
+                Err(IoErr::new(
+                    ErrorKind::ConnectionAborted,
+                    "Wifi dies, lol",
+                )),
             ];
 
             let f_stream = futures::stream::iter(chunks);
