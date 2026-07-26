@@ -1,9 +1,9 @@
-use crate::{Result, model::*, storage::file::Metadata};
-use bytes::Bytes;
+use crate::{Result, storage::file::Metadata};
 use sqlx::{SqlitePool, query};
 use uuid::Uuid;
 
 #[derive(sqlx::FromRow)]
+#[allow(unused)]
 pub struct Asset {
     uuid: Uuid,
     hash: Vec<u8>,
@@ -37,24 +37,32 @@ impl Asset {
         Ok(result.is_some())
     }
 
+    /// Registers an asset entry to the assets entity
+    ///
+    /// Error
+    /// - Returns [`sqlx::Error::Database`] for uniqueness violation,
+    /// because of `uuid` being PRIMARY KEY, which happens very (very) rarely.
+    /// - Otherwise, this can fail on querrying databases
     pub async fn create(
         pool: &SqlitePool,
-        user_id: i64,
+        user: i64,
         tag: AssetTag,
         metadata: &Metadata,
     ) -> Result<()> {
         sqlx::query!(
             r#"
-            INSERT INTO assets (user_id, hash, size_bytes, last_modified, tag)
-            VALUES(?, ?, ?, ?, ?)
+            INSERT INTO assets (id, user_id, hash, size_bytes, last_modified,tag)
+            VALUES(?, ?, ?, ?, ?, ?)
             "#,
-            user_id,
+            Uuid::new_v4().as_bytes().to_vec(),
+            user,
             metadata.hash.as_bytes().to_vec(),
             metadata.size,
             metadata.last_modified,
             tag
         ).execute(pool)
         .await?;
+
         Ok(())
     }
 }
