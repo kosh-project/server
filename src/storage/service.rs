@@ -68,7 +68,10 @@ impl Service {
 
 #[cfg(test)]
 mod tests {
-    use tokio::fs::File;
+    use std::{io::Error as IoErr, result};
+    use core::result::Result;
+
+use tokio::fs::File;
 
     use super::*;
 
@@ -110,6 +113,44 @@ mod tests {
             assert!(matches!(result, Err(FileAlreadyExists(_))));
         })
         .await;
+    }
+
+
+    #[tokio::test]
+    async fn concurrent_write_collisions_dont_panic() {
+        with_temp_service(|service | async move {
+            let service_a = service.clone();
+            let service_b = service.clone();
+            
+            let task_a = tokio::spawn(async move { 
+                let chunks : Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("some_data"))];
+                let stream = futures::stream::iter(chunks);
+
+                service_a.try_save("dev1_upload.rs", stream).await
+            });
+
+            let task_b = tokio::spawn(async move{
+                let payload: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("some_data"))];
+                let stream = futures::stream::iter(payload);
+
+                service_b.try_save("some_other_file.rs", stream).await
+            });
+
+            let (result_a, result_b) = tokio::join!(task_a, task_b);
+
+            // Test : Writing to same file doesn't fail
+            let metadata_a = result_a.unwrap().expect("task_a failed");
+            let metadata_b = result_b.unwrap().expect("task_b failed");
+
+            // Test: Both files wrote exact same data
+            assert_eq!(metadata_a.hash.to_string(), metadata_b.hash.to_string());
+
+
+            let expected_path = service.vault_path.join(metadata_a.hash.to_string());
+            // Test: Expected path exists
+            assert!(expected_path.exists());
+
+        }).await;
     }
 
     #[tokio::test]
