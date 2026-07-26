@@ -133,9 +133,10 @@ impl AsRef<Transaction> for Transaction {
 mod test {
     use blake3::Hasher;
     use bytes::Bytes;
-    use std::io::{Error as IoErr, ErrorKind};
+use tokio::fs::metadata;
+    use std::{io::{Error as IoErr, ErrorKind}, path::PathBuf};
 
-    use crate::storage::tests::with_temp_transaction;
+    use crate::storage::{tests::with_temp_transaction, transaction::{self, Transaction}};
 
     #[tokio::test]
     async fn successful_commit_and_hash() {
@@ -222,5 +223,42 @@ mod test {
             // assert!(!target_path.exists());
         })
         .await;
+    }
+
+    #[tokio::test]
+    async fn transaction_fails_if_vault_missing() {
+
+        let vault = PathBuf::from("/tmp/path/that/possibly/doesnt/exist/lol");
+        let transaction = Transaction::new(vault);
+
+        let chunks: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("data_data"))];
+        let f_stream = futures::stream::iter(chunks);
+
+        let result = transaction.commit(f_stream).await;
+
+        // Test: No problem parsing the data
+        assert!(result.is_err());
+
+        use crate::storage::Error::CreateTempFile;
+
+        // Test: Yields CreateTempFile Error, 'cause vault directory was missing
+        assert!(matches!(result, Err(CreateTempFile { .. })), "Expected Err(CreateTempFile)");
+
+    }
+
+    #[tokio::test]
+    async fn hardcoded_hash_correctness() {
+        with_temp_transaction(async move |transaction, _vault_path| {
+            let payload : Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("hello world"))];
+            let f_stream = futures::stream::iter(payload);
+
+            let metadata = transaction.commit(f_stream).await.unwrap();
+
+            // Pre-calculated Blake3 hash of "hello world"
+            let expected_hash = "d74981efa70a0c880b8d8c1985d075dbcbf679b99a5f9914e5aaf96b831a9e24";
+
+            // Test: committed payload generates same hash as expected_hash
+            assert_eq!(metadata.hash.to_string(), expected_hash);
+        }).await;
     }
 }
