@@ -3,7 +3,11 @@ use reqwest::multipart;
 use sqlx::sqlite::SqlitePoolOptions;
 use tmpdir::TmpDir;
 use tokio::{fs, net::TcpListener};
-use webdav_server::{api::route::route_main, app::AppStateBuilder};
+use webdav_server::{
+    api::route::route_main,
+    app::AppStateBuilder,
+    model::{session::Session, user::User},
+};
 
 #[tokio::test]
 #[serial_test::serial]
@@ -29,6 +33,12 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
 
     sqlx::migrate!("./migrations").run(&sql_pool).await?;
 
+    User::create(&sql_pool, vec![0; 32], "fake_verifier".into())
+        .await?;
+
+    let user_id = 1;
+    let token = Session::create(&sql_pool, user_id).await?;
+
     let state = AppStateBuilder::new()
         .vault_path(&vault_dir)
         .db(sql_pool)
@@ -43,12 +53,15 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
             .file_name(file_name)
             .mime_str("application/octet-stream")?;
 
-    let form = multipart::Form::new().part("file", file_part);
+    let form = multipart::Form::new()
+        .text("tag", "0")
+        .part("file", file_part);
 
     let client = reqwest::Client::new();
 
     let response = client
-        .post(format!("http://{addr}/upload"))
+        .post(format!("http://{addr}/api/v1/upload"))
+        .header("Authorization", format!("Bearer {token}"))
         .multipart(form)
         .send()
         .await?;

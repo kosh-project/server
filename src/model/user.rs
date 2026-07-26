@@ -4,7 +4,7 @@ use sqlx::{Error as SqlErr, Executor, SqlitePool};
 
 /// User entity for persistent storage
 ///
-pub(crate) struct User {
+pub struct User {
     pub id: i64,
     pub identity_hash: [u8; 32],
     pub auth_verifier: String,
