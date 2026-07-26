@@ -169,6 +169,37 @@ mod test {
     }
 
     #[tokio::test]
+    async fn zero_byte_stream_creates_empty_file() {
+        with_temp_transaction(async move |transaction, vault_path| {
+            let chunks: Vec<Result<Bytes, IoErr>> = Vec::new();
+            let f_stream = futures::stream::iter(chunks);
+
+            let result = transaction.commit(f_stream).await;
+
+            // Test: Should succeed w/o panic
+            assert!(result.is_ok());
+
+            let metadata = result.unwrap();
+
+            assert_eq!(metadata.size, 0);
+
+            let target_path =
+            vault_path.join(metadata.hash.to_string());
+
+            // Test: There File should be present, even though its empty
+            assert!(target_path.exists());
+
+            
+            let expected_hash = Hasher::new().finalize().to_string();
+             
+            // Test: Hashes match 
+            assert_eq!(metadata.hash.to_string(), expected_hash)
+
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn aborted_test_cleans_up_garbage() {
         with_temp_transaction(async move |transaction, _vault_path| {
             let temp_path = transaction.temp_path().to_owned();
