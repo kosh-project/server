@@ -1,15 +1,16 @@
-use std::fs::File;
-
 use crate::model::asset::Asset;
 use crate::storage::Error as StorageErr;
 use crate::{api::Error::*, model::asset::AssetTag, storage};
+use axum::body::Body;
 use axum::{
-    Json,
-    extract::{Multipart, State, multipart::Field},
+    Extension, Json,
+    extract::{Multipart, Path, State, multipart::Field},
     response::IntoResponse,
 };
+use hyper::HeaderMap;
 use serde::Serialize;
 use sqlx::query;
+use std::fs::File;
 
 use crate::{app::State as AppState, log};
 
@@ -33,56 +34,35 @@ impl FileStatus {
     }
 }
 
-#[derive(Serialize)]
-struct UploadResponse {
-    stats: Vec<FileStatus>,
-}
-
-impl From<Vec<FileStatus>> for UploadResponse {
-    fn from(stats: Vec<FileStatus>) -> Self {
-        Self { stats }
-    }
-}
-
 pub async fn upload(
     State(state): State<AppState>,
-    axum::Extension(user_id): axum::Extension<i64>,
-    mut multipart: Multipart,
+    Path(tag_str): Path<String>,
+    headers: HeaderMap,
+    Extension(user_id): Extension<i64>,
+    body: Body,
 ) -> crate::Result<impl IntoResponse> {
     log!("HANDLER", "post_upload");
 
-    let mut current_tag: Option<AssetTag> = None;
-    let mut file_stats = Vec::new();
+    let tag = AssetTag::try_from(tag_str.as_str())
+        .map_err(|_| BadRequest("Invalid Tag".into()))?;
 
-    while let Some(field) =
-        multipart.next_field().await.map_err(|_| StreamReadError)?
-    {
-        let field_name = field.name().unwrap_or("").to_string();
+    let file_name = headers.get("X-File-Name")
+    .and_then(|v| v.to_str().ok())
+    .ok_or_else(|| BadRequest("Missing X-File-Name header".into()))?;
 
-        if field_name == "tag" {
-            let tag_str = field.text().await.map_err(|_| {
-                BadRequest("Corrupted Tag field".into())
-            })?;
+    let f_stream = body.into_data_stream();
 
-            current_tag =
-                Some(AssetTag::try_from(tag_str.as_str()).map_err(
-                    |_| BadRequest("Invalid tag integer".into()),
-                )?);
-            continue;
-        }
+    let status = match state.storage.try_save(file_name, f_stream).await {
+        Ok(metadata) => {
+            match Asset::create(&state.db, user_id, tag, &metadata).await {
+                Ok(_) => FileStatus::success(file_name.into(), metadata.hash.to_string()),
+                Err(e) => FileStatus::failure(file_name.into(), e)
+            }
+        },
+        Err(e) => FileStatus::failure(file_name.into(), e)
+    };
 
-        if field_name == "file" {
-            let tag = current_tag.ok_or_else(|| {
-                BadRequest("Expected 'tag' field, found 'file'".into())
-            })?;
-
-            let status =
-                process_file(&state, user_id, tag, field).await;
-            file_stats.push(status);
-        }
-    }
-
-    Ok(Json(UploadResponse::from(file_stats)))
+    Ok(Json(status))
 }
 
 async fn process_file(

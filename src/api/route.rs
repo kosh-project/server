@@ -38,7 +38,7 @@ fn auth_route() -> Router<AppState> {
 /// [`crate::api::middleware::auth_guard`]
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
-        .route("/upload", post(api::upload))
+        .route("/upload/{tag}", post(api::upload))
         .route("/storage", get(storage))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

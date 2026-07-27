@@ -48,21 +48,14 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
         axum::serve(listener, route_main(state)).await.unwrap()
     });
 
-    let file_part =
-        multipart::Part::bytes(fake_encrypted_payload.clone())
-            .file_name(file_name)
-            .mime_str("application/octet-stream")?;
-
-    let form = multipart::Form::new()
-        .text("tag", "0")
-        .part("file", file_part);
-
     let client = reqwest::Client::new();
 
     let response = client
-        .post(format!("http://{addr}/api/v1/upload"))
+        .post(format!("http://{addr}/api/v1/upload/0"))
         .header("Authorization", format!("Bearer {token}"))
-        .multipart(form)
+        .header("X-File-Name", file_name)
+        .header("Content-Length", fake_encrypted_payload.len().to_string())
+        .body(fake_encrypted_payload.clone())
         .send()
         .await?;
 
@@ -74,7 +67,7 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
 
     let response_json: serde_json::Value = response.json().await?;
 
-    let hash_str = response_json["stats"][0]["hash"].as_str().unwrap();
+    let hash_str = response_json["hash"].as_str().unwrap();
 
     // eprintln!("Fails??");
     let written_bytes = fs::read(vault_dir.join(hash_str)).await?;
