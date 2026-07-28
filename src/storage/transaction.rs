@@ -1,11 +1,10 @@
-use crate::storage::{Error::*, Result, file::Metadata};
+use crate::storage::{Error::*, Payload, Result, file::Metadata};
 use blake3::Hasher;
 use bytes::Bytes;
+use fs4::AsyncFileExt;
 use futures::{Stream, StreamExt};
 use std::{
-    error::Error as StdErr,
-    io::{Error as IoErr, ErrorKind as IoErrKind},
-    path::{Path, PathBuf},
+    error::Error as StdErr, io::{Error as IoErr, ErrorKind::{self as IoErrKind, UnexpectedEof}}, path::{Path, PathBuf},
 };
 use tokio::{fs::*, io::AsyncWriteExt};
 use uuid::Uuid;
@@ -40,14 +39,16 @@ impl Transaction {
     }
 }
 
-/// Actions
-impl Transaction {
-    pub async fn commit<S, E>(mut self, f_stream: S) -> Result<Metadata>
+
+impl Transaction 
+where 
+    {
+    pub async fn commit<S, E>(mut self, payload : Payload<S, E>) -> Result<Metadata>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
-        match self.write_and_commit(f_stream).await {
+        match self.write_and_commit(payload).await {
             Ok(metadata) => Ok(metadata),
 
             // Deletes temporary file if error occurs
@@ -63,11 +64,12 @@ impl Transaction {
 
     async fn write_and_commit<S, E>(
         &mut self,
-        f_stream: S,
+        payload : Payload<S, E>
     ) -> Result<Metadata>
-    where
-        S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
-        E: Into<Box<dyn StdErr + Send + Sync>>,
+        where 
+            S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
+            E: Into<Box<dyn StdErr + Send + Sync>>,
+    
     {
         let mut file = File::create(&self.temp).await.map_err(|e| {
             CreateTempFile {
@@ -76,7 +78,19 @@ impl Transaction {
             }
         })?;
 
-        self.process_stream(f_stream, &mut file).await?;
+        if payload.expected_size > 0 {
+            let _ = file.allocate(payload.expected_size).await;
+        }
+
+        let bytes_written = self.process_stream(payload.stream, &mut file).await?;
+
+        if bytes_written != payload.expected_size {
+            return Err(
+                IoErr::new(UnexpectedEof, 
+                    "Content-Length doesn't match the bytes streamed"
+                ).into()
+            )
+        }
 
         let target = self
             .temp
@@ -101,11 +115,12 @@ impl Transaction {
         &mut self,
         mut f_stream: S,
         file: &mut File,
-    ) -> Result<()>
+    ) -> Result<u64>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
+        let mut bytes_written = 0;
         while let Some(chunk) = f_stream.next().await {
             let chunk =
                 chunk.map_err(|e| IoErr::new(IoErrKind::Other, e))?;
@@ -117,9 +132,11 @@ impl Transaction {
                 }
             })?;
 
+            bytes_written += chunk.len() as u64;
+
             self.hasher.update(&chunk);
         }
-        Ok(())
+        Ok(bytes_written)
     }
 }
 
@@ -133,10 +150,9 @@ impl AsRef<Transaction> for Transaction {
 mod test {
     use blake3::Hasher;
     use bytes::Bytes;
-use tokio::fs::metadata;
     use std::{io::{Error as IoErr, ErrorKind}, path::PathBuf};
 
-    use crate::storage::{tests::with_temp_transaction, transaction::{self, Transaction}};
+    use crate::storage::{Payload, tests::with_temp_transaction, transaction::{self, Transaction}};
 
     #[tokio::test]
     async fn successful_commit_and_hash() {
@@ -147,9 +163,12 @@ use tokio::fs::metadata;
                 Ok(Bytes::from("world")),
             ];
 
-            let f_stream = futures::stream::iter(chunks);
+            let payload = Payload::new(
+                11 as u64, 
+                futures::stream::iter(chunks)
+            );
 
-            let result = transaction.commit(f_stream).await;
+            let result = transaction.commit(payload).await;
 
             assert!(result.is_ok());
 
@@ -173,9 +192,13 @@ use tokio::fs::metadata;
     async fn zero_byte_stream_creates_empty_file() {
         with_temp_transaction(async move |transaction, vault_path| {
             let chunks: Vec<Result<Bytes, IoErr>> = Vec::new();
-            let f_stream = futures::stream::iter(chunks);
 
-            let result = transaction.commit(f_stream).await;
+            let payload = Payload::new(
+                0 as u64, 
+                futures::stream::iter(chunks)
+            );
+
+            let result = transaction.commit(payload).await;
 
             // Test: Should succeed w/o panic
             assert!(result.is_ok());
@@ -213,9 +236,12 @@ use tokio::fs::metadata;
                 )),
             ];
 
-            let f_stream = futures::stream::iter(chunks);
+            let payload=  Payload::new(
+                20 as u64, 
+                futures::stream::iter(chunks)
+            );
 
-            let result = transaction.commit(f_stream).await;
+            let result = transaction.commit(payload).await;
 
             assert!(result.is_err());
 
@@ -234,7 +260,9 @@ use tokio::fs::metadata;
         let chunks: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("data_data"))];
         let f_stream = futures::stream::iter(chunks);
 
-        let result = transaction.commit(f_stream).await;
+        let payload = Payload::new(9u64, f_stream);
+
+        let result = transaction.commit(payload).await;
 
         // Test: No problem parsing the data
         assert!(result.is_err());
@@ -252,7 +280,9 @@ use tokio::fs::metadata;
             let payload : Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("hello world"))];
             let f_stream = futures::stream::iter(payload);
 
-            let metadata = transaction.commit(f_stream).await.unwrap();
+            let payload = Payload::new(11 as u64, f_stream);
+
+            let metadata = transaction.commit(payload).await.unwrap();
 
             // Pre-calculated Blake3 hash of "hello world"
             let expected_hash = "d74981efa70a0c880b8d8c1985d075dbcbf679b99a5f9914e5aaf96b831a9e24";

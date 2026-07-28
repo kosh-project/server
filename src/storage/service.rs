@@ -6,7 +6,7 @@ use std::fs::metadata;
 use crate::log;
 use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
-use crate::storage::{Error::*, Result};
+use crate::storage::{Error::*, Payload, Result};
 use std::path::PathBuf;
 
 #[derive(Default, Clone)]
@@ -28,7 +28,7 @@ impl Service {
     pub async fn try_save<S, E>(
         &self,
         file_name: &str,
-        f_stream: S,
+        payload : Payload<S, E>
     ) -> Result<Metadata>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
@@ -36,7 +36,7 @@ impl Service {
     {
         let transaction = self.begin_transaction(&file_name)?;
 
-        let file_metadata = transaction.commit(f_stream).await?;
+        let file_metadata = transaction.commit(payload).await?;
 
         log!("STORAGE", "committed: {file_name}");
 
@@ -126,14 +126,14 @@ use tokio::fs::File;
                 let chunks : Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("some_data"))];
                 let stream = futures::stream::iter(chunks);
 
-                service_a.try_save("dev1_upload.rs", stream).await
+                service_a.try_save("dev1_upload.rs", Payload::new(9u64, stream)).await
             });
 
             let task_b = tokio::spawn(async move{
                 let payload: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("some_data"))];
                 let stream = futures::stream::iter(payload);
 
-                service_b.try_save("some_other_file.rs", stream).await
+                service_b.try_save("some_other_file.rs", Payload::new(9u64, stream)).await
             });
 
             let (result_a, result_b) = tokio::join!(task_a, task_b);

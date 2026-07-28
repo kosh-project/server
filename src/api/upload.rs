@@ -1,5 +1,5 @@
 use crate::model::asset::Asset;
-use crate::storage::Error as StorageErr;
+use crate::storage::{Error as StorageErr, Payload};
 use crate::{api::Error::*, model::asset::AssetTag, storage};
 use axum::body::Body;
 use axum::{
@@ -50,9 +50,19 @@ pub async fn upload(
     .and_then(|v| v.to_str().ok())
     .ok_or_else(|| BadRequest("Missing X-File-Name header".into()))?;
 
+    let expected_size: u64 = headers.get("Content-Length")
+    .and_then(|x| x.to_str().ok())
+    .and_then(|x| x.parse().ok())
+    .ok_or_else(|| BadRequest("Missing content length in header".into()))?;
+
+    if expected_size > 10_000_000_000 {
+        return Err(BadRequest("Payload too Large".into()).into());
+    }
+
     let f_stream = body.into_data_stream();
 
-    let status = match state.storage.try_save(file_name, f_stream).await {
+
+    let status = match state.storage.try_save(file_name, Payload::new(expected_size, f_stream)).await {
         Ok(metadata) => {
             match Asset::create(&state.db, user_id, tag, &metadata).await {
                 Ok(_) => FileStatus::success(file_name.into(), metadata.hash.to_string()),
@@ -65,33 +75,3 @@ pub async fn upload(
     Ok(Json(status))
 }
 
-async fn process_file(
-    state: &AppState,
-    user_id: i64,
-    tag: AssetTag,
-    field: Field<'_>,
-) -> FileStatus {
-    let file_name = match field.file_name() {
-        Some(name) if !name.is_empty() => name.to_string(),
-        _ => {
-            return FileStatus::failure(
-                "UNKNOWN".to_string(),
-                "Missing filename",
-            );
-        }
-    };
-
-    let metadata = match state.storage.try_save(&file_name, field).await
-    {
-        Ok(m) => m,
-        Err(e) => return FileStatus::failure(file_name, e),
-    };
-
-    match Asset::create(&state.db, user_id, tag, &metadata).await {
-        Ok(_) => FileStatus::success(
-            file_name,
-            metadata.hash.to_hex().to_string(),
-        ),
-        Err(e) => FileStatus::failure(file_name, e),
-    }
-}
