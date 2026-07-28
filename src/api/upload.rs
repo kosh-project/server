@@ -9,8 +9,6 @@ use axum::{
 };
 use hyper::HeaderMap;
 use serde::Serialize;
-use sqlx::query;
-use std::fs::File;
 
 use crate::{app::State as AppState, log};
 
@@ -46,14 +44,20 @@ pub async fn upload(
     let tag = AssetTag::try_from(tag_str.as_str())
         .map_err(|_| BadRequest("Invalid Tag".into()))?;
 
-    let file_name = headers.get("X-File-Name")
-    .and_then(|v| v.to_str().ok())
-    .ok_or_else(|| BadRequest("Missing X-File-Name header".into()))?;
+    let file_name = headers
+        .get("X-File-Name")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| {
+            BadRequest("Missing X-File-Name header".into())
+        })?;
 
-    let expected_size: u64 = headers.get("Content-Length")
-    .and_then(|x| x.to_str().ok())
-    .and_then(|x| x.parse().ok())
-    .ok_or_else(|| BadRequest("Missing content length in header".into()))?;
+    let expected_size: u64 = headers
+        .get("Content-Length")
+        .and_then(|x| x.to_str().ok())
+        .and_then(|x| x.parse().ok())
+        .ok_or_else(|| {
+            BadRequest("Missing content length in header".into())
+        })?;
 
     if expected_size > 10_000_000_000 {
         return Err(BadRequest("Payload too Large".into()).into());
@@ -61,17 +65,24 @@ pub async fn upload(
 
     let f_stream = body.into_data_stream();
 
-
-    let status = match state.storage.try_save(file_name, Payload::new(expected_size, f_stream)).await {
+    let status = match state
+        .storage
+        .try_save(file_name, Payload::new(expected_size, f_stream))
+        .await
+    {
         Ok(metadata) => {
-            match Asset::create(&state.db, user_id, tag, &metadata).await {
-                Ok(_) => FileStatus::success(file_name.into(), metadata.hash.to_string()),
-                Err(e) => FileStatus::failure(file_name.into(), e)
+            match Asset::create(&state.db, user_id, tag, &metadata)
+                .await
+            {
+                Ok(_) => FileStatus::success(
+                    file_name.into(),
+                    metadata.hash.to_string(),
+                ),
+                Err(e) => FileStatus::failure(file_name.into(), e),
             }
-        },
-        Err(e) => FileStatus::failure(file_name.into(), e)
+        }
+        Err(e) => FileStatus::failure(file_name.into(), e),
     };
 
     Ok(Json(status))
 }
-

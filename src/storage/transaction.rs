@@ -4,7 +4,12 @@ use bytes::Bytes;
 use fs4::AsyncFileExt;
 use futures::{Stream, StreamExt};
 use std::{
-    error::Error as StdErr, io::{Error as IoErr, ErrorKind::{self as IoErrKind, UnexpectedEof}}, path::{Path, PathBuf},
+    error::Error as StdErr,
+    io::{
+        Error as IoErr,
+        ErrorKind::{self as IoErrKind, UnexpectedEof},
+    },
+    path::{Path, PathBuf},
 };
 use tokio::{fs::*, io::AsyncWriteExt};
 use uuid::Uuid;
@@ -39,11 +44,11 @@ impl Transaction {
     }
 }
 
-
-impl Transaction 
-where 
-    {
-    pub async fn commit<S, E>(mut self, payload : Payload<S, E>) -> Result<Metadata>
+impl Transaction {
+    pub async fn commit<S, E>(
+        mut self,
+        payload: Payload<S, E>,
+    ) -> Result<Metadata>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
@@ -64,12 +69,11 @@ where
 
     async fn write_and_commit<S, E>(
         &mut self,
-        payload : Payload<S, E>
+        payload: Payload<S, E>,
     ) -> Result<Metadata>
-        where 
-            S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
-            E: Into<Box<dyn StdErr + Send + Sync>>,
-    
+    where
+        S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
+        E: Into<Box<dyn StdErr + Send + Sync>>,
     {
         let mut file = File::create(&self.temp).await.map_err(|e| {
             CreateTempFile {
@@ -82,14 +86,15 @@ where
             let _ = file.allocate(payload.expected_size).await;
         }
 
-        let bytes_written = self.process_stream(payload.stream, &mut file).await?;
+        let bytes_written =
+            self.process_stream(payload.stream, &mut file).await?;
 
         if bytes_written != payload.expected_size {
-            return Err(
-                IoErr::new(UnexpectedEof, 
-                    "Content-Length doesn't match the bytes streamed"
-                ).into()
+            return Err(IoErr::new(
+                UnexpectedEof,
+                "Content-Length doesn't match the bytes streamed",
             )
+            .into());
         }
 
         let target = self
@@ -150,9 +155,16 @@ impl AsRef<Transaction> for Transaction {
 mod test {
     use blake3::Hasher;
     use bytes::Bytes;
-    use std::{io::{Error as IoErr, ErrorKind}, path::PathBuf};
+    use std::{
+        io::{Error as IoErr, ErrorKind},
+        path::PathBuf,
+    };
 
-    use crate::storage::{Payload, tests::with_temp_transaction, transaction::{self, Transaction}};
+    use crate::storage::{
+        Payload,
+        tests::with_temp_transaction,
+        transaction::{self, Transaction},
+    };
 
     #[tokio::test]
     async fn successful_commit_and_hash() {
@@ -163,10 +175,8 @@ mod test {
                 Ok(Bytes::from("world")),
             ];
 
-            let payload = Payload::new(
-                11 as u64, 
-                futures::stream::iter(chunks)
-            );
+            let payload =
+                Payload::new(11 as u64, futures::stream::iter(chunks));
 
             let result = transaction.commit(payload).await;
 
@@ -193,10 +203,8 @@ mod test {
         with_temp_transaction(async move |transaction, vault_path| {
             let chunks: Vec<Result<Bytes, IoErr>> = Vec::new();
 
-            let payload = Payload::new(
-                0 as u64, 
-                futures::stream::iter(chunks)
-            );
+            let payload =
+                Payload::new(0 as u64, futures::stream::iter(chunks));
 
             let result = transaction.commit(payload).await;
 
@@ -208,17 +216,15 @@ mod test {
             assert_eq!(metadata.size, 0);
 
             let target_path =
-            vault_path.join(metadata.hash.to_string());
+                vault_path.join(metadata.hash.to_string());
 
             // Test: There File should be present, even though its empty
             assert!(target_path.exists());
 
-            
             let expected_hash = Hasher::new().finalize().to_string();
-             
-            // Test: Hashes match 
-            assert_eq!(metadata.hash.to_string(), expected_hash)
 
+            // Test: Hashes match
+            assert_eq!(metadata.hash.to_string(), expected_hash)
         })
         .await;
     }
@@ -236,10 +242,8 @@ mod test {
                 )),
             ];
 
-            let payload=  Payload::new(
-                20 as u64, 
-                futures::stream::iter(chunks)
-            );
+            let payload =
+                Payload::new(20 as u64, futures::stream::iter(chunks));
 
             let result = transaction.commit(payload).await;
 
@@ -253,11 +257,12 @@ mod test {
 
     #[tokio::test]
     async fn transaction_fails_if_vault_missing() {
-
-        let vault = PathBuf::from("/tmp/path/that/possibly/doesnt/exist/lol");
+        let vault =
+            PathBuf::from("/tmp/path/that/possibly/doesnt/exist/lol");
         let transaction = Transaction::new(vault);
 
-        let chunks: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("data_data"))];
+        let chunks: Vec<Result<Bytes, IoErr>> =
+            vec![Ok(Bytes::from("data_data"))];
         let f_stream = futures::stream::iter(chunks);
 
         let payload = Payload::new(9u64, f_stream);
@@ -270,8 +275,10 @@ mod test {
         use crate::storage::Error::CreateTempFile;
 
         // Test: Yields CreateTempFile Error, 'cause vault directory was missing
-        assert!(matches!(result, Err(CreateTempFile { .. })), "Expected Err(CreateTempFile)");
-
+        assert!(
+            matches!(result, Err(CreateTempFile { .. })),
+            "Expected Err(CreateTempFile)"
+        );
     }
 
     #[tokio::test]

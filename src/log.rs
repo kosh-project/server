@@ -13,7 +13,10 @@ macro_rules! log {
     ($worker:expr, $msg:expr $(,)?) => {{
         #[cfg(debug_assertions)]
         {
-            println!("\x1b[1m\x1b[34m{:>12}\x1b[0m -> {}", $worker, $msg);
+            println!(
+                "\x1b[1m\x1b[34m{:>12}\x1b[0m -> {}",
+                $worker, $msg
+            );
         }
     }};
 }

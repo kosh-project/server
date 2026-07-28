@@ -54,7 +54,10 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
         .post(format!("http://{addr}/api/v1/upload/0"))
         .header("Authorization", format!("Bearer {token}"))
         .header("X-File-Name", file_name)
-        .header("Content-Length", fake_encrypted_payload.len().to_string())
+        .header(
+            "Content-Length",
+            fake_encrypted_payload.len().to_string(),
+        )
         .body(fake_encrypted_payload.clone())
         .send()
         .await?;

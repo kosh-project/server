@@ -28,7 +28,7 @@ impl Service {
     pub async fn try_save<S, E>(
         &self,
         file_name: &str,
-        payload : Payload<S, E>
+        payload: Payload<S, E>,
     ) -> Result<Metadata>
     where
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
@@ -68,10 +68,10 @@ impl Service {
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Error as IoErr, result};
     use core::result::Result;
+    use std::{io::Error as IoErr, result};
 
-use tokio::fs::File;
+    use tokio::fs::File;
 
     use super::*;
 
@@ -115,25 +115,36 @@ use tokio::fs::File;
         .await;
     }
 
-
     #[tokio::test]
     async fn concurrent_write_collisions_dont_panic() {
-        with_temp_service(|service | async move {
+        with_temp_service(|service| async move {
             let service_a = service.clone();
             let service_b = service.clone();
-            
-            let task_a = tokio::spawn(async move { 
-                let chunks : Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("some_data"))];
+
+            let task_a = tokio::spawn(async move {
+                let chunks: Vec<Result<Bytes, IoErr>> =
+                    vec![Ok(Bytes::from("some_data"))];
                 let stream = futures::stream::iter(chunks);
 
-                service_a.try_save("dev1_upload.rs", Payload::new(9u64, stream)).await
+                service_a
+                    .try_save(
+                        "dev1_upload.rs",
+                        Payload::new(9u64, stream),
+                    )
+                    .await
             });
 
-            let task_b = tokio::spawn(async move{
-                let payload: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("some_data"))];
+            let task_b = tokio::spawn(async move {
+                let payload: Vec<Result<Bytes, IoErr>> =
+                    vec![Ok(Bytes::from("some_data"))];
                 let stream = futures::stream::iter(payload);
 
-                service_b.try_save("some_other_file.rs", Payload::new(9u64, stream)).await
+                service_b
+                    .try_save(
+                        "some_other_file.rs",
+                        Payload::new(9u64, stream),
+                    )
+                    .await
             });
 
             let (result_a, result_b) = tokio::join!(task_a, task_b);
@@ -143,14 +154,17 @@ use tokio::fs::File;
             let metadata_b = result_b.unwrap().expect("task_b failed");
 
             // Test: Both files wrote exact same data
-            assert_eq!(metadata_a.hash.to_string(), metadata_b.hash.to_string());
+            assert_eq!(
+                metadata_a.hash.to_string(),
+                metadata_b.hash.to_string()
+            );
 
-
-            let expected_path = service.vault_path.join(metadata_a.hash.to_string());
+            let expected_path =
+                service.vault_path.join(metadata_a.hash.to_string());
             // Test: Expected path exists
             assert!(expected_path.exists());
-
-        }).await;
+        })
+        .await;
     }
 
     #[tokio::test]
