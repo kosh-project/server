@@ -1,12 +1,16 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
+use moka::future::Cache;
 use sqlx::SqlitePool;
 
-use crate::{app::State as AppState, storage};
+use crate::{
+    app::{State as AppState, state::UserId}, model::session::TokenHash, storage,
+};
 
 pub struct AppStateBuilder {
     vault_path: Option<PathBuf>,
     db: Option<SqlitePool>,
+    session_cache: Option<Cache<TokenHash, UserId>>,
 }
 
 impl AppStateBuilder {
@@ -14,6 +18,7 @@ impl AppStateBuilder {
         Self {
             vault_path: None,
             db: None,
+            session_cache: None,
         }
     }
 
@@ -30,12 +35,27 @@ impl AppStateBuilder {
         self
     }
 
+    pub fn session_cache(
+        mut self,
+        session_cache: Cache<TokenHash, UserId>,
+    ) -> Self {
+        self.session_cache = Some(session_cache);
+        self
+    }
+
     pub fn build(self) -> AppState {
         AppState {
             storage: storage::Service::new(
-                self.vault_path.expect("FATAL: vault_path is required!"),
+                self.vault_path
+                    .expect("FATAL: vault_path is required!"),
             ),
             db: self.db.expect("FATAL: database pool is required!"),
+            session_cache: self.session_cache.unwrap_or(
+                Cache::builder()
+                    .time_to_idle(Duration::from_secs(600))
+                    .max_capacity(10_000)
+                    .build(),
+            ),
         }
     }
 }
