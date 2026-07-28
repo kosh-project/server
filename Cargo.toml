@@ -8,6 +8,7 @@ axum = { version = "0.8.9", features = ["multipart"] }
 blake3 = "1.8.5"
 bytes = "1.11.1"
 chrono = { version = "0.4.45", features = ["serde"] }
+fs4 = { version = "1.1.0", features = ["tokio"] }
 futures = "0.3.32"
 hex = "0.4.3"
 hyper = "1.10.1"
