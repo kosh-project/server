@@ -298,4 +298,23 @@ mod test {
             assert_eq!(metadata.hash.to_string(), expected_hash);
         }).await;
     }
+
+    #[tokio::test]
+    async fn mismatch_content_fails_plus_cleans_up() {
+        with_temp_transaction(async move |transaction, _| {
+            let temp_path = transaction.temp_path().to_owned();
+
+            let chunks: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("Halo there"))];
+
+            let payload = Payload::new(67u64, futures::stream::iter(chunks));
+
+            let result = transaction.commit(payload).await;
+
+            // Test: Unexpected EOF causes failure 
+            assert!(result.is_err());
+
+            // Test: Cleanup is expected on failure
+            assert!(!temp_path.exists());
+        }).await;
+    }
 }
