@@ -22,7 +22,10 @@ impl Session {
     /// # Panic
     /// This function panics if system time is set earlier than [`UNIX_EPOCH`] \
     /// To know more about this, see [`SystemTime::duration_since`]
-    pub async fn create(pool: &SqlitePool, user_id: i64) -> Result<String> {
+    pub async fn create(
+        pool: &SqlitePool,
+        user_id: i64,
+    ) -> Result<String> {
         let token = Uuid::new_v4().to_string();
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -57,7 +60,10 @@ impl Session {
     ///
     /// # Error
     /// Returns [`sqlx::Error`] on failed querry to database.
-    pub async fn verify(pool: &SqlitePool, token_hash: &[u8]) -> Result<Option<Self>> {
+    pub async fn verify(
+        pool: &SqlitePool,
+        token_hash: &[u8],
+    ) -> Result<Option<Self>> {
         let session = sqlx::query_as!(
             Session,
             r#"
@@ -79,7 +85,8 @@ impl Session {
             .as_secs();
 
         if let Some(ref sess) = session
-            && (this_moment < sess.created_at as u64 || this_moment > sess.expires_at as u64)
+            && (this_moment < sess.created_at as u64
+                || this_moment > sess.expires_at as u64)
         {
             Self::revoke(pool, token_hash).await?;
             return Ok(None);
@@ -92,7 +99,10 @@ impl Session {
     ///
     /// Error
     /// Fails with [`sqlx::Error`], if querrying with database fails
-    pub async fn revoke(pool: &SqlitePool, token_hash: &[u8]) -> Result<()> {
+    pub async fn revoke(
+        pool: &SqlitePool,
+        token_hash: &[u8],
+    ) -> Result<()> {
         let result = sqlx::query!(
             r#"
             DELETE FROM sessions WHERE token_hash = ?
@@ -105,3 +115,26 @@ impl Session {
         Ok(())
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TokenHash(pub [u8; 32]);
+
+impl From<blake3::Hasher> for TokenHash {
+    fn from(hasher: blake3::Hasher) -> Self {
+        TokenHash(hasher.finalize().into())
+    }
+}
+
+impl From<&[u8; 32]> for TokenHash {
+    fn from(value: &[u8; 32]) -> Self {
+        Self(*value) 
+    }
+}
+
+impl AsRef<[u8]> for TokenHash {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+

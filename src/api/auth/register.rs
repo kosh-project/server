@@ -20,9 +20,7 @@ pub async fn register(
     let Ok(identity_hash) =
         hex::decode(&register_request.identity_hash)
     else {
-        Err(BadRequest(
-            "identity_hash failed to decode".into(),
-        ))?
+        Err(BadRequest("identity_hash failed to decode".into()))?
     };
 
     let result = User::create(
@@ -34,11 +32,11 @@ pub async fn register(
 
     match result {
         Ok(_) => Ok(StatusCode::CREATED),
-        Err(AppErr::DatabaseError(SqlErr::Database(
-            err,
-        ))) if err.is_unique_violation() => Err(
-            AppErr::Conflict("User already exists".into()),
-        ),
+        Err(AppErr::DatabaseError(SqlErr::Database(err)))
+            if err.is_unique_violation() =>
+        {
+            Err(AppErr::Conflict("User already exists".into()))
+        }
         Err(e) => Err(e.into()),
     }
 }
