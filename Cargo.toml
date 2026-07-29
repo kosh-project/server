@@ -31,3 +31,4 @@ rand = "0.10.1"
 reqwest = { version = "0.13.4", features = ["multipart"] }
 serial_test = "3.5.0"
 tmpdir = "1.0.0"
+tower = "0.5.3"
