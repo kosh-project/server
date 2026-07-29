@@ -4,7 +4,9 @@ use moka::future::Cache;
 use sqlx::SqlitePool;
 
 use crate::{
-    app::{State as AppState, state::UserId}, model::session::TokenHash, storage,
+    app::{State as AppState, state::UserId},
+    model::session::TokenHash,
+    storage,
 };
 
 pub struct AppStateBuilder {

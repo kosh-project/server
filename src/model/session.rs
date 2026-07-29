@@ -1,4 +1,4 @@
-use crate::{Result, model::session};
+use crate::Result;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use blake3::Hasher;
@@ -103,7 +103,7 @@ impl Session {
         pool: &SqlitePool,
         token_hash: &[u8],
     ) -> Result<()> {
-        let result = sqlx::query!(
+        let _result = sqlx::query!(
             r#"
             DELETE FROM sessions WHERE token_hash = ?
         "#,
@@ -127,7 +127,7 @@ impl From<blake3::Hasher> for TokenHash {
 
 impl From<&[u8; 32]> for TokenHash {
     fn from(value: &[u8; 32]) -> Self {
-        Self(*value) 
+        Self(*value)
     }
 }
 
@@ -136,5 +136,3 @@ impl AsRef<[u8]> for TokenHash {
         &self.0
     }
 }
-
-

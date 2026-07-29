@@ -1,6 +1,5 @@
-use crate::api::Error as ApiErr;
-use crate::error::{Error as AppErr, Result};
-use sqlx::{Error as SqlErr, Executor, SqlitePool};
+use crate::error::Result;
+use sqlx::{Executor, SqlitePool};
 
 /// User entity for persistent storage
 ///

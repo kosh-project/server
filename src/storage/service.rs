@@ -1,7 +1,6 @@
 use bytes::Bytes;
 use futures::Stream;
 use std::error::Error as StdErr;
-use std::fs::metadata;
 
 use crate::log;
 use crate::storage::file::Metadata;

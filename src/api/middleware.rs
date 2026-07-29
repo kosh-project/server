@@ -57,23 +57,21 @@ pub async fn auth_guard(
 
 #[cfg(test)]
 mod tests {
-    use axum::{Router, body::Body, routing::get, http::Request};
+    use crate::app::AppStateBuilder;
+    use axum::{Router, body::Body, http::Request, routing::get};
     use blake3::hash;
     use sqlx::sqlite::SqlitePoolOptions;
     use tower::ServiceExt;
-    use crate::app::AppStateBuilder;
 
     use super::*;
 
-
-    // This test checks, that in-memory cache is being used first, instead of 
+    // This test checks, that in-memory cache is being used first, instead of
     // querrying the database first.
     #[tokio::test]
     async fn auth_guard_bypasses_db_on_cache_hit() {
-
-        // Even though we simulate establishing a connection to db, 
+        // Even though we simulate establishing a connection to db,
         // but accessing this db will itself result in error.
-        // and Ofcourse, this error will be bypassed if AppState::session_cache 
+        // and Ofcourse, this error will be bypassed if AppState::session_cache
         // returns the user_id, which is exactly what we want to know.
         let pool = SqlitePoolOptions::new()
             .connect("sqlite::memory:")
@@ -82,13 +80,13 @@ mod tests {
 
         let mut state =
             AppStateBuilder::new().vault_path("/tmp").db(pool).build();
- 
-            let token = "top_secret";
-            let token_hash =
+
+        let token = "top_secret";
+        let token_hash =
             TokenHash::from(hash(token.as_bytes()).as_bytes());
 
         state.session_cache.insert(token_hash, 4).await;
-            
+
         let app = Router::new()
             .route("/", get(|| async { "Success!" }))
             .route_layer(axum::middleware::from_fn_with_state(
@@ -106,6 +104,5 @@ mod tests {
 
         // Test: We bypassed db querry for token check?
         assert_eq!(response.status(), 200);
-        
     }
 }
