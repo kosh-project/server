@@ -1,5 +1,7 @@
-use crate::{Result, storage::file::Metadata};
-use sqlx::{SqlitePool, query};
+use crate::{
+    Result, model::session::TokenHash, storage::file::Metadata,
+};
+use sqlx::{SqlitePool, pool, query};
 use uuid::Uuid;
 
 #[derive(sqlx::FromRow)]
@@ -64,6 +66,60 @@ impl Asset {
         .await?;
 
         Ok(())
+    }
+
+    /// Deletes user's ownership over an asset
+    /// - Returns `Ok(true)`, if no other user owns same asset. Good signal to wipe that asset physically off the server.
+    /// - Return `Ok(false)`, if user doesn't own the file, or other users have own the same file.
+    pub async fn delete(
+        pool: &SqlitePool,
+        user: i64,
+        hash: &[u8],
+    ) -> Result<bool> {
+        let mut tx = pool.begin().await?;
+
+        let result = sqlx::query!(
+            r#"
+            DELETE FROM assets WHERE user_id = ? AND hash = ?
+        "#,
+            user,
+            hash
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            tx.rollback().await?;
+            return Ok(false);
+        }
+
+        let count: i64 = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM assets WHERE hash = ? ",
+            hash
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(count == 0)
+    }
+
+    pub async fn owned_by(
+        pool: &SqlitePool,
+        user: i64,
+        hash: &[u8],
+    ) -> Result<bool> {
+        let result = sqlx::query!(
+            r#"
+            SELECT 1 AS matched FROM assets WHERE user_id = ? AND hash = ?
+        "#,
+            user,
+            hash,
+        ).fetch_optional(pool)
+        .await?;
+
+        Ok(result.is_some())
     }
 }
 

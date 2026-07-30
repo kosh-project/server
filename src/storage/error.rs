@@ -38,6 +38,10 @@ pub enum Error {
     },
     #[error("Invalid Path : {path}")]
     InvalidPath { path: PathBuf },
+    #[error("Internal Error : {}", .0)]
+    Internal(String),
+    #[error("Blob Not found")]
+    NotFound
 }
 
 pub type Result<T> = core::result::Result<T, storage::Error>;

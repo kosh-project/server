@@ -7,7 +7,11 @@ use axum::{
 use serde_json::{Value, json};
 
 use crate::{
-    api::{self, middleware::auth_guard},
+    api::{
+        self,
+        assets,
+        middleware::auth_guard,
+    },
     app::State as AppState,
     log,
 };
@@ -38,7 +42,11 @@ fn auth_route() -> Router<AppState> {
 /// [`crate::api::middleware::auth_guard`]
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
-        .route("/upload/{tag}", post(api::upload))
+        .route("/upload/{tag}", post(assets::upload))
+        .route(
+            "/assets/{hash}",
+            get(assets::get).delete(assets::delete),
+        )
         .route("/storage", get(storage))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

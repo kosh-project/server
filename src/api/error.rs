@@ -15,6 +15,10 @@ pub enum Error {
     IoError(#[from] io::Error),
     #[error("Unauthorized : {}", .0)]
     Unauthorized(String),
+    #[error("Internal Server Error : {}", .0)]
+    Internal(String),
+    #[error("Not Found")]
+    NotFound(String)
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

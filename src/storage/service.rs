@@ -1,6 +1,8 @@
 use bytes::Bytes;
 use futures::Stream;
 use std::error::Error as StdErr;
+use std::io::ErrorKind::{self};
+use tokio::fs::{self, File};
 
 use crate::log;
 use crate::storage::file::Metadata;
@@ -62,6 +64,29 @@ impl Service {
         }
 
         Ok(Transaction::new(&self.vault_path))
+    }
+}
+
+
+impl Service {
+    pub async fn delete_blob(&self, hash_str: &str) -> Result<()> {
+        let file_path = self.vault_path.join(hash_str);
+
+        match fs::remove_file(file_path).await {
+            Ok(_) => Ok(()),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+            Err(_) => {
+                Err(Internal("Failed to delete physical file".into()))
+            }
+        }
+    }
+
+    pub async fn get_blob(&self, hash_str: &str) -> Result<File> {
+        let file_path = self.vault_path.join(hash_str);
+
+        File::open(file_path)
+            .await
+            .map_err(|_| NotFound)
     }
 }
 

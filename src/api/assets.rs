@@ -1,16 +1,62 @@
-use crate::model::asset::Asset;
-use crate::storage::Payload;
-use crate::{api::Error::*, model::asset::AssetTag};
-use axum::body::Body;
-use axum::{
-    Extension, Json,
-    extract::{Path, State},
-    response::IntoResponse,
-};
-use hyper::HeaderMap;
-use serde::Serialize;
+use std::io::ErrorKind;
 
-use crate::{app::State as AppState, log};
+use axum::{
+    Extension, Json, body::Body, extract::{Path, State}, response::IntoResponse,
+};
+use hyper::{HeaderMap, StatusCode};
+use serde::Serialize;
+use tokio_util::io::ReaderStream;
+use crate::{
+    Error::ApiError, api::Error::{BadRequest, NotFound}, app::State as AppState, log, model::asset::{Asset, AssetTag}, storage::Payload,
+};
+
+use crate::Result;
+
+/// DELETE /api/v1/assets/{hash}
+pub async fn delete(
+    State(state): State<AppState>,
+    Extension(user_id): Extension<i64>,
+    Path(hash_str): Path<String>,
+) -> Result<impl IntoResponse> {
+    let hash_bytes = hex::decode(&hash_str)
+        .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
+
+    let wipe_needed =
+        Asset::delete(&state.db, user_id, &hash_bytes).await?;
+
+    if wipe_needed {
+        state.storage.delete_blob(&hash_str).await?;
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+
+/// GET /api/v1/assets/hash
+pub async fn get(
+    State(state): State<AppState>,
+    Extension(user_id) : Extension<i64>,
+    Path(hash_str): Path<String>,
+) -> Result<impl IntoResponse> {
+    let hash_bytes = hex::decode(&hash_str)
+    .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
+
+    let owns_file = Asset::owned_by(&state.db, user_id, &hash_bytes).await?;
+
+    if !owns_file {
+        return Err(ApiError(NotFound("Asset not found or Unauthorized".into())))
+    }
+
+    let file = state.storage.get_blob(&hash_str).await.map_err(|_| NotFound("File Missing".into()))?;
+
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
+
+    Ok((StatusCode::OK, headers, body))
+}
 
 #[derive(Serialize)]
 #[serde(untagged)]
