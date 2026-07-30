@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT 1 AS matched FROM assets WHERE user_id = ? AND hash = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "matched",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c64a523994f496ed11db919601ef2ec4ae355f8549106c1cce6678e87b598132"
+}
