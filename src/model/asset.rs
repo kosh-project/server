@@ -137,3 +137,116 @@ impl TryFrom<&str> for AssetTag {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use sqlx::SqlitePool;
+    use anyhow::Result;
+use uuid::Uuid;
+
+use crate::model::asset::Asset;
+
+
+    async fn setup_db() -> Result<SqlitePool> {
+        let pool = SqlitePool::connect("sqlite::memory:").await?;
+        sqlx::migrate!().run(&pool).await?;
+        Ok(pool)
+    }
+
+    async fn insert_asset(pool : &SqlitePool, user_id : i64, hash : &[u8]) -> Result<()> {
+        let dummy_id = format!("id_hash_{user_id}");
+
+        sqlx::query!(r#"
+            INSERT OR IGNORE INTO users (id, identity_hash, auth_verifier) VALUES (?, ?, ?)
+        "#,
+        user_id,
+        dummy_id,
+        "dummy_verifier"
+        ).execute(pool)
+        .await?;
+
+
+        sqlx::query!(r#"
+            INSERT INTO assets (id, user_id, hash, size_bytes, last_modified, tag) VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+            Uuid::new_v4().as_bytes().to_vec(),
+            user_id,
+            hash, 
+            100,
+            0,
+            0
+        ).execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn count_owners(pool : &SqlitePool, hash : &[u8]) -> Result<i64> {
+        let count = sqlx::query_scalar!("SELECT COUNT(*) FROM assets WHERE hash = ?", hash as &[u8])
+        .fetch_one(pool)
+        .await?;
+
+        Ok(count)
+    }
+
+    #[tokio::test]
+    async fn delete_asset_with_single_owner() -> Result<()>{
+        let pool = setup_db().await?;
+        let hash = b"hello_fellas_i_m_deleting_a_file";
+
+        insert_asset(&pool, 10, hash).await?;
+
+        let should_delete = Asset::delete(&pool, 10, hash).await?;
+
+        // Test
+        assert!(should_delete, "Expected Item to be deleted, because of zero owner count");
+
+        let count = count_owners(&pool, hash).await?;
+
+        // Test: No asset should be present as there were no other owners
+        assert_eq!(count, 0);
+
+        Ok(())
+    }
+
+
+    #[tokio::test]
+    async fn delete_asset_with_more_than_one_onwers() -> Result<()> {
+        let pool = setup_db().await?;
+        let hash = b"ahoy there, we got files";
+
+        insert_asset(&pool, 10, hash).await?;
+        insert_asset(&pool, 11, hash).await?;
+
+        let should_delete = Asset::delete(&pool, 10, hash).await?;
+
+        // Test: Item shouldn't be deleted, if there is atleast one owner
+        assert!(!should_delete, "Expected Item to be not deleted, 'cause this asset is still owned");
+        
+        let count = count_owners(&pool, hash).await?; 
+
+        // Test: owner_count shouldn't be anything but 1;
+        assert_eq!(count, 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn attempt_to_delete_unowned_asset() -> Result<()> {
+        let pool = setup_db().await?;
+        let hash = b"a_dude_uploads_a_file_with_cache";
+
+        insert_asset(&pool, 10, hash).await?;
+
+        let should_delete = Asset::delete(&pool, 12, hash).await?;
+
+        // Test: Fails if user_2 can touch files without owning them;
+        assert!(!should_delete, "Expected user_12 not to delete asset owned by user_10");
+
+        let count = count_owners(&pool, hash).await?;
+
+        // Test: owner_count shouldn't be affected by this
+        assert_eq!(count, 1);
+
+        Ok(())
+    }
+}
