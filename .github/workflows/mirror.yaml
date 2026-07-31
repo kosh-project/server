@@ -20,4 +20,4 @@ jobs:
           git config --global user.email "actions@github.com"
 
           # Push to Codeberg using the secret token
-          git push --prune --force "https://token:${{ secrets.CODEBERG_TOKEN }}@codeberg.org/kosh-project/server.git" "refs/remotes/origin/*:refs/heads/*" "refs/tags/*:refs/tags/*"
+          git push --prune --force "https://oauth2:${{ secrets.CODEBERG_TOKEN }}@codeberg.org/kosh-project/server.git" "refs/remotes/origin/*:refs/heads/*" "refs/tags/*:refs/tags/*"
