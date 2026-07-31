@@ -19,5 +19,19 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-          # Push to Codeberg using the secret token
-          git push --prune --force "https://oauth2:${{ secrets.CODEBERG_TOKEN }}@codeberg.org/kosh-project/server.git" "refs/remotes/origin/*:refs/heads/*" "refs/tags/*:refs/tags/*"
+          # Push to Codeberg using the secret token.
+          # If credentials are invalid/expired, warn and skip failing the workflow.
+          set +e
+          PUSH_OUTPUT=$(git push --prune --force "https://oauth2:${{ secrets.CODEBERG_TOKEN }}@codeberg.org/kosh-project/server.git" "refs/remotes/origin/*:refs/heads/*" "refs/tags/*:refs/tags/*" 2>&1)
+          PUSH_STATUS=$?
+          set -e
+
+          if [ "$PUSH_STATUS" -ne 0 ]; then
+            if echo "$PUSH_OUTPUT" | grep -Eq "(error: 403|Authentication failed|The requested URL returned error: 403)"; then
+              echo "::warning::Codeberg mirror skipped because CODEBERG_TOKEN appears invalid or expired. Rotate the repository secret CODEBERG_TOKEN."
+              exit 0
+            fi
+
+            echo "$PUSH_OUTPUT"
+            exit "$PUSH_STATUS"
+          fi
