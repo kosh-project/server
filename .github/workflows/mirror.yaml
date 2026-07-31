@@ -14,15 +14,22 @@ jobs:
           fetch-depth: 0
 
       - name: Mirror to Codeberg
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
           # Configure Git with a dummy user for the push
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
+          if [ -z "$CODEBERG_TOKEN" ]; then
+            echo "::warning::Codeberg mirror skipped because CODEBERG_TOKEN is not configured."
+            exit 0
+          fi
+
           # Push to Codeberg using the secret token.
           # If credentials are invalid/expired, warn and skip failing the workflow.
           set +e
-          PUSH_OUTPUT=$(git push --prune --force "https://oauth2:${{ secrets.CODEBERG_TOKEN }}@codeberg.org/kosh-project/server.git" "refs/remotes/origin/*:refs/heads/*" "refs/tags/*:refs/tags/*" 2>&1)
+          PUSH_OUTPUT=$(git push --prune --force "https://oauth2:${CODEBERG_TOKEN}@codeberg.org/kosh-project/server.git" "refs/remotes/origin/*:refs/heads/*" "refs/tags/*:refs/tags/*" 2>&1)
           PUSH_STATUS=$?
           set -e
 
