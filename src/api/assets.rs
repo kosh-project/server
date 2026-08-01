@@ -78,6 +78,7 @@ impl FileStatus {
     }
 }
 
+/// POST /api/v1/upload
 pub async fn upload(
     State(state): State<AppState>,
     Path(tag_str): Path<String>,

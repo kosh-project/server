@@ -25,6 +25,10 @@ pub enum AssetTag {
 }
 
 impl Asset {
+    /// Returns whether asset exists with given hash
+    /// 
+    /// Error 
+    /// - Fails with [`sqlx::Error`] if fails to work with database
     pub async fn exists(
         pool: &SqlitePool,
         hash: Vec<u8>,
@@ -105,6 +109,10 @@ impl Asset {
         Ok(count == 0)
     }
 
+    /// Checks if any [`Asset`] with provided `hash` exists, and is owned by the specified `user` as well
+    /// 
+    /// It's different from [`Asset::exists`], because it checks for ownership.
+    /// Required for situations where user tries to access an asset, this returns the proof of it. 
     pub async fn owned_by(
         pool: &SqlitePool,
         user: i64,

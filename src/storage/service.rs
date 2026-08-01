@@ -7,10 +7,18 @@ use tokio::fs::{self, File};
 use crate::log;
 use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
-use crate::storage::{Error::*, Payload, Result};
+use crate::storage::{Error::{*, self}, Payload, Result};
 use std::path::PathBuf;
 
 #[derive(Default, Clone)]
+
+/// [`crate::storage::Service`]
+/// Represents the storage layer of this server. 
+/// This layer, well only works with storage, and is only responsible for file operations.
+/// - [`Service::new`], initiates a new [`crate::storage::Service`] instance
+/// - [`Service::try_save`], initiates the file upload transaction
+/// - [`Service::delete_blob`], deletes the blob with specified hash
+/// - [`Service::get_blob`], returns with the stream of the blob with specified hash 
 pub struct Service {
     pub(crate) vault_path: PathBuf,
 }
@@ -25,7 +33,10 @@ impl Service {
         }
     }
 
-    // Needs more refactoring
+    /// Initiates a transaction to commit a payload to disk 
+    /// 
+    /// Error
+    /// - Returns [`Error`] when committing file to disk returns fails.
     pub async fn try_save<S, E>(
         &self,
         file_name: &str,
@@ -44,7 +55,6 @@ impl Service {
         Ok(file_metadata)
     }
 
-    /// Validates
     fn begin_transaction<T>(&self, file: &T) -> Result<Transaction>
     where
         T: AsRef<str>,
@@ -69,6 +79,12 @@ impl Service {
 
 
 impl Service {
+
+    /// Deletes the blob with specified hash
+    /// Returns, Ok(()) even when file doesn't exist. 
+    /// 
+    /// Error
+    /// - Fails with [`Error`], when there was a problem accessing specified file.
     pub async fn delete_blob(&self, hash_str: &str) -> Result<()> {
         let file_path = self.vault_path.join(hash_str);
 
@@ -81,6 +97,11 @@ impl Service {
         }
     }
 
+
+    /// Returns with [`File`] with the specified hash
+    /// 
+    /// Error 
+    /// - Returns [`Error`], when there was a problem accessing specified file
     pub async fn get_blob(&self, hash_str: &str) -> Result<File> {
         let file_path = self.vault_path.join(hash_str);
 
