@@ -1,17 +1,20 @@
-use crate::storage::{Error::*, Payload, Result, file::Metadata};
+use crate::storage::{
+    Error::{
+        CreateTempFile, InvalidPath, RenameError, WriteChunkFailure,
+    },
+    Payload, Result,
+    file::Metadata,
+};
 use blake3::Hasher;
 use bytes::Bytes;
 use fs4::AsyncFileExt;
 use futures::{Stream, StreamExt};
 use std::{
     error::Error as StdErr,
-    io::{
-        Error as IoErr,
-        ErrorKind::{self as IoErrKind, UnexpectedEof},
-    },
+    io::{Error as IoErr, ErrorKind::UnexpectedEof},
     path::{Path, PathBuf},
 };
-use tokio::{fs::*, io::AsyncWriteExt};
+use tokio::{fs::{remove_file, File, rename}, io::AsyncWriteExt};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -62,7 +65,8 @@ impl Transaction {
             Err(e) => {
                 // Needless to report if this fails, otherwise main error `e` gets dropped
                 let _ = remove_file(self.temp).await;
-                return Err(e);
+
+                Err(e)
             }
         }
     }
@@ -100,7 +104,7 @@ impl Transaction {
         let target = self
             .temp
             .parent()
-            .ok_or(InvalidPath {
+            .ok_or_else(|| InvalidPath {
                 path: self.temp.clone(),
             })?
             .join(self.hasher.finalize().to_string());
@@ -125,12 +129,12 @@ impl Transaction {
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
-        let mut bytes_written = 0;
+        let mut bytes_written: u64 = 0;
 
-        #[allow(clippy::as_conversions)]
+        #[allow(clippy::arithmetic_side_effects)]
+        // Never overflows because max filesize itself is 10 GBs
         while let Some(chunk) = f_stream.next().await {
-            let chunk =
-                chunk.map_err(|e| IoErr::new(IoErrKind::Other, e))?;
+            let chunk = chunk.map_err(|e| IoErr::other(e))?;
 
             file.write_all(&chunk).await.map_err(|e| {
                 WriteChunkFailure {
@@ -139,7 +143,7 @@ impl Transaction {
                 }
             })?;
 
-            bytes_written += chunk.len() as u64; // Panics on 32bit hardware
+            bytes_written += u64::try_from(chunk.len())?;
 
             self.hasher.update(&chunk);
         }

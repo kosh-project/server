@@ -134,7 +134,7 @@ impl Asset {
 impl TryFrom<&str> for AssetTag {
     type Error = ();
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        use AssetTag::*;
+        use AssetTag::{GalleryItem, GalleryMeta, DriveItem, DriveMeta};
 
         Ok(match value {
             "0" => GalleryMeta,

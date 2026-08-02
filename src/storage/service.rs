@@ -8,7 +8,7 @@ use crate::error::internal::Error::Message;
 use crate::log;
 use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
-use crate::storage::{Error::{*, self}, Payload, Result};
+use crate::storage::{Error::{InvalidFileName, FileAlreadyExists, Internal, NotFound,}, Payload, Result};
 use std::path::PathBuf;
 
 #[derive(Default, Clone)]
@@ -51,7 +51,7 @@ impl Service {
 
         let file_metadata = transaction.commit(payload).await?;
 
-        log!("STORAGE", "committed: {file_name}");
+        log!("STORAGE", format!("committed: {file_name}"));
 
         Ok(file_metadata)
     }
@@ -90,10 +90,10 @@ impl Service {
         let file_path = self.vault_path.join(hash_str);
 
         match fs::remove_file(file_path).await {
-            Ok(_) => Ok(()),
+            Ok(()) => Ok(()),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
             Err(x) => {
-                Err(Internal(Message(format!("Failed to delete file : {x}").into())))
+                Err(Internal(Message(format!("Failed to delete file : {x}"))))
             }
         }
     }

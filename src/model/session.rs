@@ -30,9 +30,9 @@ impl Session {
 
         #[allow(clippy::as_conversions)] // Happens only when you mess up with your system time
         let created_at: i64 = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards??")
-            .as_secs() as i64;
+            .duration_since(UNIX_EPOCH)?
+            .as_secs()
+            .try_into()?;
 
         let expires_at = created_at + (30 * 24 * 60 * 60);
 
@@ -83,8 +83,7 @@ impl Session {
         .await?;
 
         let this_moment = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("What")
+            .duration_since(UNIX_EPOCH)?
             .as_secs();
 
         if let Some(ref sess) = session
@@ -124,7 +123,7 @@ pub struct TokenHash(pub [u8; 32]);
 
 impl From<blake3::Hasher> for TokenHash {
     fn from(hasher: blake3::Hasher) -> Self {
-        TokenHash(hasher.finalize().into())
+        Self(hasher.finalize().into())
     }
 }
 
