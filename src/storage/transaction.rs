@@ -126,6 +126,8 @@ impl Transaction {
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
         let mut bytes_written = 0;
+
+        #[allow(clippy::as_conversions)]
         while let Some(chunk) = f_stream.next().await {
             let chunk =
                 chunk.map_err(|e| IoErr::new(IoErrKind::Other, e))?;
@@ -137,7 +139,7 @@ impl Transaction {
                 }
             })?;
 
-            bytes_written += chunk.len() as u64;
+            bytes_written += chunk.len() as u64; // Panics on 32bit hardware
 
             self.hasher.update(&chunk);
         }
@@ -145,8 +147,8 @@ impl Transaction {
     }
 }
 
-impl AsRef<Transaction> for Transaction {
-    fn as_ref(&self) -> &Transaction {
+impl AsRef<Self> for Transaction {
+    fn as_ref(&self) -> &Self {
         self
     }
 }

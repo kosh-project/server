@@ -20,6 +20,7 @@ pub struct LoginRequest {
     auth_verifier: String,
 }
 
+/// 
 pub async fn login(
     State(state): State<AppState>,
     Json(request): Json<LoginRequest>,

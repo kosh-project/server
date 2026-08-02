@@ -4,6 +4,7 @@ use std::error::Error as StdErr;
 use std::io::ErrorKind::{self};
 use tokio::fs::{self, File};
 
+use crate::error::internal::Error::Message;
 use crate::log;
 use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
@@ -91,8 +92,8 @@ impl Service {
         match fs::remove_file(file_path).await {
             Ok(_) => Ok(()),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-            Err(_) => {
-                Err(Internal("Failed to delete physical file".into()))
+            Err(x) => {
+                Err(Internal(Message(format!("Failed to delete file : {x}").into())))
             }
         }
     }

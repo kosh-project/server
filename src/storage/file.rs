@@ -1,11 +1,11 @@
 use std::{
-    fs::Metadata as StdMeta, os::unix::fs::MetadataExt,
-    time::UNIX_EPOCH,
+    fs::Metadata as StdMeta, os::unix::fs::MetadataExt, time::UNIX_EPOCH,
 };
 
 use blake3::Hash;
 
-use crate::storage::Result;
+use crate::storage::{Result};
+
 
 pub struct Metadata {
     pub hash: Hash,
@@ -19,10 +19,11 @@ impl Metadata {
             hash,
             last_modified: metadata
                 .modified()?
-                .duration_since(UNIX_EPOCH)
-                .expect("You're not time-travelling, are you?")
-                .as_secs() as i64,
-            size: metadata.size() as i64,
+                .duration_since(UNIX_EPOCH)?
+                .as_secs()
+                .try_into()?,
+            size: metadata.size()
+                .try_into()?
         })
     }
 }

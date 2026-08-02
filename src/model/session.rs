@@ -1,5 +1,5 @@
-use crate::Result;
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::{Error::InternalError, Result};
+use std::{num::TryFromIntError, time::{SystemTime, UNIX_EPOCH}};
 
 use blake3::Hasher;
 use sqlx::SqlitePool;
@@ -27,10 +27,13 @@ impl Session {
         user_id: i64,
     ) -> Result<String> {
         let token = Uuid::new_v4().to_string();
-        let created_at = SystemTime::now()
+
+        #[allow(clippy::as_conversions)] // Happens only when you mess up with your system time
+        let created_at: i64 = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("Diddy did what?")
+            .expect("Time went backwards??")
             .as_secs() as i64;
+
         let expires_at = created_at + (30 * 24 * 60 * 60);
 
         let token_hash = Hasher::new()
@@ -85,8 +88,8 @@ impl Session {
             .as_secs();
 
         if let Some(ref sess) = session
-            && (this_moment < sess.created_at as u64
-                || this_moment > sess.expires_at as u64)
+            && (this_moment < sess.created_at.try_into()?
+                || this_moment > sess.expires_at.try_into()?)
         {
             Self::revoke(pool, token_hash).await?;
             return Ok(None);
