@@ -14,6 +14,10 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// Attempts to construct a new `Metadata` instance from standard library metadata.
+    ///
+    /// # Errors
+    /// Returns an error if the system time is earlier than `UNIX_EPOCH` or if integer conversions fail.
     pub fn try_new(metadata: &StdMeta, hash: Hash) -> Result<Self> {
         Ok(Self {
             hash,

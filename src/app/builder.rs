@@ -45,6 +45,11 @@ impl AppStateBuilder {
         self
     }
 
+    /// Consumes the builder and returns the constructed `AppState`.
+    ///
+    /// # Panics
+    /// This function will panic if `vault_path` or `db` have not been configured
+    /// prior to calling `build`.
     #[allow(clippy::expect_used)]
     #[must_use]
     pub fn build(self) -> AppState {

@@ -36,7 +36,7 @@ impl Service {
 
     /// Initiates a transaction to commit a payload to disk 
     /// 
-    /// Error
+    /// # Errors
     /// - Returns [`Error`] when committing file to disk returns fails.
     pub async fn try_save<S, E>(
         &self,
@@ -84,7 +84,7 @@ impl Service {
     /// Deletes the blob with specified hash
     /// Returns, Ok(()) even when file doesn't exist. 
     /// 
-    /// Error
+    /// # Errors
     /// - Fails with [`Error`], when there was a problem accessing specified file.
     pub async fn delete_blob(&self, hash_str: &str) -> Result<()> {
         let file_path = self.vault_path.join(hash_str);
@@ -101,7 +101,7 @@ impl Service {
 
     /// Returns with [`File`] with the specified hash
     /// 
-    /// Error 
+    /// # Errors
     /// - Returns [`Error`], when there was a problem accessing specified file
     pub async fn get_blob(&self, hash_str: &str) -> Result<File> {
         let file_path = self.vault_path.join(hash_str);

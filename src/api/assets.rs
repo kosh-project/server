@@ -12,7 +12,15 @@ use crate::{
 
 use crate::Result;
 
-/// DELETE /api/v1/assets/{hash}
+/// Handles asset deletion requests (DELETE `/api/v1/assets/{hash}`).
+///
+/// This endpoint removes the user's ownership of the specified asset hash.
+/// If the asset is no longer owned by any user, the underlying physical file
+/// is deleted from the storage vault.
+///
+/// # Errors
+/// - Returns a `BadRequest` if the hash string cannot be decoded from hex.
+/// - Returns an internal error if the database transaction or file deletion fails.
 pub async fn delete(
     State(state): State<AppState>,
     Extension(user_id): Extension<i64>,
@@ -32,7 +40,18 @@ pub async fn delete(
 }
 
 
-/// GET /api/v1/assets/hash
+/// Handles asset download requests (GET `/api/v1/assets/{hash}`).
+///
+/// Verifies that the requesting user owns the asset with the specified hash,
+/// and if authorized, streams the physical file back to the client.
+///
+/// # Errors
+/// - Returns a `BadRequest` if the hash string cannot be decoded from hex.
+/// - Returns a `NotFound` if the user does not own the asset or if the physical file is missing.
+/// - Returns an internal error if the database query fails.
+///
+/// # Panics
+/// This function panics if the hardcoded "application/octet-stream" content type cannot be parsed.
 pub async fn get(
     State(state): State<AppState>,
     Extension(user_id) : Extension<i64>,
@@ -78,7 +97,16 @@ impl FileStatus {
     }
 }
 
-/// POST /api/v1/upload
+/// Handles streaming asset uploads (POST `/api/v1/upload/{tag}`).
+///
+/// This endpoint processes raw binary streams from the client, calculates the BLAKE3 hash
+/// incrementally, and commits the file to the Content-Addressable Storage (CAS) vault.
+/// The uploaded file's metadata is then recorded in the database.
+///
+/// # Errors
+/// - Returns a `BadRequest` if required headers (`X-File-Name`, `Content-Length`) are missing or malformed.
+/// - Returns a `BadRequest` if the payload size exceeds the 10GB limit.
+/// - Returns an internal error if the storage transaction or database insertion fails.
 pub async fn upload(
     State(state): State<AppState>,
     Path(tag_str): Path<String>,

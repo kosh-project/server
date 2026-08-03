@@ -27,7 +27,7 @@ pub enum AssetTag {
 impl Asset {
     /// Returns whether asset exists with given hash
     /// 
-    /// Error 
+    /// # Errors
     /// - Fails with [`sqlx::Error`] if fails to work with database
     pub async fn exists(
         pool: &SqlitePool,
@@ -45,9 +45,9 @@ impl Asset {
 
     /// Registers an asset entry to the assets entity
     ///
-    /// Error
+    /// # Errors
     /// - Returns [`sqlx::Error::Database`] for uniqueness violation,
-    /// because of `uuid` being PRIMARY KEY, which happens very (very) rarely.
+    ///   because of `uuid` being PRIMARY KEY, which happens very (very) rarely.
     /// - Otherwise, this can fail on querrying databases
     pub async fn create(
         pool: &SqlitePool,
@@ -75,6 +75,9 @@ impl Asset {
     /// Deletes user's ownership over an asset
     /// - Returns `Ok(true)`, if no other user owns same asset. Good signal to wipe that asset physically off the server.
     /// - Return `Ok(false)`, if user doesn't own the file, or other users have own the same file.
+    ///
+    /// # Errors
+    /// Returns [`sqlx::Error`] if a database transaction fails.
     pub async fn delete(
         pool: &SqlitePool,
         user: i64,
@@ -112,7 +115,10 @@ impl Asset {
     /// Checks if any [`Asset`] with provided `hash` exists, and is owned by the specified `user` as well
     /// 
     /// It's different from [`Asset::exists`], because it checks for ownership.
-    /// Required for situations where user tries to access an asset, this returns the proof of it. 
+    /// Required for situations where user tries to access an asset, this returns the proof of it.
+    ///
+    /// # Errors
+    /// Returns [`sqlx::Error`] if the database query fails.
     pub async fn owned_by(
         pool: &SqlitePool,
         user: i64,

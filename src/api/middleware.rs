@@ -12,6 +12,16 @@ use blake3::Hasher;
 
 use crate::Result;
 
+/// Middleware that guards protected routes by validating the session token.
+///
+/// Extracts the Bearer token from the `Authorization` header, computes its hash,
+/// and checks the in-memory cache. If missing from the cache, it verifies the
+/// token against the database and caches the result for future requests.
+///
+/// # Errors
+/// - Returns an `Unauthorized` if the `Authorization` header is missing, malformed, or contains an invalid/expired token.
+/// - Returns a `BadRequest` if the token string cannot be serialized.
+/// - Returns an internal error if a database query fails.
 pub async fn auth_guard(
     State(state): State<AppState>,
     mut request: Request,

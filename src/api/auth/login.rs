@@ -20,7 +20,15 @@ pub struct LoginRequest {
     auth_verifier: String,
 }
 
-/// 
+/// Authenticates a user and generates a new session token.
+///
+/// This endpoint verifies the provided identity hash and auth verifier against
+/// the database. If successful, it creates a new session and returns the token.
+///
+/// # Errors
+/// - Returns a `BadRequest` if the identity hash cannot be decoded from hex.
+/// - Returns an `Unauthorized` if the credentials do not match any existing user.
+/// - Returns an internal error if a database query fails.
 pub async fn login(
     State(state): State<AppState>,
     Json(request): Json<LoginRequest>,

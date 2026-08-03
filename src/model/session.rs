@@ -16,12 +16,9 @@ pub struct Session {
 impl Session {
     /// Creates a new entry in `Sessions` entity then returns a hashed token as String
     ///
-    /// # Error
-    /// Fails with [`sqlx::sqlite::SqliteQueryResult`] if an error occurs interacting with sqlite database
-    ///
-    /// # Panic
-    /// This function panics if system time is set earlier than [`UNIX_EPOCH`] \
-    /// To know more about this, see [`SystemTime::duration_since`]
+    /// # Errors
+    /// - Fails with [`sqlx::sqlite::SqliteQueryResult`] if an error occurs interacting with sqlite database.
+    /// - Returns an error if system time is set earlier than [`UNIX_EPOCH`].
     pub async fn create(
         pool: &SqlitePool,
         user_id: i64,
@@ -61,7 +58,7 @@ impl Session {
     /// Querries the database and returns [`Option<Session>`] wrapped in [`Result`].
     /// If any such token exists yields `Some(session)`
     ///
-    /// # Error
+    /// # Errors
     /// Returns [`sqlx::Error`] on failed querry to database.
     pub async fn verify(
         pool: &SqlitePool,
@@ -99,7 +96,7 @@ impl Session {
 
     /// Removes the session entry from sessions entity.
     ///
-    /// Error
+    /// # Errors
     /// Fails with [`sqlx::Error`], if querrying with database fails
     pub async fn revoke(
         pool: &SqlitePool,

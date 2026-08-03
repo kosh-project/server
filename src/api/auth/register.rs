@@ -13,6 +13,12 @@ pub struct RegisterRequest {
     pub auth_verifier: String,
 }
 
+/// Registers a new user with the provided credentials.
+///
+/// # Errors
+/// - Returns a `BadRequest` if the identity hash cannot be decoded from hex.
+/// - Returns a `Conflict` if a user with the same identity hash already exists.
+/// - Returns an internal error if a database query fails.
 pub async fn register(
     State(state): State<AppState>,
     Json(register_request): Json<RegisterRequest>,
