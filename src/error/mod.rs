@@ -10,7 +10,6 @@ use crate::wrap_internal_err;
 
 pub mod internal;
 
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -26,7 +25,7 @@ pub enum Error {
     DatabaseError(#[from] sqlx::Error),
 
     #[error("Internal Error : {}", .0)]
-    InternalError(#[from] internal::Error)
+    InternalError(#[from] internal::Error),
 }
 
 wrap_internal_err! {

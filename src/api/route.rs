@@ -7,11 +7,7 @@ use axum::{
 use serde_json::{Value, json};
 
 use crate::{
-    api::{
-        self,
-        assets,
-        middleware::auth_guard,
-    },
+    api::{self, assets, middleware::auth_guard},
     app::State as AppState,
     log,
 };

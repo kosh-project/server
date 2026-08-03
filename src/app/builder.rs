@@ -63,12 +63,12 @@ impl AppStateBuilder {
                     .expect("FATAL: vault_path is required!"),
             ),
             db: self.db.expect("FATAL: database pool is required!"),
-            session_cache: self.session_cache.unwrap_or_else( ||
+            session_cache: self.session_cache.unwrap_or_else(|| {
                 Cache::builder()
                     .time_to_idle(Duration::from_mins(10))
                     .max_capacity(10_000)
-                    .build(),
-            ),
+                    .build()
+            }),
         }
     }
 }

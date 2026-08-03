@@ -8,18 +8,21 @@ use crate::error::internal::Error::Message;
 use crate::log;
 use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
-use crate::storage::{Error::{InvalidFileName, FileAlreadyExists, Internal, NotFound,}, Payload, Result};
+use crate::storage::{
+    Error::{FileAlreadyExists, Internal, InvalidFileName, NotFound},
+    Payload, Result,
+};
 use std::path::PathBuf;
 
 #[derive(Default, Clone)]
 
 /// [`crate::storage::Service`]
-/// Represents the storage layer of this server. 
+/// Represents the storage layer of this server.
 /// This layer, well only works with storage, and is only responsible for file operations.
 /// - [`Service::new`], initiates a new [`crate::storage::Service`] instance
 /// - [`Service::try_save`], initiates the file upload transaction
 /// - [`Service::delete_blob`], deletes the blob with specified hash
-/// - [`Service::get_blob`], returns with the stream of the blob with specified hash 
+/// - [`Service::get_blob`], returns with the stream of the blob with specified hash
 pub struct Service {
     pub(crate) vault_path: PathBuf,
 }
@@ -34,8 +37,8 @@ impl Service {
         }
     }
 
-    /// Initiates a transaction to commit a payload to disk 
-    /// 
+    /// Initiates a transaction to commit a payload to disk
+    ///
     /// # Errors
     /// - Returns [`Error`] when committing file to disk returns fails.
     pub async fn try_save<S, E>(
@@ -78,12 +81,10 @@ impl Service {
     }
 }
 
-
 impl Service {
-
     /// Deletes the blob with specified hash
-    /// Returns, Ok(()) even when file doesn't exist. 
-    /// 
+    /// Returns, Ok(()) even when file doesn't exist.
+    ///
     /// # Errors
     /// - Fails with [`Error`], when there was a problem accessing specified file.
     pub async fn delete_blob(&self, hash_str: &str) -> Result<()> {
@@ -92,23 +93,20 @@ impl Service {
         match fs::remove_file(file_path).await {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-            Err(x) => {
-                Err(Internal(Message(format!("Failed to delete file : {x}"))))
-            }
+            Err(x) => Err(Internal(Message(format!(
+                "Failed to delete file : {x}"
+            )))),
         }
     }
 
-
     /// Returns with [`File`] with the specified hash
-    /// 
+    ///
     /// # Errors
     /// - Returns [`Error`], when there was a problem accessing specified file
     pub async fn get_blob(&self, hash_str: &str) -> Result<File> {
         let file_path = self.vault_path.join(hash_str);
 
-        File::open(file_path)
-            .await
-            .map_err(|_| NotFound)
+        File::open(file_path).await.map_err(|_| NotFound)
     }
 }
 

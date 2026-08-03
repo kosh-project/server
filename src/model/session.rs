@@ -1,5 +1,8 @@
 use crate::{Error::InternalError, Result};
-use std::{num::TryFromIntError, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    num::TryFromIntError,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use blake3::Hasher;
 use sqlx::SqlitePool;
@@ -25,7 +28,8 @@ impl Session {
     ) -> Result<String> {
         let token = Uuid::new_v4().to_string();
 
-        #[allow(clippy::as_conversions)] // Happens only when you mess up with your system time
+        #[allow(clippy::as_conversions)]
+        // Happens only when you mess up with your system time
         let created_at: i64 = SystemTime::now()
             .duration_since(UNIX_EPOCH)?
             .as_secs()
@@ -79,9 +83,8 @@ impl Session {
         .fetch_optional(pool)
         .await?;
 
-        let this_moment = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs();
+        let this_moment =
+            SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
         if let Some(ref sess) = session
             && (this_moment < sess.created_at.try_into()?

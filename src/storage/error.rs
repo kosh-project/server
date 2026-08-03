@@ -50,10 +50,9 @@ pub enum Error {
     Internal(#[from] internal::Error),
 
     #[error("Blob Not found")]
-    NotFound
+    NotFound,
 }
 
 pub type Result<T> = core::result::Result<T, storage::Error>;
-
 
 wrap_internal_err! { TryFromIntError, SystemTimeError => Error::Internal }

@@ -11,11 +11,10 @@ pub enum Error {
     AssetNotFound,
 
     #[error("Internal Err {}", .0)]
-    Internal(#[from] internal::Error)
+    Internal(#[from] internal::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
 
 wrap_internal_err! {
     TryFromIntError => Error::Internal

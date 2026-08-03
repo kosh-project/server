@@ -15,7 +15,6 @@ pub struct State {
 }
 
 impl State {
-
     #[must_use]
     pub fn vault_path(&self) -> &Path {
         &self.storage.vault_path

@@ -36,9 +36,9 @@ pub async fn auth_guard(
         .to_str()
         .map_err(|_| BadRequest("Auth failed to serialize".into()))?
         .strip_prefix("Bearer ")
-        .ok_or_else(|| Unauthorized(
-            "Tokens must start with 'Bearer'".into(),
-        ))?;
+        .ok_or_else(|| {
+            Unauthorized("Tokens must start with 'Bearer'".into())
+        })?;
 
     let token_hash: TokenHash = Hasher::new()
         .update(token.as_bytes())
@@ -53,7 +53,9 @@ pub async fn auth_guard(
 
     let session = Session::verify(&state.db, token_hash.as_ref())
         .await?
-        .ok_or_else(|| Unauthorized("Invalid or expired session".into()))?;
+        .ok_or_else(|| {
+            Unauthorized("Invalid or expired session".into())
+        })?;
 
     state
         .session_cache

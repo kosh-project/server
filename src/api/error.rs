@@ -24,7 +24,7 @@ pub enum Error {
     NotFound(String),
 
     #[error("Invalid header value : {}", .0)]
-    InvalidHeaderValue(#[from] InvalidHeaderValue)
+    InvalidHeaderValue(#[from] InvalidHeaderValue),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

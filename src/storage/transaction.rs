@@ -14,7 +14,10 @@ use std::{
     io::{Error as IoErr, ErrorKind::UnexpectedEof},
     path::{Path, PathBuf},
 };
-use tokio::{fs::{remove_file, File, rename}, io::AsyncWriteExt};
+use tokio::{
+    fs::{File, remove_file, rename},
+    io::AsyncWriteExt,
+};
 use uuid::Uuid;
 
 #[derive(Debug)]

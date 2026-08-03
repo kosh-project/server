@@ -1,11 +1,11 @@
 use std::{
-    fs::Metadata as StdMeta, os::unix::fs::MetadataExt, time::UNIX_EPOCH,
+    fs::Metadata as StdMeta, os::unix::fs::MetadataExt,
+    time::UNIX_EPOCH,
 };
 
 use blake3::Hash;
 
-use crate::storage::{Result};
-
+use crate::storage::Result;
 
 pub struct Metadata {
     pub hash: Hash,
@@ -26,8 +26,7 @@ impl Metadata {
                 .duration_since(UNIX_EPOCH)?
                 .as_secs()
                 .try_into()?,
-            size: metadata.size()
-                .try_into()?
+            size: metadata.size().try_into()?,
         })
     }
 }
