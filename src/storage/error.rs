@@ -1,5 +1,7 @@
 use std::{num::TryFromIntError, path::PathBuf, time::SystemTimeError};
 
+use axum::response::IntoResponse;
+use hyper::StatusCode;
 use tokio::io;
 
 use crate::{error::internal, storage, wrap_internal_err};
@@ -56,3 +58,37 @@ pub enum Error {
 pub type Result<T> = core::result::Result<T, storage::Error>;
 
 wrap_internal_err! { TryFromIntError, SystemTimeError => Error::Internal }
+
+impl IntoResponse for Error {
+    fn into_response(self) -> axum::response::Response {
+        use Error::{
+            CreateTempFile, FileAlreadyExists, Internal,
+            InvalidFileName, NotFound, RenameError, StreamReadError,
+            VaultNotFound, WriteChunkFailure,
+        };
+
+        match self {
+            VaultNotFound => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal Server Error".into(),
+            ),
+            InvalidFileName | Error::InvalidPath { .. } => (
+                StatusCode::BAD_REQUEST,
+                "Invalid file path or name".into(),
+            ),
+            FileAlreadyExists(msg) => (StatusCode::CONFLICT, msg),
+            NotFound => {
+                (StatusCode::NOT_FOUND, "Blob not found".into())
+            }
+            CreateTempFile { .. }
+            | WriteChunkFailure { .. }
+            | StreamReadError(_)
+            | RenameError { .. }
+            | Internal(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal Server Error".into(),
+            ),
+        }
+        .into_response()
+    }
+}

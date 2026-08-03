@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::model::Result;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use blake3::Hasher;

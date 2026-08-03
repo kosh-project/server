@@ -1,5 +1,5 @@
 use crate::{
-    Result, storage::file::Metadata,
+    model::error::Result, storage::file::Metadata,
 };
 use sqlx::{SqlitePool, query};
 use uuid::Uuid;

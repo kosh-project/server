@@ -1,6 +1,6 @@
 use crate::api::Error::BadRequest;
 use crate::app::State as AppState;
-use crate::model::user::User;
+use crate::model::{error::Error as ModelErr, user::User};
 use crate::{Error as AppErr, Result};
 use axum::{Json, extract::State};
 use hyper::StatusCode;
@@ -38,11 +38,11 @@ pub async fn register(
 
     match result {
         Ok(()) => Ok(StatusCode::CREATED),
-        Err(AppErr::DatabaseError(SqlErr::Database(err)))
+        Err(ModelErr::Database(SqlErr::Database(err)))
             if err.is_unique_violation() =>
         {
             Err(AppErr::Conflict("User already exists".into()))
         }
-        Err(e) => Err(e),
+        Err(e) => Err(e.into()),
     }
 }

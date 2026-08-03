@@ -4,19 +4,19 @@ use std::time::SystemTimeError;
 use axum::response::IntoResponse;
 use hyper::StatusCode;
 
-use crate::api::Error as ApiErr;
-use crate::storage::Error as StorageErr;
-use crate::wrap_internal_err;
+use crate::api;
+use crate::storage;
+use crate::{model, wrap_internal_err};
 
 pub mod internal;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]
-    StorageError(#[from] StorageErr),
+    StorageError(#[from] storage::Error),
 
     #[error("API Error : {}", .0)]
-    ApiError(#[from] ApiErr),
+    ApiError(#[from] api::Error),
 
     #[error("User Conflict")]
     Conflict(String),
@@ -26,6 +26,9 @@ pub enum Error {
 
     #[error("Internal Error : {}", .0)]
     InternalError(#[from] internal::Error),
+
+    #[error("Model Error : {}", .0)]
+    ModelError(#[from] model::Error)
 }
 
 wrap_internal_err! {
@@ -34,9 +37,21 @@ wrap_internal_err! {
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
-            .into_response()
+
+        use Error::{ApiError, StorageError, ModelError, Conflict, DatabaseError, InternalError};
+
+        match self {
+            StorageError(error) => error.into_response(),
+            ApiError(error) => error.into_response(),
+            ModelError(error) => error.into_response(),
+
+            Conflict(error) => (StatusCode::CONFLICT, error).into_response(),
+
+            DatabaseError(_) | InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response(),
+        }
+        
     }
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
+

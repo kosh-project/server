@@ -1,5 +1,5 @@
-use crate::error::Result;
-use sqlx::{Executor, SqlitePool};
+use crate::model::Result;
+use sqlx::{SqlitePool};
 
 /// User entity for persistent storage
 ///
@@ -10,9 +10,9 @@ pub struct User {
 }
 
 impl User {
-    /// Inserts a new user to users entity via `SqlitePool`
+    /// Inserts a new user to users entity via SqlitePool
     ///
-    /// # Errors
+    /// # Error
     /// - If querrying database causes failure, returns with [`sqlx::sqlite::SqliteQueryResult`]
     /// - On uniqueness violation, that is, when user already exists, yields [`sqlx::Error::Database`]
     pub async fn create(
@@ -35,10 +35,10 @@ impl User {
 
     /// Verifies the credential pair (`identity_hash` and `auth_verifier`)
     /// stored in users entity via [`sqlx::SqlitePool`].
-    /// Returns the `user_id` as `Some(i64)` wrapped in [`Result`]
+    /// Returns the user_id as `Some(i64)` wrapped in [`Result`]
     ///
-    /// # Errors
-    /// - Returns with [`hex::FromHexError`] if `identity_hash` fails to decode into byte array.
+    /// # Error
+    /// - Returns with [`hex::FromHexError`] if identity_hash fails to decode into byte array.
     /// - Fails with [`sqlx::Error`], when querrying with database fails
     pub async fn verify(
         pool: &SqlitePool,

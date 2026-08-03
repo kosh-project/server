@@ -113,7 +113,7 @@ impl Service {
 #[cfg(test)]
 mod tests {
     use core::result::Result;
-    use std::{io::Error as IoErr, result};
+    use std::{io::Error as IoErr};
 
     use tokio::fs::File;
 
