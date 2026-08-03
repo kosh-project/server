@@ -16,7 +16,8 @@ pub struct AppStateBuilder {
 }
 
 impl AppStateBuilder {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             vault_path: None,
             db: None,
@@ -24,6 +25,7 @@ impl AppStateBuilder {
         }
     }
 
+    #[must_use]
     pub fn vault_path<P>(mut self, path: P) -> Self
     where
         P: Into<PathBuf>,
@@ -32,11 +34,13 @@ impl AppStateBuilder {
         self
     }
 
+    #[must_use]
     pub fn db(mut self, pool: SqlitePool) -> Self {
         self.db = Some(pool);
         self
     }
 
+    #[must_use]
     pub fn session_cache(
         mut self,
         session_cache: Cache<TokenHash, UserId>,
@@ -66,5 +70,11 @@ impl AppStateBuilder {
                     .build(),
             ),
         }
+    }
+}
+
+impl Default for AppStateBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }

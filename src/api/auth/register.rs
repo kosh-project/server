@@ -37,12 +37,12 @@ pub async fn register(
     .await;
 
     match result {
-        Ok(_) => Ok(StatusCode::CREATED),
+        Ok(()) => Ok(StatusCode::CREATED),
         Err(AppErr::DatabaseError(SqlErr::Database(err)))
             if err.is_unique_violation() =>
         {
             Err(AppErr::Conflict("User already exists".into()))
         }
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }

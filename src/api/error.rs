@@ -1,3 +1,4 @@
+use hyper::header::InvalidHeaderValue;
 use tokio::io;
 
 use crate::error::internal;
@@ -20,7 +21,10 @@ pub enum Error {
     #[error("Internal Server Error : {}", .0)]
     Internal(#[from] internal::Error),
     #[error("Not Found")]
-    NotFound(String)
+    NotFound(String),
+
+    #[error("Invalid header value : {}", .0)]
+    InvalidHeaderValue(#[from] InvalidHeaderValue)
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

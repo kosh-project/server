@@ -13,8 +13,7 @@ async fn main() -> io::Result<()> {
     tokio::fs::create_dir_all("./test/vault").await?;
     log!("FS", "Initialized vault");
 
-    println! {"holy shit {}", "nigga"};
-
+    #[allow(clippy::expect_used)]
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect("sqlite://test/vault/metadata.db")

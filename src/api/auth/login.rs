@@ -40,7 +40,7 @@ pub async fn login(
     let user_id =
         User::verify(&state.db, identity_hash, request.auth_verifier)
             .await?
-            .ok_or(Unauthorized("Invalid Credentials".into()))?;
+            .ok_or_else(|| Unauthorized("Invalid Credentials".into()))?;
 
     let token = Session::create(&state.db, user_id).await?;
 
