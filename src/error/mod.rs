@@ -4,19 +4,19 @@ use std::time::SystemTimeError;
 use axum::response::IntoResponse;
 use hyper::StatusCode;
 
-use crate::api::Error as ApiErr;
-use crate::storage::Error as StorageErr;
-use crate::wrap_internal_err;
+use crate::api;
+use crate::storage;
+use crate::{model, wrap_internal_err};
 
 pub mod internal;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]
-    StorageError(#[from] StorageErr),
+    StorageError(#[from] storage::Error),
 
     #[error("API Error : {}", .0)]
-    ApiError(#[from] ApiErr),
+    ApiError(#[from] api::Error),
 
     #[error("User Conflict")]
     Conflict(String),
@@ -26,6 +26,9 @@ pub enum Error {
 
     #[error("Internal Error : {}", .0)]
     InternalError(#[from] internal::Error),
+
+    #[error("Model Error : {}", .0)]
+    ModelError(#[from] model::Error)
 }
 
 wrap_internal_err! {

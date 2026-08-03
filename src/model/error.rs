@@ -1,4 +1,4 @@
-use std::num::TryFromIntError;
+use std::{num::TryFromIntError, time::SystemTimeError};
 
 use axum::response::IntoResponse;
 use hyper::StatusCode;
@@ -20,7 +20,7 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 wrap_internal_err! {
-    TryFromIntError => Error::Internal
+    TryFromIntError, SystemTimeError => Error::Internal
 }
 
 

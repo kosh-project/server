@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::model::Result;
 use sqlx::{SqlitePool};
 
 /// User entity for persistent storage
