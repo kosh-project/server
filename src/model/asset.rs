@@ -1,7 +1,7 @@
 use crate::{
-    Result, model::session::TokenHash, storage::file::Metadata,
+    Result, storage::file::Metadata,
 };
-use sqlx::{SqlitePool, pool, query};
+use sqlx::{SqlitePool, query};
 use uuid::Uuid;
 
 #[derive(sqlx::FromRow)]

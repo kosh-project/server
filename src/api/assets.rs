@@ -1,4 +1,3 @@
-use std::io::ErrorKind;
 
 use crate::{
     Error::ApiError,
