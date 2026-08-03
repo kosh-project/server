@@ -14,15 +14,19 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// Attempts to construct a new `Metadata` instance from standard library metadata.
+    ///
+    /// # Errors
+    /// Returns an error if the system time is earlier than `UNIX_EPOCH` or if integer conversions fail.
     pub fn try_new(metadata: &StdMeta, hash: Hash) -> Result<Self> {
         Ok(Self {
             hash,
             last_modified: metadata
                 .modified()?
-                .duration_since(UNIX_EPOCH)
-                .expect("You're not time-travelling, are you?")
-                .as_secs() as i64,
-            size: metadata.size() as i64,
+                .duration_since(UNIX_EPOCH)?
+                .as_secs()
+                .try_into()?,
+            size: metadata.size().try_into()?,
         })
     }
 }

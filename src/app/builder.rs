@@ -16,7 +16,8 @@ pub struct AppStateBuilder {
 }
 
 impl AppStateBuilder {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             vault_path: None,
             db: None,
@@ -24,6 +25,7 @@ impl AppStateBuilder {
         }
     }
 
+    #[must_use]
     pub fn vault_path<P>(mut self, path: P) -> Self
     where
         P: Into<PathBuf>,
@@ -32,11 +34,13 @@ impl AppStateBuilder {
         self
     }
 
+    #[must_use]
     pub fn db(mut self, pool: SqlitePool) -> Self {
         self.db = Some(pool);
         self
     }
 
+    #[must_use]
     pub fn session_cache(
         mut self,
         session_cache: Cache<TokenHash, UserId>,
@@ -45,6 +49,13 @@ impl AppStateBuilder {
         self
     }
 
+    /// Consumes the builder and returns the constructed `AppState`.
+    ///
+    /// # Panics
+    /// This function will panic if `vault_path` or `db` have not been configured
+    /// prior to calling `build`.
+    #[allow(clippy::expect_used)]
+    #[must_use]
     pub fn build(self) -> AppState {
         AppState {
             storage: storage::Service::new(
@@ -52,12 +63,18 @@ impl AppStateBuilder {
                     .expect("FATAL: vault_path is required!"),
             ),
             db: self.db.expect("FATAL: database pool is required!"),
-            session_cache: self.session_cache.unwrap_or(
+            session_cache: self.session_cache.unwrap_or_else(|| {
                 Cache::builder()
-                    .time_to_idle(Duration::from_secs(600))
+                    .time_to_idle(Duration::from_mins(10))
                     .max_capacity(10_000)
-                    .build(),
-            ),
+                    .build()
+            }),
         }
+    }
+}
+
+impl Default for AppStateBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }

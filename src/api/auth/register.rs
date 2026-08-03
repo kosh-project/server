@@ -13,6 +13,12 @@ pub struct RegisterRequest {
     pub auth_verifier: String,
 }
 
+/// Registers a new user with the provided credentials.
+///
+/// # Errors
+/// - Returns a `BadRequest` if the identity hash cannot be decoded from hex.
+/// - Returns a `Conflict` if a user with the same identity hash already exists.
+/// - Returns an internal error if a database query fails.
 pub async fn register(
     State(state): State<AppState>,
     Json(register_request): Json<RegisterRequest>,
@@ -31,12 +37,12 @@ pub async fn register(
     .await;
 
     match result {
-        Ok(_) => Ok(StatusCode::CREATED),
+        Ok(()) => Ok(StatusCode::CREATED),
         Err(AppErr::DatabaseError(SqlErr::Database(err)))
             if err.is_unique_violation() =>
         {
             Err(AppErr::Conflict("User already exists".into()))
         }
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }

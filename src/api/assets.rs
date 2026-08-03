@@ -1,18 +1,33 @@
-use std::io::ErrorKind;
 
+use crate::{
+    Error::ApiError,
+    api::Error::{BadRequest, InvalidHeaderValue, NotFound},
+    app::State as AppState,
+    log,
+    model::asset::{Asset, AssetTag},
+    storage::Payload,
+};
 use axum::{
-    Extension, Json, body::Body, extract::{Path, State}, response::IntoResponse,
+    Extension, Json,
+    body::Body,
+    extract::{Path, State},
+    response::IntoResponse,
 };
 use hyper::{HeaderMap, StatusCode};
 use serde::Serialize;
 use tokio_util::io::ReaderStream;
-use crate::{
-    Error::ApiError, api::Error::{BadRequest, NotFound}, app::State as AppState, log, model::asset::{Asset, AssetTag}, storage::Payload,
-};
 
 use crate::Result;
 
-/// DELETE /api/v1/assets/{hash}
+/// Handles asset deletion requests (DELETE `/api/v1/assets/{hash}`).
+///
+/// This endpoint removes the user's ownership of the specified asset hash.
+/// If the asset is no longer owned by any user, the underlying physical file
+/// is deleted from the storage vault.
+///
+/// # Errors
+/// - Returns a `BadRequest` if the hash string cannot be decoded from hex.
+/// - Returns an internal error if the database transaction or file deletion fails.
 pub async fn delete(
     State(state): State<AppState>,
     Extension(user_id): Extension<i64>,
@@ -31,29 +46,51 @@ pub async fn delete(
     Ok(StatusCode::NO_CONTENT)
 }
 
-
-/// GET /api/v1/assets/hash
+/// Handles asset download requests (GET `/api/v1/assets/{hash}`).
+///
+/// Verifies that the requesting user owns the asset with the specified hash,
+/// and if authorized, streams the physical file back to the client.
+///
+/// # Errors
+/// - Returns a `BadRequest` if the hash string cannot be decoded from hex.
+/// - Returns a `NotFound` if the user does not own the asset or if the physical file is missing.
+/// - Returns an internal error if the database query fails.
+///
+/// # Panics
+/// This function panics if the hardcoded "application/octet-stream" content type cannot be parsed.
 pub async fn get(
     State(state): State<AppState>,
-    Extension(user_id) : Extension<i64>,
+    Extension(user_id): Extension<i64>,
     Path(hash_str): Path<String>,
 ) -> Result<impl IntoResponse> {
     let hash_bytes = hex::decode(&hash_str)
-    .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
+        .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
 
-    let owns_file = Asset::owned_by(&state.db, user_id, &hash_bytes).await?;
+    let owns_file =
+        Asset::owned_by(&state.db, user_id, &hash_bytes).await?;
 
     if !owns_file {
-        return Err(ApiError(NotFound("Asset not found or Unauthorized".into())))
+        return Err(ApiError(NotFound(
+            "Asset not found or Unauthorized".into(),
+        )));
     }
 
-    let file = state.storage.get_blob(&hash_str).await.map_err(|_| NotFound("File Missing".into()))?;
+    let file = state
+        .storage
+        .get_blob(&hash_str)
+        .await
+        .map_err(|_| NotFound("File Missing".into()))?;
 
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
 
     let mut headers = HeaderMap::new();
-    headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
+    headers.insert(
+        "Content-Type",
+        "application/octet-stream"
+            .parse()
+            .map_err(|e| ApiError(InvalidHeaderValue(e)))?,
+    );
 
     Ok((StatusCode::OK, headers, body))
 }
@@ -66,11 +103,11 @@ enum FileStatus {
 }
 
 impl FileStatus {
-    fn success(file_name: String, hash: String) -> Self {
+    const fn success(file_name: String, hash: String) -> Self {
         Self::Success { file_name, hash }
     }
 
-    fn failure(file_name: String, error: impl ToString) -> Self {
+    fn failure(file_name: String, error: &impl ToString) -> Self {
         Self::Failure {
             file_name,
             error: error.to_string(),
@@ -78,7 +115,16 @@ impl FileStatus {
     }
 }
 
-/// POST /api/v1/upload
+/// Handles streaming asset uploads (POST `/api/v1/upload/{tag}`).
+///
+/// This endpoint processes raw binary streams from the client, calculates the BLAKE3 hash
+/// incrementally, and commits the file to the Content-Addressable Storage (CAS) vault.
+/// The uploaded file's metadata is then recorded in the database.
+///
+/// # Errors
+/// - Returns a `BadRequest` if required headers (`X-File-Name`, `Content-Length`) are missing or malformed.
+/// - Returns a `BadRequest` if the payload size exceeds the 10GB limit.
+/// - Returns an internal error if the storage transaction or database insertion fails.
 pub async fn upload(
     State(state): State<AppState>,
     Path(tag_str): Path<String>,
@@ -89,7 +135,7 @@ pub async fn upload(
     log!("HANDLER", "post_upload");
 
     let tag = AssetTag::try_from(tag_str.as_str())
-        .map_err(|_| BadRequest("Invalid Tag".into()))?;
+        .map_err(|()| BadRequest("Invalid Tag".into()))?;
 
     let file_name = headers
         .get("X-File-Name")
@@ -121,14 +167,14 @@ pub async fn upload(
             match Asset::create(&state.db, user_id, tag, &metadata)
                 .await
             {
-                Ok(_) => FileStatus::success(
+                Ok(()) => FileStatus::success(
                     file_name.into(),
                     metadata.hash.to_string(),
                 ),
-                Err(e) => FileStatus::failure(file_name.into(), e),
+                Err(e) => FileStatus::failure(file_name.into(), &e),
             }
         }
-        Err(e) => FileStatus::failure(file_name.into(), e),
+        Err(e) => FileStatus::failure(file_name.into(), &e),
     };
 
     Ok(Json(status))

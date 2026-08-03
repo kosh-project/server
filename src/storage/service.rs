@@ -4,21 +4,25 @@ use std::error::Error as StdErr;
 use std::io::ErrorKind::{self};
 use tokio::fs::{self, File};
 
+use crate::error::internal::Error::Message;
 use crate::log;
 use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
-use crate::storage::{Error::{*, self}, Payload, Result};
+use crate::storage::{
+    Error::{FileAlreadyExists, Internal, InvalidFileName, NotFound},
+    Payload, Result,
+};
 use std::path::PathBuf;
 
 #[derive(Default, Clone)]
 
 /// [`crate::storage::Service`]
-/// Represents the storage layer of this server. 
+/// Represents the storage layer of this server.
 /// This layer, well only works with storage, and is only responsible for file operations.
 /// - [`Service::new`], initiates a new [`crate::storage::Service`] instance
 /// - [`Service::try_save`], initiates the file upload transaction
 /// - [`Service::delete_blob`], deletes the blob with specified hash
-/// - [`Service::get_blob`], returns with the stream of the blob with specified hash 
+/// - [`Service::get_blob`], returns with the stream of the blob with specified hash
 pub struct Service {
     pub(crate) vault_path: PathBuf,
 }
@@ -33,9 +37,9 @@ impl Service {
         }
     }
 
-    /// Initiates a transaction to commit a payload to disk 
-    /// 
-    /// Error
+    /// Initiates a transaction to commit a payload to disk
+    ///
+    /// # Errors
     /// - Returns [`Error`] when committing file to disk returns fails.
     pub async fn try_save<S, E>(
         &self,
@@ -50,7 +54,7 @@ impl Service {
 
         let file_metadata = transaction.commit(payload).await?;
 
-        log!("STORAGE", "committed: {file_name}");
+        log!("STORAGE", format!("committed: {file_name}"));
 
         Ok(file_metadata)
     }
@@ -77,37 +81,32 @@ impl Service {
     }
 }
 
-
 impl Service {
-
     /// Deletes the blob with specified hash
-    /// Returns, Ok(()) even when file doesn't exist. 
-    /// 
-    /// Error
+    /// Returns, Ok(()) even when file doesn't exist.
+    ///
+    /// # Errors
     /// - Fails with [`Error`], when there was a problem accessing specified file.
     pub async fn delete_blob(&self, hash_str: &str) -> Result<()> {
         let file_path = self.vault_path.join(hash_str);
 
         match fs::remove_file(file_path).await {
-            Ok(_) => Ok(()),
+            Ok(()) => Ok(()),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-            Err(_) => {
-                Err(Internal("Failed to delete physical file".into()))
-            }
+            Err(x) => Err(Internal(Message(format!(
+                "Failed to delete file : {x}"
+            )))),
         }
     }
 
-
     /// Returns with [`File`] with the specified hash
-    /// 
-    /// Error 
+    ///
+    /// # Errors
     /// - Returns [`Error`], when there was a problem accessing specified file
     pub async fn get_blob(&self, hash_str: &str) -> Result<File> {
         let file_path = self.vault_path.join(hash_str);
 
-        File::open(file_path)
-            .await
-            .map_err(|_| NotFound)
+        File::open(file_path).await.map_err(|_| NotFound)
     }
 }
 

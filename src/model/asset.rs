@@ -1,7 +1,7 @@
 use crate::{
-    Result, model::session::TokenHash, storage::file::Metadata,
+    Result, storage::file::Metadata,
 };
-use sqlx::{SqlitePool, pool, query};
+use sqlx::{SqlitePool, query};
 use uuid::Uuid;
 
 #[derive(sqlx::FromRow)]
@@ -26,8 +26,8 @@ pub enum AssetTag {
 
 impl Asset {
     /// Returns whether asset exists with given hash
-    /// 
-    /// Error 
+    ///
+    /// # Errors
     /// - Fails with [`sqlx::Error`] if fails to work with database
     pub async fn exists(
         pool: &SqlitePool,
@@ -45,9 +45,9 @@ impl Asset {
 
     /// Registers an asset entry to the assets entity
     ///
-    /// Error
+    /// # Errors
     /// - Returns [`sqlx::Error::Database`] for uniqueness violation,
-    /// because of `uuid` being PRIMARY KEY, which happens very (very) rarely.
+    ///   because of `uuid` being PRIMARY KEY, which happens very (very) rarely.
     /// - Otherwise, this can fail on querrying databases
     pub async fn create(
         pool: &SqlitePool,
@@ -75,6 +75,9 @@ impl Asset {
     /// Deletes user's ownership over an asset
     /// - Returns `Ok(true)`, if no other user owns same asset. Good signal to wipe that asset physically off the server.
     /// - Return `Ok(false)`, if user doesn't own the file, or other users have own the same file.
+    ///
+    /// # Errors
+    /// Returns [`sqlx::Error`] if a database transaction fails.
     pub async fn delete(
         pool: &SqlitePool,
         user: i64,
@@ -110,9 +113,12 @@ impl Asset {
     }
 
     /// Checks if any [`Asset`] with provided `hash` exists, and is owned by the specified `user` as well
-    /// 
+    ///
     /// It's different from [`Asset::exists`], because it checks for ownership.
-    /// Required for situations where user tries to access an asset, this returns the proof of it. 
+    /// Required for situations where user tries to access an asset, this returns the proof of it.
+    ///
+    /// # Errors
+    /// Returns [`sqlx::Error`] if the database query fails.
     pub async fn owned_by(
         pool: &SqlitePool,
         user: i64,
@@ -134,7 +140,9 @@ impl Asset {
 impl TryFrom<&str> for AssetTag {
     type Error = ();
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        use AssetTag::*;
+        use AssetTag::{
+            DriveItem, DriveMeta, GalleryItem, GalleryMeta,
+        };
 
         Ok(match value {
             "0" => GalleryMeta,
@@ -148,12 +156,11 @@ impl TryFrom<&str> for AssetTag {
 
 #[cfg(test)]
 mod tests {
-    use sqlx::SqlitePool;
     use anyhow::Result;
-use uuid::Uuid;
+    use sqlx::SqlitePool;
+    use uuid::Uuid;
 
-use crate::model::asset::Asset;
-
+    use crate::model::asset::Asset;
 
     async fn setup_db() -> Result<SqlitePool> {
         let pool = SqlitePool::connect("sqlite::memory:").await?;
@@ -161,7 +168,11 @@ use crate::model::asset::Asset;
         Ok(pool)
     }
 
-    async fn insert_asset(pool : &SqlitePool, user_id : i64, hash : &[u8]) -> Result<()> {
+    async fn insert_asset(
+        pool: &SqlitePool,
+        user_id: i64,
+        hash: &[u8],
+    ) -> Result<()> {
         let dummy_id = format!("id_hash_{user_id}");
 
         sqlx::query!(r#"
@@ -173,13 +184,12 @@ use crate::model::asset::Asset;
         ).execute(pool)
         .await?;
 
-
         sqlx::query!(r#"
             INSERT INTO assets (id, user_id, hash, size_bytes, last_modified, tag) VALUES (?, ?, ?, ?, ?, ?)
             "#,
             Uuid::new_v4().as_bytes().to_vec(),
             user_id,
-            hash, 
+            hash,
             100,
             0,
             0
@@ -188,8 +198,14 @@ use crate::model::asset::Asset;
         Ok(())
     }
 
-    async fn count_owners(pool : &SqlitePool, hash : &[u8]) -> Result<i64> {
-        let count = sqlx::query_scalar!("SELECT COUNT(*) FROM assets WHERE hash = ?", hash as &[u8])
+    async fn count_owners(
+        pool: &SqlitePool,
+        hash: &[u8],
+    ) -> Result<i64> {
+        let count = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM assets WHERE hash = ?",
+            hash as &[u8]
+        )
         .fetch_one(pool)
         .await?;
 
@@ -197,7 +213,7 @@ use crate::model::asset::Asset;
     }
 
     #[tokio::test]
-    async fn delete_asset_with_single_owner() -> Result<()>{
+    async fn delete_asset_with_single_owner() -> Result<()> {
         let pool = setup_db().await?;
         let hash = b"hello_fellas_i_m_deleting_a_file";
 
@@ -206,7 +222,10 @@ use crate::model::asset::Asset;
         let should_delete = Asset::delete(&pool, 10, hash).await?;
 
         // Test
-        assert!(should_delete, "Expected Item to be deleted, because of zero owner count");
+        assert!(
+            should_delete,
+            "Expected Item to be deleted, because of zero owner count"
+        );
 
         let count = count_owners(&pool, hash).await?;
 
@@ -215,7 +234,6 @@ use crate::model::asset::Asset;
 
         Ok(())
     }
-
 
     #[tokio::test]
     async fn delete_asset_with_more_than_one_onwers() -> Result<()> {
@@ -228,9 +246,12 @@ use crate::model::asset::Asset;
         let should_delete = Asset::delete(&pool, 10, hash).await?;
 
         // Test: Item shouldn't be deleted, if there is atleast one owner
-        assert!(!should_delete, "Expected Item to be not deleted, 'cause this asset is still owned");
-        
-        let count = count_owners(&pool, hash).await?; 
+        assert!(
+            !should_delete,
+            "Expected Item to be not deleted, 'cause this asset is still owned"
+        );
+
+        let count = count_owners(&pool, hash).await?;
 
         // Test: owner_count shouldn't be anything but 1;
         assert_eq!(count, 1);
@@ -248,7 +269,10 @@ use crate::model::asset::Asset;
         let should_delete = Asset::delete(&pool, 12, hash).await?;
 
         // Test: Fails if user_2 can touch files without owning them;
-        assert!(!should_delete, "Expected user_12 not to delete asset owned by user_10");
+        assert!(
+            !should_delete,
+            "Expected user_12 not to delete asset owned by user_10"
+        );
 
         let count = count_owners(&pool, hash).await?;
 

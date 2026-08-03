@@ -1,4 +1,7 @@
+use hyper::header::InvalidHeaderValue;
 use tokio::io;
+
+use crate::error::internal;
 
 /// Errors that may occur, when handling API Requests
 #[derive(Debug, thiserror::Error)]
@@ -16,9 +19,12 @@ pub enum Error {
     #[error("Unauthorized : {}", .0)]
     Unauthorized(String),
     #[error("Internal Server Error : {}", .0)]
-    Internal(String),
+    Internal(#[from] internal::Error),
     #[error("Not Found")]
-    NotFound(String)
+    NotFound(String),
+
+    #[error("Invalid header value : {}", .0)]
+    InvalidHeaderValue(#[from] InvalidHeaderValue),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

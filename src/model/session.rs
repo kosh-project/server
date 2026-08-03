@@ -16,21 +16,22 @@ pub struct Session {
 impl Session {
     /// Creates a new entry in `Sessions` entity then returns a hashed token as String
     ///
-    /// # Error
-    /// Fails with [`sqlx::sqlite::SqliteQueryResult`] if an error occurs interacting with sqlite database
-    ///
-    /// # Panic
-    /// This function panics if system time is set earlier than [`UNIX_EPOCH`] \
-    /// To know more about this, see [`SystemTime::duration_since`]
+    /// # Errors
+    /// - Fails with [`sqlx::sqlite::SqliteQueryResult`] if an error occurs interacting with sqlite database.
+    /// - Returns an error if system time is set earlier than [`UNIX_EPOCH`].
     pub async fn create(
         pool: &SqlitePool,
         user_id: i64,
     ) -> Result<String> {
         let token = Uuid::new_v4().to_string();
-        let created_at = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Diddy did what?")
-            .as_secs() as i64;
+
+        #[allow(clippy::as_conversions)]
+        // Happens only when you mess up with your system time
+        let created_at: i64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)?
+            .as_secs()
+            .try_into()?;
+
         let expires_at = created_at + (30 * 24 * 60 * 60);
 
         let token_hash = Hasher::new()
@@ -58,7 +59,7 @@ impl Session {
     /// Querries the database and returns [`Option<Session>`] wrapped in [`Result`].
     /// If any such token exists yields `Some(session)`
     ///
-    /// # Error
+    /// # Errors
     /// Returns [`sqlx::Error`] on failed querry to database.
     pub async fn verify(
         pool: &SqlitePool,
@@ -79,14 +80,12 @@ impl Session {
         .fetch_optional(pool)
         .await?;
 
-        let this_moment = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("What")
-            .as_secs();
+        let this_moment =
+            SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
         if let Some(ref sess) = session
-            && (this_moment < sess.created_at as u64
-                || this_moment > sess.expires_at as u64)
+            && (this_moment < sess.created_at.try_into()?
+                || this_moment > sess.expires_at.try_into()?)
         {
             Self::revoke(pool, token_hash).await?;
             return Ok(None);
@@ -97,7 +96,7 @@ impl Session {
 
     /// Removes the session entry from sessions entity.
     ///
-    /// Error
+    /// # Errors
     /// Fails with [`sqlx::Error`], if querrying with database fails
     pub async fn revoke(
         pool: &SqlitePool,
@@ -121,7 +120,7 @@ pub struct TokenHash(pub [u8; 32]);
 
 impl From<blake3::Hasher> for TokenHash {
     fn from(hasher: blake3::Hasher) -> Self {
-        TokenHash(hasher.finalize().into())
+        Self(hasher.finalize().into())
     }
 }
 

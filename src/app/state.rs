@@ -15,10 +15,7 @@ pub struct State {
 }
 
 impl State {
-    // pub fn vault_path(&self) -> &Path {
-    //     todo!()
-    // }
-
+    #[must_use]
     pub fn vault_path(&self) -> &Path {
         &self.storage.vault_path
     }
