@@ -90,7 +90,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut state =
+        let state =
             AppStateBuilder::new().vault_path("/tmp").db(pool).build();
 
         let token = "top_secret";

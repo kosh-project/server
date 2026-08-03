@@ -1,7 +1,7 @@
 
 use crate::{
     Error::ApiError,
-    api::Error::{BadRequest, InvalidHeaderValue, NotFound},
+    api::Error::{BadRequest, InvalidHeader, NotFound},
     app::State as AppState,
     log,
     model::asset::{Asset, AssetTag},
@@ -89,7 +89,7 @@ pub async fn get(
         "Content-Type",
         "application/octet-stream"
             .parse()
-            .map_err(|e| ApiError(InvalidHeaderValue(e)))?,
+            .map_err(|e| ApiError(InvalidHeader(e)))?,
     );
 
     Ok((StatusCode::OK, headers, body))
