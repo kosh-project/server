@@ -170,9 +170,7 @@ mod test {
     };
 
     use crate::storage::{
-        Payload,
-        tests::with_temp_transaction,
-        transaction::{Transaction},
+        Payload, tests::with_temp_transaction, transaction::Transaction,
     };
 
     #[tokio::test]

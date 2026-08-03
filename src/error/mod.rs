@@ -28,7 +28,7 @@ pub enum Error {
     InternalError(#[from] internal::Error),
 
     #[error("Model Error : {}", .0)]
-    ModelError(#[from] model::Error)
+    ModelError(#[from] model::Error),
 }
 
 wrap_internal_err! {
@@ -37,21 +37,27 @@ wrap_internal_err! {
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-
-        use Error::{ApiError, StorageError, ModelError, Conflict, DatabaseError, InternalError};
+        use Error::{
+            ApiError, Conflict, DatabaseError, InternalError,
+            ModelError, StorageError,
+        };
 
         match self {
             StorageError(error) => error.into_response(),
             ApiError(error) => error.into_response(),
             ModelError(error) => error.into_response(),
 
-            Conflict(error) => (StatusCode::CONFLICT, error).into_response(),
+            Conflict(error) => {
+                (StatusCode::CONFLICT, error).into_response()
+            }
 
-            DatabaseError(_) | InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response(),
+            DatabaseError(_) | InternalError(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal Server Error",
+            )
+                .into_response(),
         }
-        
     }
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
-

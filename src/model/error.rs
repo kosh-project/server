@@ -23,16 +23,20 @@ wrap_internal_err! {
     TryFromIntError, SystemTimeError => Error::Internal
 }
 
-
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-
         use Error::{AssetNotFound, Database, Internal};
 
         match self {
-           AssetNotFound => (StatusCode::NOT_FOUND, "Asset not found in database"),
+            AssetNotFound => {
+                (StatusCode::NOT_FOUND, "Asset not found in database")
+            }
 
-           Database(_) | Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
-        }.into_response()
+            Database(_) | Internal(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal Server Error",
+            ),
+        }
+        .into_response()
     }
 }

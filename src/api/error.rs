@@ -2,7 +2,7 @@ use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
 
-use crate::{ error::internal};
+use crate::error::internal;
 
 /// Errors that may occur, when handling API Requests
 #[derive(Debug, thiserror::Error)]
@@ -37,7 +37,6 @@ impl IntoResponse for Error {
             MalformedMultipart, MissingField, NotFound,
             StreamReadError, Unauthorized,
         };
-        
 
         match self {
             BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
@@ -51,10 +50,9 @@ impl IntoResponse for Error {
                 StatusCode::BAD_REQUEST,
                 "Missing required field".into(),
             ),
-            InvalidHeader(_) => (
-                StatusCode::BAD_REQUEST,
-                "Invalid Header Value".into(),
-            ),
+            InvalidHeader(_) => {
+                (StatusCode::BAD_REQUEST, "Invalid Header Value".into())
+            }
 
             StreamReadError | IoError(_) | Internal(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,

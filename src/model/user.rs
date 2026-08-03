@@ -1,5 +1,5 @@
 use crate::model::Result;
-use sqlx::{SqlitePool};
+use sqlx::SqlitePool;
 
 /// User entity for persistent storage
 ///
