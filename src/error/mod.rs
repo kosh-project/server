@@ -37,9 +37,21 @@ wrap_internal_err! {
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
-            .into_response()
+
+        use Error::{ApiError, StorageError, ModelError, Conflict, DatabaseError, InternalError};
+
+        match self {
+            StorageError(error) => error.into_response(),
+            ApiError(error) => error.into_response(),
+            ModelError(error) => error.into_response(),
+
+            Conflict(error) => (StatusCode::CONFLICT, error).into_response(),
+
+            DatabaseError(_) | InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response(),
+        }
+        
     }
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
+
