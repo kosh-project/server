@@ -1,8 +1,11 @@
 use crate::model::Result;
 use sqlx::SqlitePool;
 
-/// User entity for persistent storage
+/// Represents a registered user in the system.
 ///
+/// Users are identified by an `identity_hash` (a hash of their public identity)
+/// and authenticated via an `auth_verifier`. Neither field stores a raw password.
+/// This keeps the server from ever knowing who the user actually is.
 pub struct User {
     pub id: i64,
     pub identity_hash: [u8; 32],
@@ -10,11 +13,15 @@ pub struct User {
 }
 
 impl User {
-    /// Inserts a new user to users entity via SqlitePool
+    /// Inserts a new user into the `users` table via the provided `SqlitePool`.
     ///
-    /// # Error
-    /// - If querrying database causes failure, returns with [`sqlx::sqlite::SqliteQueryResult`]
-    /// - On uniqueness violation, that is, when user already exists, yields [`sqlx::Error::Database`]
+    /// Both `identity_hash` and `auth_verifier` are expected to be pre-processed
+    /// on the client side before being sent to this function.
+    ///
+    /// # Errors
+    /// - Returns [`sqlx::Error::Database`] on a uniqueness violation, meaning a user
+    ///   with the same `identity_hash` already exists.
+    /// - Returns [`sqlx::Error`] if the database query fails for any other reason.
     pub async fn create(
         pool: &SqlitePool,
         identity_hash: Vec<u8>,
@@ -33,13 +40,14 @@ impl User {
         Ok(())
     }
 
-    /// Verifies the credential pair (`identity_hash` and `auth_verifier`)
-    /// stored in users entity via [`sqlx::SqlitePool`].
-    /// Returns the user_id as `Some(i64)` wrapped in [`Result`]
+    /// Verifies the credential pair (`identity_hash` and `auth_verifier`) against the database.
     ///
-    /// # Error
-    /// - Returns with [`hex::FromHexError`] if identity_hash fails to decode into byte array.
-    /// - Fails with [`sqlx::Error`], when querrying with database fails
+    /// Returns `Some(user_id)` if a matching user is found, or `None` if the
+    /// credentials do not match any existing record. This is the primary authentication
+    /// check used by the login endpoint.
+    ///
+    /// # Errors
+    /// - Returns [`sqlx::Error`] if the database query fails.
     pub async fn verify(
         pool: &SqlitePool,
         identity_hash: Vec<u8>,

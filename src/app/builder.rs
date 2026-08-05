@@ -9,6 +9,25 @@ use crate::{
     storage,
 };
 
+/// A builder for constructing [`AppState`].
+///
+/// This is the intended way to create an `AppState` both in `main.rs` and in tests.
+/// Using a builder makes it easy to inject different databases and vault paths
+/// in test environments without modifying the production code path.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use webdav_server::app::AppStateBuilder;
+///
+/// # let pool = todo!(); // SqlitePool — provided at startup
+/// let state = AppStateBuilder::new()
+///     .vault_path("./vault")
+///     .db(pool)
+///     .build();
+/// ```
+///
+/// [`AppState`]: crate::app::State
 pub struct AppStateBuilder {
     vault_path: Option<PathBuf>,
     db: Option<SqlitePool>,
@@ -16,6 +35,7 @@ pub struct AppStateBuilder {
 }
 
 impl AppStateBuilder {
+    /// Creates a new builder with no fields configured.
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -25,6 +45,9 @@ impl AppStateBuilder {
         }
     }
 
+    /// Sets the path to the vault directory where blobs are stored.
+    ///
+    /// This field is required. Calling `build()` without setting it will panic.
     #[must_use]
     pub fn vault_path<P>(mut self, path: P) -> Self
     where
@@ -34,12 +57,20 @@ impl AppStateBuilder {
         self
     }
 
+    /// Sets the `SqlitePool` for all database operations.
+    ///
+    /// This field is required. Calling `build()` without setting it will panic.
     #[must_use]
     pub fn db(mut self, pool: SqlitePool) -> Self {
         self.db = Some(pool);
         self
     }
 
+    /// Optionally provides a pre-configured `moka` session cache.
+    ///
+    /// If not set, `build()` will create a default cache with a 10-minute
+    /// Time-To-Idle (TTI) policy and a maximum capacity of 10,000 entries.
+    /// This default is suitable for most deployments.
     #[must_use]
     pub fn session_cache(
         mut self,
@@ -49,11 +80,13 @@ impl AppStateBuilder {
         self
     }
 
-    /// Consumes the builder and returns the constructed `AppState`.
+    /// Consumes the builder and returns the fully configured `AppState`.
+    ///
+    /// If `session_cache` was not set, a default `moka` cache is created with
+    /// a 10-minute TTI and 10,000-entry capacity.
     ///
     /// # Panics
-    /// This function will panic if `vault_path` or `db` have not been configured
-    /// prior to calling `build`.
+    /// Panics if `vault_path` or `db` were not configured before calling `build`.
     #[allow(clippy::expect_used)]
     #[must_use]
     pub fn build(self) -> AppState {

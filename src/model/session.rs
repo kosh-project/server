@@ -5,6 +5,16 @@ use blake3::Hasher;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
+/// A row in the `sessions` table, representing an active authenticated session.
+///
+/// Sessions are identified by an opaque token (a UUID) that the client stores locally.
+/// The server never stores the raw token — only its BLAKE3 hash. This means even if
+/// the database is compromised, an attacker cannot reconstruct the original tokens.
+///
+/// Session lifetime is 30 days from creation. Expired sessions are lazily revoked
+/// the next time the token is presented to the [`auth_guard`] middleware.
+///
+/// [`auth_guard`]: crate::api::middleware::auth_guard
 #[derive(sqlx::FromRow)]
 pub struct Session {
     pub token_hash: Vec<u8>,
@@ -115,6 +125,16 @@ impl Session {
     }
 }
 
+/// A fixed-size BLAKE3 hash of an opaque session token.
+///
+/// This newtype exists for two reasons:
+///
+/// 1. **Type safety:** It prevents raw byte slices from being used as cache keys by accident.
+/// 2. **Zero-copy cache key:** Using `[u8; 32]` instead of `Vec<u8>` means the cache
+///    key lives entirely on the stack with no heap allocation.
+///
+/// It implements `Hash + Eq` (required by `moka`) and `AsRef<[u8]>` for passing to
+/// database queries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TokenHash(pub [u8; 32]);
 

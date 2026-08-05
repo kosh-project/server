@@ -2,6 +2,13 @@ use crate::{model::error::Result, storage::file::Metadata};
 use sqlx::{SqlitePool, query};
 use uuid::Uuid;
 
+/// A record in the `assets` table representing one user's ownership of a blob.
+///
+/// The server stores files by their BLAKE3 hash (CAS semantics). Multiple users
+/// can upload identical files — each gets their own `Asset` row pointing to the
+/// same hash. When a user deletes their asset, only their row is removed. The
+/// physical blob is only deleted when no `Asset` rows reference its hash anymore.
+/// This mirrors Unix hard-link semantics.
 #[derive(sqlx::FromRow)]
 #[allow(unused)]
 pub struct Asset {
@@ -13,12 +20,21 @@ pub struct Asset {
     tag: AssetTag,
 }
 
+/// Classifies an asset into a logical section of the Android client.
+///
+/// Stored as an `i32` in `SQLite` to minimize storage footprint. The client
+/// uses this tag to route an asset to the correct UI view (gallery or drive)
+/// without needing to inspect the encrypted file contents.
 #[derive(sqlx::Type, Copy, Clone)]
 #[repr(i32)]
 pub enum AssetTag {
+    /// Metadata file for the Gallery section (encrypted index, thumbnails, etc.).
     GalleryMeta = 0,
+    /// An encrypted media file belonging to the Gallery section.
     GalleryItem = 1,
+    /// Metadata file for the Drive section.
     DriveMeta = 2,
+    /// An encrypted file belonging to the Drive section.
     DriveItem = 3,
 }
 
