@@ -160,8 +160,8 @@ mod tests {
 
             let result = service.begin_transaction(&"");
             assert!(result.is_err());
-            assert!(matches!(result, Err(InvalidFileName)));
 
+            assert!(matches!(result, Err(InvalidFileName)));
             let result =
                 service.begin_transaction(&"../../../../etc/passwd");
             assert!(result.is_err());
