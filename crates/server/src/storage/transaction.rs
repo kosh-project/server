@@ -31,8 +31,6 @@ use uuid::Uuid;
 ///
 /// If the transaction fails at any point, the `.tmp` file is deleted before the error
 /// is returned. This ensures the vault always contains only successfully committed blobs.
-///
-
 pub(crate) struct Transaction {
     temp: PathBuf,
     _uuid: Uuid,

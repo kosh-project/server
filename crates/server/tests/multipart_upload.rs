@@ -1,5 +1,4 @@
 use hyper::StatusCode;
-use reqwest::multipart;
 use sqlx::sqlite::SqlitePoolOptions;
 use tmpdir::TmpDir;
 use tokio::{fs, net::TcpListener};
