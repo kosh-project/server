@@ -32,6 +32,7 @@
 pub mod api;
 pub mod app;
 pub mod log;
+pub mod logger;
 pub mod model;
 pub mod storage;
 

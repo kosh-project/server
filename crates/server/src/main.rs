@@ -1,9 +1,12 @@
 use tokio::{
-    io::{self}, net::TcpListener, pin, signal, sync::watch,
-    time::{timeout, Duration},
+    io::{self},
+    net::TcpListener,
+    pin, signal,
+    sync::watch,
+    time::{Duration, timeout},
 };
 use webdav_server::{
-    api::route::route_main, app::AppStateBuilder, log, log::Color,
+    api::route::route_main, app::AppStateBuilder, log,
 };
 
 use sqlx::sqlite::SqlitePoolOptions; // You need this import!
@@ -62,7 +65,8 @@ async fn main() -> io::Result<()> {
             let _ = rx.changed().await;
 
             log!("SERVER", "Graceful shutdown initiated...");
-        }).into_future();
+        })
+        .into_future();
 
     pin!(server);
     log!("SERVER", "Listening on port 6969");
@@ -80,7 +84,7 @@ async fn main() -> io::Result<()> {
 
             match timeout(Duration::from_secs(10), &mut server).await {
                 Ok(_) => log!("SERVER", "All active connections closed successfully."),
-                Err(_) => log!("SERVER", "Grace period expired. Forcefully killing lingering connections."), 
+                Err(_) => log!("SERVER", "Grace period expired. Forcefully killing lingering connections."),
             }
         }
 
