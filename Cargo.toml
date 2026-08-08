@@ -1,3 +1,12 @@
 [workspace]
 resolver = "2"
 members = ["crates/cli", "crates/server"]
+
+
+[workspace.dependencies]
+chrono = { version = "0.4.45", features = ["serde"] }
+futures = "0.3.32"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.52.3", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync"] }
+tokio-util = "0.7.19"
+bincode-next = { version = "3.1.1" }
