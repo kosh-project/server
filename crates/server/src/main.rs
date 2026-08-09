@@ -1,15 +1,21 @@
+use std::sync::OnceLock;
+
 use tokio::{
     io::{self},
     net::TcpListener,
     pin, signal,
-    sync::watch,
+    sync::{mpsc::Sender, watch},
     time::{Duration, timeout},
 };
 use webdav_server::{
-    api::route::route_main, app::AppStateBuilder, log, logger,
+    api::route::route_main,
+    app::AppStateBuilder,
+    log,
+    logger::{self, Entry, GLOBAL_LOGGER},
+    shutdown,
 };
 
-use sqlx::sqlite::SqlitePoolOptions; // You need this import!
+use sqlx::sqlite::SqlitePoolOptions;
 
 async fn shutdown_signal() {
     let ctrl_c = async {
@@ -49,14 +55,18 @@ async fn main() -> io::Result<()> {
         .await
         .expect("Failed to connect to SQLite!");
 
-    let (log_sender, logger_handle) = logger::Service::start(1000)
-    .await
-    .unwrap_or_else(|e| panic!("Logging engine failed to boot {e}"));
+    let (log_sender, logger_handle) =
+        logger::Service::start(1000).await.unwrap_or_else(|e| {
+            panic!("Logging engine failed to boot {e}")
+        });
+
+    GLOBAL_LOGGER
+        .set(log_sender)
+        .expect("Failed to initiate global logger");
 
     let app_state = AppStateBuilder::new()
         .db(pool.clone())
         .vault_path(std::path::PathBuf::from("./vault"))
-        .log_sender(log_sender)
         .build();
 
     let app = route_main(app_state);
@@ -98,6 +108,7 @@ async fn main() -> io::Result<()> {
     log!("DB", "Safely closing database connection pool...");
     pool.close().await;
 
+    shutdown!("Engine shutting down");
     log!("LOGGER", "Waiting to flush remaining entries...");
     logger_handle.shutdown_with_grace(10).await;
 

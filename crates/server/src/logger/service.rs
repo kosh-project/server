@@ -4,16 +4,24 @@ use std::{
     time::Duration,
 };
 
-use bincode_next::{config, encode_into_slice, encode_to_vec};
-use chrono::{DateTime, Datelike, Utc};
-use futures::future::Join;
+use bincode_next::{config, encode_to_vec};
+use chrono::Datelike;
 use tokio::{
-    fs::{self, File, create_dir_all}, io::AsyncWriteExt, net::UnixDatagram, spawn, sync::mpsc::{Receiver, Sender, UnboundedSender, channel}, task::JoinHandle, time::timeout,
+    fs::{self, File, create_dir_all},
+    io::AsyncWriteExt,
+    net::UnixDatagram,
+    spawn,
+    sync::mpsc::{Receiver, Sender, channel},
+    task::JoinHandle,
+    time::timeout,
 };
 
-use crate::logger::{
-    Entry,
-    error::{Error::LogDirectoryInitialization, Result},
+use crate::{
+    log,
+    logger::{
+        Entry, Level,
+        error::{Error::LogDirectoryInitialization, Result},
+    },
 };
 
 pub static SOCKET_ADDR: &str = "/tmp/kosh-cli.sock";
@@ -64,8 +72,18 @@ impl Service {
 
     async fn run(mut self) {
         while let Some(entry) = self.receiver.recv().await {
+            if let Level::Shutdown = entry.level {
+                log!(
+                    "LOGGER",
+                    "Recieved shutdown signal, killing event loop here"
+                );
+                return;
+            };
             if let Err(e) = self.commit(entry).await {
-                eprintln!("LOGGER WARNING: Failed to commit log: {e}");
+                log!(
+                    "LOGGER",
+                    format!("Commit failed with Error: {e}")
+                );
             }
         }
     }
