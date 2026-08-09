@@ -2,11 +2,10 @@ use std::{path::PathBuf, time::Duration};
 
 use moka::future::Cache;
 use sqlx::SqlitePool;
+use tokio::sync::mpsc::Sender;
 
 use crate::{
-    app::{State as AppState, state::UserId},
-    model::session::TokenHash,
-    storage,
+    app::{State as AppState, state::UserId}, logger::Entry, model::session::TokenHash, storage,
 };
 
 /// A builder for constructing [`AppState`].
@@ -32,6 +31,7 @@ pub struct AppStateBuilder {
     vault_path: Option<PathBuf>,
     db: Option<SqlitePool>,
     session_cache: Option<Cache<TokenHash, UserId>>,
+    sender : Option<Sender<Entry>>,
 }
 
 impl AppStateBuilder {
@@ -42,6 +42,7 @@ impl AppStateBuilder {
             vault_path: None,
             db: None,
             session_cache: None,
+            sender: None,
         }
     }
 
@@ -80,6 +81,11 @@ impl AppStateBuilder {
         self
     }
 
+    pub fn log_sender(mut self, sender : Sender<Entry>) -> Self {
+        self.sender = Some(sender);
+        self
+    }
+
     /// Consumes the builder and returns the fully configured `AppState`.
     ///
     /// If `session_cache` was not set, a default `moka` cache is created with
@@ -102,6 +108,7 @@ impl AppStateBuilder {
                     .max_capacity(10_000)
                     .build()
             }),
+            log_sender: self.sender
         }
     }
 }

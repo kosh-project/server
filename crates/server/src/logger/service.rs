@@ -1,22 +1,25 @@
-use std::path::PathBuf;
+use std::{
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+    time::Duration,
+};
 
 use bincode_next::{config, encode_into_slice, encode_to_vec};
 use chrono::{DateTime, Datelike, Utc};
+use futures::future::Join;
 use tokio::{
-    fs::{self, File},
-    io::AsyncWriteExt,
-    net::UnixDatagram,
-    spawn,
-    sync::mpsc::{Receiver, Sender, UnboundedSender, channel},
-    task::JoinHandle,
+    fs::{self, File, create_dir_all}, io::AsyncWriteExt, net::UnixDatagram, spawn, sync::mpsc::{Receiver, Sender, UnboundedSender, channel}, task::JoinHandle, time::timeout,
 };
 
-use crate::logger::{Entry, error::Result};
+use crate::logger::{
+    Entry,
+    error::{Error::LogDirectoryInitialization, Result},
+};
 
 pub static SOCKET_ADDR: &str = "/tmp/kosh-cli.sock";
 static DAY_MILLIS: i64 = 86_400_000;
 
-struct Service {
+pub struct Service {
     receiver: Receiver<Entry>,
     active_file: File,
     today: i64,
@@ -30,7 +33,13 @@ impl Service {
     ) -> Result<(Sender<Entry>, LoggerHandler)> {
         let (sender, receiver) = channel(capacity);
 
-        let log_path: PathBuf = "test/logs/".into();
+        let log_path = dirs::state_dir()
+            .ok_or(LogDirectoryInitialization)?
+            .join("kosh")
+            .join("logs");
+
+        create_dir_all(&log_path).await?;
+
         let today = chrono::Utc::now().timestamp_millis() / DAY_MILLIS;
 
         let active_file = fs::OpenOptions::new()
@@ -69,7 +78,8 @@ impl Service {
                 .open(self.log_path.join(format_date_time()))
                 .await?;
 
-            self.today = chrono::Utc::now().timestamp_millis() / DAY_MILLIS;            
+            self.today =
+                chrono::Utc::now().timestamp_millis() / DAY_MILLIS;
         }
 
         let bytes = encode_to_vec(&entry, config::standard())?;
@@ -86,4 +96,10 @@ fn format_date_time() -> String {
     format!("log_{}-{}-{}.bin", time.year(), time.month(), time.day())
 }
 
-struct LoggerHandler(JoinHandle<()>);
+pub struct LoggerHandler(JoinHandle<()>);
+
+impl LoggerHandler {
+    pub async fn shutdown_with_grace(self, secs: u64) {
+        let _ = timeout(Duration::from_secs(secs), self.0).await;
+    }
+}

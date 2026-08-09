@@ -40,6 +40,8 @@ sqlx = { version = "0.9.0", features = ["chrono", "runtime-tokio", "sqlite", "tl
 thiserror = "2.0.18"
 uuid = { version = "1.23.3", features = ["serde", "v4"] }
 chrono = { workspace = true }
+dirs = { workspace = true }
+
 
 [dev-dependencies]
 anyhow = "1.0.102"

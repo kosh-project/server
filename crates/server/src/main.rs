@@ -6,7 +6,7 @@ use tokio::{
     time::{Duration, timeout},
 };
 use webdav_server::{
-    api::route::route_main, app::AppStateBuilder, log,
+    api::route::route_main, app::AppStateBuilder, log, logger,
 };
 
 use sqlx::sqlite::SqlitePoolOptions; // You need this import!
@@ -20,7 +20,8 @@ async fn shutdown_signal() {
 
     #[cfg(unix)]
     let term = async {
-        use tokio::signal::unix::{self, SignalKind, signal};
+        use tokio::signal::unix::{SignalKind, signal};
+
         signal(SignalKind::terminate())
             .expect("Failed to install SIGTERM handler")
             .recv()
@@ -48,9 +49,14 @@ async fn main() -> io::Result<()> {
         .await
         .expect("Failed to connect to SQLite!");
 
+    let (log_sender, logger_handle) = logger::Service::start(1000)
+    .await
+    .unwrap_or_else(|e| panic!("Logging engine failed to boot {e}"));
+
     let app_state = AppStateBuilder::new()
         .db(pool.clone())
         .vault_path(std::path::PathBuf::from("./vault"))
+        .log_sender(log_sender)
         .build();
 
     let app = route_main(app_state);
@@ -91,6 +97,10 @@ async fn main() -> io::Result<()> {
     };
     log!("DB", "Safely closing database connection pool...");
     pool.close().await;
+
+    log!("LOGGER", "Waiting to flush remaining entries...");
+    logger_handle.shutdown_with_grace(10).await;
+
     log!("SERVER", "Bye bye");
     Ok(())
 }

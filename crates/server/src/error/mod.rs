@@ -58,6 +58,7 @@ pub enum Error {
     /// (e.g., asset not found, uniqueness violations).
     #[error("Model Error : {}", .0)]
     ModelError(#[from] model::Error),
+
 }
 
 wrap_internal_err! {

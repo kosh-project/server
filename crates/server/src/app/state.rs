@@ -2,8 +2,9 @@ use std::path::Path;
 
 use moka::future::Cache;
 use sqlx::SqlitePool;
+use tokio::sync::mpsc::Sender;
 
-use crate::{model::session::TokenHash, storage};
+use crate::{logger::Entry, model::session::TokenHash, storage};
 
 pub type UserId = i64;
 
@@ -23,6 +24,7 @@ pub struct State {
     /// In-memory session cache. Checked before every database lookup in `auth_guard`
     /// to avoid hitting the disk on every authenticated request.
     pub session_cache: Cache<TokenHash, UserId>,
+    pub log_sender: Option<Sender<Entry>>
 }
 
 impl State {

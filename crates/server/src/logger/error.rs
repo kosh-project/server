@@ -4,7 +4,10 @@ pub enum Error {
     Io(#[from] std::io::Error),
 
     #[error("Failed to serialzie log event: {}", .0)]
-    Serialization(#[from] bincode_next::error::EncodeError)
+    Serialization(#[from] bincode_next::error::EncodeError),
+
+    #[error("Failed to initialize log directory")]
+    LogDirectoryInitialization,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
