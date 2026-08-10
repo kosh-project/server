@@ -5,7 +5,8 @@ use std::io::ErrorKind::{self};
 use tokio::fs::{self, File};
 
 use crate::error::internal::Error::Message;
-use crate::log;
+use crate::info;
+use crate::logger::Module;
 use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
 use crate::storage::{
@@ -69,8 +70,10 @@ impl Service {
 
         let file_metadata = transaction.commit(payload).await?;
 
-        log!("STORAGE", format!("committed: {file_name}"));
-
+        info!(
+            Module::Storage,
+            "Comitted CAS blob for {file_name} to disk"
+        );
         Ok(file_metadata)
     }
 

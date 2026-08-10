@@ -2,7 +2,6 @@ use std::{path::PathBuf, time::Duration};
 
 use moka::future::Cache;
 use sqlx::SqlitePool;
-use tokio::sync::mpsc::Sender;
 
 use crate::{
     app::{State as AppState, state::UserId},

@@ -1,7 +1,8 @@
 use crate::api::Error::BadRequest;
 use crate::app::State as AppState;
+use crate::logger::Module;
 use crate::model::{error::Error as ModelErr, user::User};
-use crate::{Error as AppErr, Result};
+use crate::{Error as AppErr, Result, info};
 use axum::{Json, extract::State};
 use hyper::StatusCode;
 use serde::Deserialize;
@@ -31,13 +32,20 @@ pub async fn register(
 
     let result = User::create(
         &state.db,
-        identity_hash,
+        &identity_hash,
         register_request.auth_verifier,
     )
     .await;
 
     match result {
-        Ok(()) => Ok(StatusCode::CREATED),
+        Ok(()) => {
+            info!(
+                Module::Api,
+                "New user reggistered with id: {:?}",
+                hex::encode(identity_hash)
+            );
+            Ok(StatusCode::CREATED)
+        }
         Err(ModelErr::Database(SqlErr::Database(err)))
             if err.is_unique_violation() =>
         {

@@ -1,10 +1,12 @@
 use crate::error::Result;
+use crate::logger::Module;
 use crate::model::session::Session;
 use crate::model::user::User;
 use crate::{
     api::Error::{BadRequest, Unauthorized},
     app::State as AppState,
 };
+use crate::{info, warn};
 use axum::Json;
 use axum::extract::State;
 use serde::{Deserialize, Serialize};
@@ -41,10 +43,16 @@ pub async fn login(
         User::verify(&state.db, identity_hash, request.auth_verifier)
             .await?
             .ok_or_else(|| {
+                warn!(
+                    Module::Api,
+                    "Failed login attempt with id : ''",
+                    // hex::encode(identity_hash)
+                );
                 Unauthorized("Invalid Credentials".into())
             })?;
 
     let token = Session::create(&state.db, user_id).await?;
 
+    info!(Module::Api, "User {user_id} successfully logged in");
     Ok(Json(LoginResponse { token }))
 }

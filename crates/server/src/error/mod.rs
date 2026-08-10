@@ -58,7 +58,6 @@ pub enum Error {
     /// (e.g., asset not found, uniqueness violations).
     #[error("Model Error : {}", .0)]
     ModelError(#[from] model::Error),
-
 }
 
 wrap_internal_err! {
@@ -71,12 +70,6 @@ impl IntoResponse for Error {
             ApiError, Conflict, DatabaseError, InternalError,
             ModelError, StorageError,
         };
-
-        // TODO: Replace this with the bincode + Unix Domain Socket logger
-        // once the admin logging system is implemented.
-        // See: .agents/roadmap.md — "Admin Logging Architecture"
-        #[cfg(debug_assertions)]
-        crate::log!("ERROR", format!("{self:?}"));
 
         match self {
             // Delegate to each domain's IntoResponse implementation.

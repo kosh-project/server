@@ -30,6 +30,9 @@ pub enum Module {
     Api,
     Database,
     Server,
+    Asset,
+    Storage,
+    Logger,
 }
 
 pub use service::Service;

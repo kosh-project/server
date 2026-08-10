@@ -9,7 +9,8 @@ use serde_json::{Value, json};
 use crate::{
     api::{self, assets, middleware::auth_guard},
     app::State as AppState,
-    log,
+    info,
+    logger::Module,
 };
 
 /// ## Main router
@@ -51,7 +52,7 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
 }
 
 async fn health() -> Json<Value> {
-    log!("HANDLER", "get_health");
+    info!(Module::Api, "get_health");
     Json(json!({
         "health" : "ok"
     }))

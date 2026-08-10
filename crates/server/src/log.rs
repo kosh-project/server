@@ -1,4 +1,4 @@
-use std::{fmt::Display};
+use std::fmt::Display;
 
 /// A lightweight, zero-dependency macro for printing structured debug output to stdout.
 ///
@@ -18,6 +18,10 @@ use std::{fmt::Display};
 /// log!("STORAGE", format!("committed: {}", "some_file.bin"));
 /// ```
 #[macro_export]
+#[deprecated(
+    since = "0.1.1",
+    note = "use info!(), error!(), warn!(), fatal!() macro instead"
+)]
 macro_rules! log {
     ($msg:expr $(,)?) => {{
         #[cfg(debug_assertions)]

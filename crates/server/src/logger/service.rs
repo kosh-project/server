@@ -1,8 +1,4 @@
-use std::{
-    ops::{Deref, DerefMut},
-    path::PathBuf,
-    time::Duration,
-};
+use std::{path::PathBuf, time::Duration};
 
 use bincode_next::{config, encode_to_vec};
 use chrono::Datelike;
@@ -17,9 +13,9 @@ use tokio::{
 };
 
 use crate::{
-    log,
+    fatal,
     logger::{
-        Entry, Level,
+        Entry, Level, Module,
         error::{Error::LogDirectoryInitialization, Result},
     },
 };
@@ -73,17 +69,10 @@ impl Service {
     async fn run(mut self) {
         while let Some(entry) = self.receiver.recv().await {
             if let Level::Shutdown = entry.level {
-                log!(
-                    "LOGGER",
-                    "Recieved shutdown signal, killing event loop here"
-                );
                 return;
             };
             if let Err(e) = self.commit(entry).await {
-                log!(
-                    "LOGGER",
-                    format!("Commit failed with Error: {e}")
-                );
+                eprintln!("Failed to commit log : {e}");
             }
         }
     }
@@ -118,6 +107,12 @@ pub struct LoggerHandler(JoinHandle<()>);
 
 impl LoggerHandler {
     pub async fn shutdown_with_grace(self, secs: u64) {
-        let _ = timeout(Duration::from_secs(secs), self.0).await;
+        if let Err(e) = timeout(Duration::from_secs(secs), self.0).await
+        {
+            fatal!(
+                Module::Logger,
+                "Grace period of {secs} secs, timed out, forcefully terminating engine.\n{e}"
+            )
+        };
     }
 }

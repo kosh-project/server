@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
@@ -67,11 +69,15 @@ impl IntoResponse for Error {
             StreamReadError, Unauthorized,
         };
 
-        match self {
+        let self_arc = Arc::new(self);
+
+        let mut response = match &*self_arc {
             // Client errors: safe to return the message directly.
-            BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
-            NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            Unauthorized(msg) => {
+                (StatusCode::UNAUTHORIZED, msg.clone())
+            }
+            NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             MalformedMultipart => (
                 StatusCode::BAD_REQUEST,
                 "Malformed Multipart Payload".into(),
@@ -90,6 +96,10 @@ impl IntoResponse for Error {
                 "Internal Server Error".into(),
             ),
         }
-        .into_response()
+        .into_response();
+
+        response.extensions_mut().insert(self_arc.clone());
+
+        response
     }
 }

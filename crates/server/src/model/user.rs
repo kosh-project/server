@@ -24,7 +24,7 @@ impl User {
     /// - Returns [`sqlx::Error`] if the database query fails for any other reason.
     pub async fn create(
         pool: &SqlitePool,
-        identity_hash: Vec<u8>,
+        identity_hash: &Vec<u8>,
         auth_verifier: String,
     ) -> Result<()> {
         sqlx::query!(

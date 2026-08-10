@@ -1,17 +1,17 @@
-use std::sync::OnceLock;
+use std::net::Ipv4Addr;
 
 use tokio::{
     io::{self},
     net::TcpListener,
     pin, signal,
-    sync::{mpsc::Sender, watch},
+    sync::watch,
     time::{Duration, timeout},
 };
 use webdav_server::{
     api::route::route_main,
     app::AppStateBuilder,
-    log,
-    logger::{self, Entry, GLOBAL_LOGGER},
+    error, fatal, info,
+    logger::{self, GLOBAL_LOGGER, Module},
     shutdown,
 };
 
@@ -43,10 +43,12 @@ async fn shutdown_signal() {
     }
 }
 
+const PORT: u16 = 6969;
+
 #[tokio::main]
 async fn main() -> io::Result<()> {
     tokio::fs::create_dir_all("./test/vault").await?;
-    log!("FS", "Initialized vault");
+    info!(Module::Storage, "Vault initialized");
 
     #[allow(clippy::expect_used)]
     let pool = SqlitePoolOptions::new()
@@ -71,7 +73,8 @@ async fn main() -> io::Result<()> {
 
     let app = route_main(app_state);
 
-    let listener = TcpListener::bind("0.0.0.0:6969").await?;
+    let addr = Ipv4Addr::new(0, 0, 0, 0);
+    let listener = TcpListener::bind((addr, PORT)).await?;
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
@@ -80,38 +83,41 @@ async fn main() -> io::Result<()> {
             let mut rx = shutdown_rx.clone();
             let _ = rx.changed().await;
 
-            log!("SERVER", "Graceful shutdown initiated...");
+            info!(Module::Server, "Graceful shutdown initiated...");
         })
         .into_future();
 
     pin!(server);
-    log!("SERVER", "Listening on port 6969");
+    info!(Module::Server, "Listening on port {PORT}");
 
     tokio::select! {
         res = &mut server => {
             if let Err(e) = res {
-                log!("SERVER", format!("Server error: {e}"))
+                fatal!(Module::Server, "Server error {e}")
             }
         },
-        _ = shutdown_signal() => {
-            log!("SERVER", "Shutdown signal recieved. Ignoring any new connections...");
+        () = shutdown_signal() => {
+            info!(Module::Server, "Shutdown signal recieved. Ignoring any new connections...");
 
             let _ = shutdown_tx.send(true);
 
             match timeout(Duration::from_secs(10), &mut server).await {
-                Ok(_) => log!("SERVER", "All active connections closed successfully."),
-                Err(_) => log!("SERVER", "Grace period expired. Forcefully killing lingering connections."),
+                Ok(_) => info!(Module::Server, "All active connections closed successfully."),
+                Err(_) => error!(Module::Server, "Grace period expired. Forcefully killing lingering connections."),
             }
         }
 
     };
-    log!("DB", "Safely closing database connection pool...");
+
+    info!(
+        Module::Database,
+        "Safely closing database connection pool..."
+    );
     pool.close().await;
 
-    shutdown!("Engine shutting down");
-    log!("LOGGER", "Waiting to flush remaining entries...");
+    shutdown!("Waiting to flush remaining entries...");
     logger_handle.shutdown_with_grace(10).await;
 
-    log!("SERVER", "Bye bye");
+    eprintln!("Bye bye");
     Ok(())
 }
