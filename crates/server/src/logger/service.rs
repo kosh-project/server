@@ -92,7 +92,7 @@ impl Service {
         let bytes = encode_to_vec(&entry, config::standard())?;
 
         self.active_file.write_all(&bytes).await?;
-        self.socket.send_to(&bytes, SOCKET_ADDR).await?;
+        let _ = self.socket.send_to(&bytes, SOCKET_ADDR).await;
 
         Ok(())
     }

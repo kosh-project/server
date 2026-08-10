@@ -5,6 +5,7 @@ use axum::response::IntoResponse;
 use hyper::StatusCode;
 
 use crate::api;
+use crate::logger::{Entry, Level, Loggable, logging_enabled};
 use crate::storage;
 use crate::{model, wrap_internal_err};
 
@@ -66,12 +67,18 @@ wrap_internal_err! {
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        use Error::{
-            ApiError, Conflict, DatabaseError, InternalError,
-            ModelError, StorageError,
+        let telemetry = if logging_enabled() {
+            Some(Entry {
+                module: self.log_module(),
+                level: self.log_level(),
+                message: self.to_string(),
+                timestamp_ms: chrono::Utc::now().timestamp_millis(),
+            })
+        } else {
+            None
         };
 
-        match self {
+        let mut response = match self {
             // Delegate to each domain's IntoResponse implementation.
             // They know how to sanitize their own errors.
             StorageError(e) => e.into_response(),
@@ -89,8 +96,42 @@ impl IntoResponse for Error {
                 "Internal Server Error",
             )
                 .into_response(),
+        };
+
+        if let Some(t) = telemetry {
+            response.extensions_mut().insert(t);
         }
+        response
     }
 }
 
+use Error::{
+    ApiError, Conflict, DatabaseError, InternalError, ModelError,
+    StorageError,
+};
+
 pub type Result<T> = core::result::Result<T, Error>;
+
+impl Loggable for Error {
+    fn log_level(&self) -> crate::logger::Level {
+        match self {
+            Error::StorageError(e) => e.log_level(),
+            Error::ApiError(e) => e.log_level(),
+            Error::Conflict(_) => Level::Warning,
+            Error::ModelError(e) => e.log_level(),
+            Error::DatabaseError(_) | Error::InternalError(_) => {
+                Level::Error
+            }
+        }
+    }
+
+    #[inline]
+    fn log_module(&self) -> crate::logger::Module {
+        match self {
+            Error::StorageError(e) => e.log_module(),
+            Error::ApiError(e) => e.log_module(),
+            Error::ModelError(e) => e.log_module(),
+            _ => crate::logger::Module::Server,
+        }
+    }
+}

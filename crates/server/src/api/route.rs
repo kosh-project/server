@@ -7,10 +7,13 @@ use axum::{
 use serde_json::{Value, json};
 
 use crate::{
-    api::{self, assets, middleware::auth_guard},
+    api::{
+        self, assets,
+        middleware::{auth_guard, log_middleware},
+    },
     app::State as AppState,
     info,
-    logger::Module,
+    logger::{Module, logging_enabled},
 };
 
 /// ## Main router
@@ -18,11 +21,17 @@ use crate::{
 /// within the server. \
 /// To be used when starting server.
 pub fn route_main(state: AppState) -> Router {
-    Router::new()
+    let routes = Router::new()
         .route("/health", get(health))
         .nest("/api/auth", auth_route())
         .nest("/api/v1", protected_routes(&state))
-        .with_state(state)
+        .with_state(state);
+
+    if logging_enabled() {
+        return routes.layer(middleware::from_fn(log_middleware));
+    }
+
+    routes
 }
 
 /// ## Authentication endpoints
