@@ -4,7 +4,11 @@ use axum::response::IntoResponse;
 use hyper::StatusCode;
 use tokio::io;
 
-use crate::{error::internal, storage, wrap_internal_err};
+use crate::{
+    error::internal,
+    logger::{self, Loggable},
+    storage, wrap_internal_err,
+};
 
 /// Errors that can occur in the storage layer.
 ///
@@ -77,18 +81,21 @@ wrap_internal_err! { TryFromIntError, SystemTimeError => Error::Internal }
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         use Error::{
-            CreateTempFile, FileAlreadyExists, Internal, InvalidFileName,
-            InvalidPath, NotFound, RenameError, StreamReadError,
-            VaultNotFound, WriteChunkFailure,
+            CreateTempFile, FileAlreadyExists, Internal,
+            InvalidFileName, InvalidPath, NotFound, RenameError,
+            StreamReadError, VaultNotFound, WriteChunkFailure,
         };
 
         match self {
             // Client-facing errors: safe to expose details.
-            InvalidFileName | InvalidPath { .. } => {
-                (StatusCode::BAD_REQUEST, "Invalid file path or name".into())
-            }
+            InvalidFileName | InvalidPath { .. } => (
+                StatusCode::BAD_REQUEST,
+                "Invalid file path or name".into(),
+            ),
             FileAlreadyExists(msg) => (StatusCode::CONFLICT, msg),
-            NotFound => (StatusCode::NOT_FOUND, "Blob not found".into()),
+            NotFound => {
+                (StatusCode::NOT_FOUND, "Blob not found".into())
+            }
 
             // Internal errors: hide details from the client.
             VaultNotFound
@@ -102,5 +109,19 @@ impl IntoResponse for Error {
             ),
         }
         .into_response()
+    }
+}
+
+impl Loggable for Error {
+    fn log_level(&self) -> crate::logger::Level {
+        use logger::Level;
+        match self {
+            Error::VaultNotFound => Level::Fatal,
+            _ => Level::Error,
+        }
+    }
+
+    fn log_module(&self) -> logger::Module {
+        logger::Module::Storage
     }
 }

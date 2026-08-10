@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
 
-use crate::error::internal;
+use crate::{error::internal, logger::Loggable};
 
 /// Errors that can occur while processing an HTTP API request.
 ///
@@ -101,5 +101,24 @@ impl IntoResponse for Error {
         response.extensions_mut().insert(self_arc.clone());
 
         response
+    }
+}
+
+use crate::logger::{Level, Module};
+impl Loggable for Error {
+    fn log_level(&self) -> Level {
+        use Error::*;
+        match self {
+            BadRequest(_) | Unauthorized(_) | MissingField => {
+                Level::Warning
+            }
+            NotFound(_) => Level::Info,
+            _ => Level::Error,
+        }
+    }
+
+    #[inline]
+    fn log_module(&self) -> Module {
+        Module::Api
     }
 }
