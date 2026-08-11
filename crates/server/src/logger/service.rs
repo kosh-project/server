@@ -300,15 +300,15 @@ mod test {
             timeout(Duration::from_secs(3), handle.shutdown_with_grace(2))
                 .await?;
 
-            let mut reader = BufReader::new(File::open(&log_file)?);
+            let file_bytes = std::fs::read(&log_file)?;
 
-            let entry1: Entry = bincode_next::decode_from_std_read(
-                &mut reader,
+            let (entry1, len1): (Entry, usize) = bincode_next::decode_from_slice(
+                &file_bytes,
                 config::standard(),
             )?;
 
-            let entry2: Entry = bincode_next::decode_from_std_read(
-                &mut reader,
+            let (entry2, _): (Entry, usize) = bincode_next::decode_from_slice(
+                &file_bytes[len1..],
                 config::standard(),
             )?;
 
