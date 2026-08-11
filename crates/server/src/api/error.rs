@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
@@ -64,26 +62,22 @@ pub type Result<T> = core::result::Result<T, Error>;
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         use Error::{
-            BadRequest, Internal, InvalidHeader, IoError,
-            MalformedMultipart, MissingField, NotFound,
-            StreamReadError, Unauthorized,
+            BadRequest, Internal, InvalidHeader, IoError, MalformedMultipart,
+            MissingField, NotFound, StreamReadError, Unauthorized,
         };
 
-        let mut response = match &*self_arc {
+        match self {
             // Client errors: safe to return the message directly.
             BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            Unauthorized(msg) => {
-                (StatusCode::UNAUTHORIZED, msg.clone())
-            }
+            Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
             NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             MalformedMultipart => (
                 StatusCode::BAD_REQUEST,
                 "Malformed Multipart Payload".into(),
             ),
-            MissingField => (
-                StatusCode::BAD_REQUEST,
-                "Missing required field".into(),
-            ),
+            MissingField => {
+                (StatusCode::BAD_REQUEST, "Missing required field".into())
+            }
             InvalidHeader(_) => {
                 (StatusCode::BAD_REQUEST, "Invalid Header Value".into())
             }
@@ -94,11 +88,7 @@ impl IntoResponse for Error {
                 "Internal Server Error".into(),
             ),
         }
-        .into_response();
-
-        response.extensions_mut().insert(self_arc.clone());
-
-        response
+        .into_response()
     }
 }
 
@@ -107,9 +97,7 @@ impl Loggable for Error {
     fn log_level(&self) -> Level {
         use Error::*;
         match self {
-            BadRequest(_) | Unauthorized(_) | MissingField => {
-                Level::Warning
-            }
+            BadRequest(_) | Unauthorized(_) | MissingField => Level::Warning,
             NotFound(_) => Level::Info,
             _ => Level::Error,
         }
