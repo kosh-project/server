@@ -2,7 +2,7 @@ use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
 
-use crate::error::internal;
+use crate::{error::internal, logger::Loggable};
 
 /// Errors that can occur while processing an HTTP API request.
 ///
@@ -62,24 +62,22 @@ pub type Result<T> = core::result::Result<T, Error>;
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         use Error::{
-            BadRequest, Internal, InvalidHeader, IoError,
-            MalformedMultipart, MissingField, NotFound,
-            StreamReadError, Unauthorized,
+            BadRequest, Internal, InvalidHeader, IoError, MalformedMultipart,
+            MissingField, NotFound, StreamReadError, Unauthorized,
         };
 
         match self {
             // Client errors: safe to return the message directly.
-            BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
-            NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
+            NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             MalformedMultipart => (
                 StatusCode::BAD_REQUEST,
                 "Malformed Multipart Payload".into(),
             ),
-            MissingField => (
-                StatusCode::BAD_REQUEST,
-                "Missing required field".into(),
-            ),
+            MissingField => {
+                (StatusCode::BAD_REQUEST, "Missing required field".into())
+            }
             InvalidHeader(_) => {
                 (StatusCode::BAD_REQUEST, "Invalid Header Value".into())
             }
@@ -91,5 +89,22 @@ impl IntoResponse for Error {
             ),
         }
         .into_response()
+    }
+}
+
+use crate::logger::{Level, Module};
+impl Loggable for Error {
+    fn log_level(&self) -> Level {
+        use Error::*;
+        match self {
+            BadRequest(_) | Unauthorized(_) | MissingField => Level::Warning,
+            NotFound(_) => Level::Info,
+            _ => Level::Error,
+        }
+    }
+
+    #[inline]
+    fn log_module(&self) -> Module {
+        Module::Api
     }
 }

@@ -3,7 +3,11 @@ use std::{num::TryFromIntError, time::SystemTimeError};
 use axum::response::IntoResponse;
 use hyper::StatusCode;
 
-use crate::{error::internal, wrap_internal_err};
+use crate::{
+    error::internal,
+    logger::{Level, Loggable, Module},
+    wrap_internal_err,
+};
 
 /// Errors that originate from the model layer (database queries and data mapping).
 ///
@@ -47,11 +51,26 @@ impl IntoResponse for Error {
             }
 
             // Internal: hide the SQL details from the client.
-            Database(_) | Internal(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal Server Error",
-            ),
+            Database(_) | Internal(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+            }
         }
         .into_response()
+    }
+}
+
+impl Loggable for Error {
+    fn log_level(&self) -> crate::logger::Level {
+        use Error::*;
+        match self {
+            AssetNotFound => Level::Info,
+            Internal(_) => Level::Fatal,
+            Database(_) => Level::Error,
+        }
+    }
+
+    #[inline]
+    fn log_module(&self) -> crate::logger::Module {
+        Module::Database
     }
 }

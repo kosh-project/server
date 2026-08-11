@@ -53,9 +53,7 @@ pub async fn auth_guard(
 
     let session = Session::verify(&state.db, token_hash.as_ref())
         .await?
-        .ok_or_else(|| {
-            Unauthorized("Invalid or expired session".into())
-        })?;
+        .ok_or_else(|| Unauthorized("Invalid or expired session".into()))?;
 
     state
         .session_cache
@@ -90,12 +88,10 @@ mod tests {
             .await
             .unwrap();
 
-        let state =
-            AppStateBuilder::new().vault_path("/tmp").db(pool).build();
+        let state = AppStateBuilder::new().vault_path("/tmp").db(pool).build();
 
         let token = "top_secret";
-        let token_hash =
-            TokenHash::from(hash(token.as_bytes()).as_bytes());
+        let token_hash = TokenHash::from(hash(token.as_bytes()).as_bytes());
 
         state.session_cache.insert(token_hash, 4).await;
 

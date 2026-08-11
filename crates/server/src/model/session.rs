@@ -29,10 +29,7 @@ impl Session {
     /// # Errors
     /// - Fails with [`sqlx::sqlite::SqliteQueryResult`] if an error occurs interacting with sqlite database.
     /// - Returns an error if system time is set earlier than [`UNIX_EPOCH`].
-    pub async fn create(
-        pool: &SqlitePool,
-        user_id: i64,
-    ) -> Result<String> {
+    pub async fn create(pool: &SqlitePool, user_id: i64) -> Result<String> {
         let token = Uuid::new_v4().to_string();
 
         #[allow(clippy::as_conversions)]
@@ -108,10 +105,7 @@ impl Session {
     ///
     /// # Errors
     /// Fails with [`sqlx::Error`], if querrying with database fails
-    pub async fn revoke(
-        pool: &SqlitePool,
-        token_hash: &[u8],
-    ) -> Result<()> {
+    pub async fn revoke(pool: &SqlitePool, token_hash: &[u8]) -> Result<()> {
         let _result = sqlx::query!(
             r#"
             DELETE FROM sessions WHERE token_hash = ?

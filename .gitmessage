@@ -1,10 +1,18 @@
-#Title goes here
+# Title --------------- 50 chars --------------- #
 
-#body goes here
+# Blank line before body
+# Body - explains what, why (avoid *how)
+# -------------------------- 72 chars -------------------------------- #
+# Wrap at 72 chars. ################################## which is here:  #
 
 
-
-#Co-authors
-Co-authored-by: Prashant <162028424+shant0707@users.noreply.github.com>
-Co-authored-by: Sidarth Pathak <200190471+iamsidarthpathak@users.noreply.github.com>
-Co-authored-by: Vaibhav Bharti <183317286+vaibhavcodex07@users.noreply.github.com>
+# How to Write a Git Commit Message:
+# https://chris.beams.io/posts/git-commit/
+#
+# 1. Separate subject from body with a blank line
+# 2. Limit the subject line to 50 characters
+# 3. Capitalize the subject line
+# 4. Do not end the subject line with a period
+# 5. Use the imperative mood in the subject line
+# 6. Wrap the body at 72 characters
+# 7. Use the body to explain what and why vs. how

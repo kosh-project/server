@@ -1,5 +1,4 @@
 use hyper::StatusCode;
-use reqwest::multipart;
 use sqlx::sqlite::SqlitePoolOptions;
 use tmpdir::TmpDir;
 use tokio::{fs, net::TcpListener};
@@ -33,8 +32,7 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
 
     sqlx::migrate!("./migrations").run(&sql_pool).await?;
 
-    User::create(&sql_pool, vec![0; 32], "fake_verifier".into())
-        .await?;
+    User::create(&sql_pool, &vec![0; 32], "fake_verifier".into()).await?;
 
     let user_id = 1;
     let token = Session::create(&sql_pool, user_id).await?;
@@ -54,19 +52,12 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
         .post(format!("http://{addr}/api/v1/upload/0"))
         .header("Authorization", format!("Bearer {token}"))
         .header("X-File-Name", file_name)
-        .header(
-            "Content-Length",
-            fake_encrypted_payload.len().to_string(),
-        )
+        .header("Content-Length", fake_encrypted_payload.len().to_string())
         .body(fake_encrypted_payload.clone())
         .send()
         .await?;
 
-    assert_eq!(
-        response.status(),
-        StatusCode::OK,
-        "Server Operation failed",
-    );
+    assert_eq!(response.status(), StatusCode::OK, "Server Operation failed",);
 
     let response_json: serde_json::Value = response.json().await?;
 

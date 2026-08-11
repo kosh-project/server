@@ -7,9 +7,13 @@ use axum::{
 use serde_json::{Value, json};
 
 use crate::{
-    api::{self, assets, middleware::auth_guard},
+    api::{
+        self, assets,
+        middleware::{auth_guard, log_middleware},
+    },
     app::State as AppState,
-    log,
+    info,
+    logger::{Module, logging_enabled},
 };
 
 /// ## Main router
@@ -17,11 +21,17 @@ use crate::{
 /// within the server. \
 /// To be used when starting server.
 pub fn route_main(state: AppState) -> Router {
-    Router::new()
+    let routes = Router::new()
         .route("/health", get(health))
         .nest("/api/auth", auth_route())
         .nest("/api/v1", protected_routes(&state))
-        .with_state(state)
+        .with_state(state);
+
+    if logging_enabled() {
+        return routes.layer(middleware::from_fn(log_middleware));
+    }
+
+    routes
 }
 
 /// ## Authentication endpoints
@@ -39,19 +49,13 @@ fn auth_route() -> Router<AppState> {
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/upload/{tag}", post(assets::upload))
-        .route(
-            "/assets/{hash}",
-            get(assets::get).delete(assets::delete),
-        )
+        .route("/assets/{hash}", get(assets::get).delete(assets::delete))
         .route("/storage", get(storage))
-        .route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth_guard,
-        ))
+        .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
 }
 
 async fn health() -> Json<Value> {
-    log!("HANDLER", "get_health");
+    info!(Module::Api, "get_health");
     Json(json!({
         "health" : "ok"
     }))

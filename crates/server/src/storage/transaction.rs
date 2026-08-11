@@ -1,7 +1,5 @@
 use crate::storage::{
-    Error::{
-        CreateTempFile, InvalidPath, RenameError, WriteChunkFailure,
-    },
+    Error::{CreateTempFile, InvalidPath, RenameError, WriteChunkFailure},
     Payload, Result,
     file::Metadata,
 };
@@ -31,8 +29,6 @@ use uuid::Uuid;
 ///
 /// If the transaction fails at any point, the `.tmp` file is deleted before the error
 /// is returned. This ensures the vault always contains only successfully committed blobs.
-///
-
 pub(crate) struct Transaction {
     temp: PathBuf,
     _uuid: Uuid,
@@ -134,12 +130,11 @@ impl Transaction {
         S: Stream<Item = std::result::Result<Bytes, E>> + Unpin,
         E: Into<Box<dyn StdErr + Send + Sync>>,
     {
-        let mut file = File::create(&self.temp).await.map_err(|e| {
-            CreateTempFile {
+        let mut file =
+            File::create(&self.temp).await.map_err(|e| CreateTempFile {
                 path: self.temp.clone(),
                 source: e,
-            }
-        })?;
+            })?;
 
         if payload.expected_size > 0 {
             let _ = file.allocate(payload.expected_size).await;
@@ -169,10 +164,7 @@ impl Transaction {
             source: e,
         })?;
 
-        Metadata::try_new(
-            &file.metadata().await?,
-            self.hasher.finalize(),
-        )
+        Metadata::try_new(&file.metadata().await?, self.hasher.finalize())
     }
 
     /// Reads all chunks from the stream, writes them to disk, and returns the total bytes written.
@@ -203,12 +195,12 @@ impl Transaction {
         while let Some(chunk) = f_stream.next().await {
             let chunk = chunk.map_err(|e| IoErr::other(e))?;
 
-            file.write_all(&chunk).await.map_err(|e| {
-                WriteChunkFailure {
+            file.write_all(&chunk)
+                .await
+                .map_err(|e| WriteChunkFailure {
                     path: self.temp.clone(),
                     source: e,
-                }
-            })?;
+                })?;
 
             bytes_written += u64::try_from(chunk.len())?;
 
@@ -255,8 +247,7 @@ mod test {
 
             let metadata = result.as_ref().unwrap();
 
-            let target_path =
-                vault_path.join(metadata.hash.to_string());
+            let target_path = vault_path.join(metadata.hash.to_string());
 
             let mut hasher = Hasher::new();
             let bytes = tokio::fs::read(target_path).await.unwrap();
@@ -274,8 +265,7 @@ mod test {
         with_temp_transaction(async move |transaction, vault_path| {
             let chunks: Vec<Result<Bytes, IoErr>> = Vec::new();
 
-            let payload =
-                Payload::new(0 as u64, futures::stream::iter(chunks));
+            let payload = Payload::new(0 as u64, futures::stream::iter(chunks));
 
             let result = transaction.commit(payload).await;
 
@@ -286,8 +276,7 @@ mod test {
 
             assert_eq!(metadata.size, 0);
 
-            let target_path =
-                vault_path.join(metadata.hash.to_string());
+            let target_path = vault_path.join(metadata.hash.to_string());
 
             // Test: There File should be present, even though its empty
             assert!(target_path.exists());
@@ -307,10 +296,7 @@ mod test {
 
             let chunks: Vec<Result<Bytes, IoErr>> = vec![
                 Ok(Bytes::from("good bytes")),
-                Err(IoErr::new(
-                    ErrorKind::ConnectionAborted,
-                    "Wifi dies, lol",
-                )),
+                Err(IoErr::new(ErrorKind::ConnectionAborted, "Wifi dies, lol")),
             ];
 
             let payload =
@@ -328,8 +314,7 @@ mod test {
 
     #[tokio::test]
     async fn transaction_fails_if_vault_missing() {
-        let vault =
-            PathBuf::from("/tmp/path/that/possibly/doesnt/exist/lol");
+        let vault = PathBuf::from("/tmp/path/that/possibly/doesnt/exist/lol");
         let transaction = Transaction::new(vault);
 
         let chunks: Vec<Result<Bytes, IoErr>> =
@@ -378,8 +363,7 @@ mod test {
             let chunks: Vec<Result<Bytes, IoErr>> =
                 vec![Ok(Bytes::from("Halo there"))];
 
-            let payload =
-                Payload::new(67u64, futures::stream::iter(chunks));
+            let payload = Payload::new(67u64, futures::stream::iter(chunks));
 
             let result = transaction.commit(payload).await;
 

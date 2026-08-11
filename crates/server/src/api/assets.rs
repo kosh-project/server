@@ -2,7 +2,8 @@ use crate::{
     Error::ApiError,
     api::Error::{BadRequest, InvalidHeader, NotFound},
     app::State as AppState,
-    log,
+    error, info,
+    logger::Module,
     model::asset::{Asset, AssetTag},
     storage::Payload,
 };
@@ -35,13 +36,16 @@ pub async fn delete(
     let hash_bytes = hex::decode(&hash_str)
         .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
 
-    let wipe_needed =
-        Asset::delete(&state.db, user_id, &hash_bytes).await?;
+    let wipe_needed = Asset::delete(&state.db, user_id, &hash_bytes).await?;
 
     if wipe_needed {
         state.storage.delete_blob(&hash_str).await?;
     }
 
+    info!(
+        Module::Asset,
+        "deleted ownership over blob \"{hash_str}\" with success"
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -65,10 +69,13 @@ pub async fn get(
     let hash_bytes = hex::decode(&hash_str)
         .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
 
-    let owns_file =
-        Asset::owned_by(&state.db, user_id, &hash_bytes).await?;
+    let owns_file = Asset::owned_by(&state.db, user_id, &hash_bytes).await?;
 
     if !owns_file {
+        error!(
+            Module::Asset,
+            "Attempt to access unauthorized blob '{hash_str}' by user {user_id}"
+        );
         return Err(ApiError(NotFound(
             "Asset not found or Unauthorized".into(),
         )));
@@ -131,25 +138,19 @@ pub async fn upload(
     Extension(user_id): Extension<i64>,
     body: Body,
 ) -> crate::Result<impl IntoResponse> {
-    log!("HANDLER", "post_upload");
-
     let tag = AssetTag::try_from(tag_str.as_str())
         .map_err(|()| BadRequest("Invalid Tag".into()))?;
 
     let file_name = headers
         .get("X-File-Name")
         .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| {
-            BadRequest("Missing X-File-Name header".into())
-        })?;
+        .ok_or_else(|| BadRequest("Missing X-File-Name header".into()))?;
 
     let expected_size: u64 = headers
         .get("Content-Length")
         .and_then(|x| x.to_str().ok())
         .and_then(|x| x.parse().ok())
-        .ok_or_else(|| {
-            BadRequest("Missing content length in header".into())
-        })?;
+        .ok_or_else(|| BadRequest("Missing content length in header".into()))?;
 
     if expected_size > 10_000_000_000 {
         return Err(BadRequest("Payload too Large".into()).into());
@@ -163,17 +164,35 @@ pub async fn upload(
         .await
     {
         Ok(metadata) => {
-            match Asset::create(&state.db, user_id, tag, &metadata)
-                .await
-            {
-                Ok(()) => FileStatus::success(
-                    file_name.into(),
-                    metadata.hash.to_string(),
-                ),
-                Err(e) => FileStatus::failure(file_name.into(), &e),
+            match Asset::create(&state.db, user_id, tag, &metadata).await {
+                Ok(()) => {
+                    info!(
+                        Module::Asset,
+                        "upload success, user owns {}",
+                        metadata.hash.to_string()
+                    );
+                    FileStatus::success(
+                        file_name.into(),
+                        metadata.hash.to_string(),
+                    )
+                }
+                Err(e) => {
+                    info!(
+                        Module::Asset,
+                        "user {user_id} failed to register asset ownership to database '{file_name}': {e}"
+                    );
+                    FileStatus::failure(file_name.into(), &e)
+                }
             }
         }
-        Err(e) => FileStatus::failure(file_name.into(), &e),
+
+        Err(e) => {
+            info!(
+                Module::Asset,
+                "user {user_id} failed to uplaod '{file_name}'. Failed to write this blob to disk with error {e}"
+            );
+            FileStatus::failure(file_name.into(), &e)
+        }
     };
 
     Ok(Json(status))

@@ -5,7 +5,8 @@ use std::io::ErrorKind::{self};
 use tokio::fs::{self, File};
 
 use crate::error::internal::Error::Message;
-use crate::log;
+use crate::info;
+use crate::logger::Module;
 use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
 use crate::storage::{
@@ -69,8 +70,7 @@ impl Service {
 
         let file_metadata = transaction.commit(payload).await?;
 
-        log!("STORAGE", format!("committed: {file_name}"));
-
+        info!(Module::Storage, "Comitted CAS blob for {file_name} to disk");
         Ok(file_metadata)
     }
 
@@ -117,9 +117,9 @@ impl Service {
         match fs::remove_file(file_path).await {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-            Err(x) => Err(Internal(Message(format!(
-                "Failed to delete file : {x}"
-            )))),
+            Err(x) => {
+                Err(Internal(Message(format!("Failed to delete file : {x}"))))
+            }
         }
     }
 
@@ -162,8 +162,7 @@ mod tests {
             assert!(result.is_err());
 
             assert!(matches!(result, Err(InvalidFileName)));
-            let result =
-                service.begin_transaction(&"../../../../etc/passwd");
+            let result = service.begin_transaction(&"../../../../etc/passwd");
             assert!(result.is_err());
             assert!(matches!(result, Err(InvalidFileName)))
         })
@@ -200,10 +199,7 @@ mod tests {
                 let stream = futures::stream::iter(chunks);
 
                 service_a
-                    .try_save(
-                        "dev1_upload.rs",
-                        Payload::new(9u64, stream),
-                    )
+                    .try_save("dev1_upload.rs", Payload::new(9u64, stream))
                     .await
             });
 
@@ -213,10 +209,7 @@ mod tests {
                 let stream = futures::stream::iter(payload);
 
                 service_b
-                    .try_save(
-                        "some_other_file.rs",
-                        Payload::new(9u64, stream),
-                    )
+                    .try_save("some_other_file.rs", Payload::new(9u64, stream))
                     .await
             });
 
