@@ -1,7 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use bincode_next::{config, encode_to_vec};
-use chrono::{DateTime, Datelike, Utc};
+use chrono::{DateTime, Datelike};
 use tokio::{
     fs::{self, File, create_dir_all},
     io::AsyncWriteExt,
@@ -228,18 +228,12 @@ mod test {
     use std::{
         env::{self, remove_var, set_var, var_os},
         io::BufReader,
-        path::Path,
     };
 
-    use axum::handler;
     use chrono::Utc;
     use serial_test::serial;
     use std::fs::File;
     use tmpdir::TmpDir;
-    use tokio_util::io::simplex::new;
-
-    use crate::{log, logger};
-
     use super::*;
 
     async fn with_temp_env<F, Fut, T>(f: F) -> anyhow::Result<T>
@@ -255,7 +249,7 @@ mod test {
             env::set_var("XDG_STATE_HOME", temp_dir.to_path_buf());
 
             let (sender, log_handler) =
-                logger::Service::start(1000).await.unwrap();
+                Service::start(1000).await.unwrap();
             result = f(temp_dir.to_path_buf(), sender, log_handler).await;
 
             match old_state_dir {
@@ -308,7 +302,7 @@ mod test {
 
             let mut reader = BufReader::new(File::open(&log_file)?);
 
-            let entry1: Entry = bincode_next::decode_from_reader(
+            let entry1: Entry = bincode_next::decode_from_std_read(
                 &mut reader,
                 config::standard(),
             )?;
