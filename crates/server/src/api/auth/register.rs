@@ -8,9 +8,19 @@ use hyper::StatusCode;
 use serde::Deserialize;
 use sqlx::Error as SqlErr;
 
+/// The JSON body expected by the registration endpoint.
 #[derive(Deserialize)]
 pub struct RegisterRequest {
+    /// A hex-encoded BLAKE3 hash of the user's public identity.
+    ///
+    /// The server stores this as the user's identifier. It must be unique across
+    /// all registered users; a duplicate triggers a `409 Conflict` response.
     pub identity_hash: String,
+    /// The authentication verifier derived from the user's credentials on the client side.
+    ///
+    /// The server stores this string verbatim and compares it on login. It is the
+    /// client's responsibility to derive a strong verifier (e.g., using Argon2id)
+    /// before sending it — the server does not perform any additional hashing.
     pub auth_verifier: String,
 }
 

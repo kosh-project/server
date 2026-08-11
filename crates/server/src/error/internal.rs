@@ -1,13 +1,35 @@
 use std::{num::TryFromIntError, time::SystemTimeError};
 
+/// Low-level standard library errors wrapped into a common type for domain propagation.
+///
+/// This enum exists to bridge the gap between standard library error types (such as
+/// `TryFromIntError`) and the domain-specific error enums in `api`, `storage`, and
+/// `model`. Each domain error has an `Internal(#[from] internal::Error)` variant, and
+/// the [`crate::wrap_internal_err!`] macro generates the additional `From` implementations
+/// that allow the `?` operator to chain through two conversions automatically.
+///
+/// Consumers should never match on this type directly; it is an implementation detail
+/// of the error propagation chain.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    /// An integer type conversion overflowed or underflowed.
+    ///
+    /// Typically produced when converting between `usize`, `u64`, `i64`, and similar
+    /// primitive integer types using `TryFrom` or `TryInto`.
     #[error("Integer conversion overflow : {}", .0)]
     IntConversion(#[from] TryFromIntError),
 
+    /// A system time operation failed.
+    ///
+    /// Produced when a `SystemTime` value is before the Unix epoch, which can occur
+    /// when computing elapsed durations or converting to timestamp integers.
     #[error("Time conversion failed : {}", .0)]
     TimerError(#[from] SystemTimeError),
 
+    /// A freeform error message for cases not covered by the other variants.
+    ///
+    /// Used when a custom string description is the most practical way to surface
+    /// an internal condition without defining a new strongly-typed variant.
     #[error("{}", .0)]
     Message(String),
 }

@@ -20,18 +20,78 @@ use crate::{
     },
 };
 
+/// The filesystem path of the Unix Datagram Socket used for real-time log broadcasting.
+///
+/// The server's background logging task sends a copy of each serialized [`Entry`] to this
+/// address after writing it to disk. The admin CLI (`kosh-cli`) binds to this socket to
+/// receive the live stream. If no client is bound, the `send_to` call fails silently — the
+/// server deliberately ignores the error so that the absence of the CLI never affects
+/// request-path performance.
 pub static SOCKET_ADDR: &str = "/tmp/kosh-cli.sock";
+
+/// The number of milliseconds in one calendar day (24 * 60 * 60 * 1000).
+///
+/// Used to determine which daily log file an entry belongs to by comparing
+/// `entry.timestamp_ms / DAY_MILLIS` against the service's `today` field.
 static DAY_MILLIS: i64 = 86_400_000;
 
+/// The background logging service.
+///
+/// `Service` owns the receive end of the MPSC channel, the currently active log file,
+/// and the unbound Unix Datagram Socket used for broadcasting. It runs entirely on a
+/// dedicated `tokio` task and never shares memory with the HTTP request threads.
+///
+/// Callers interact with the service indirectly through the [`GLOBAL_LOGGER`] sender
+/// and the [`LoggerHandler`] returned by [`Service::start`]. The `Service` itself is
+/// consumed by the background task and is not accessible after startup.
 pub struct Service {
+    /// The receive end of the bounded MPSC channel.
+    ///
+    /// The service loops on this receiver, processing one [`Entry`] at a time.
     receiver: Receiver<Entry>,
+    /// The currently open log file, opened in append mode.
+    ///
+    /// This handle is replaced atomically (at the Rust level, not the OS level) when the
+    /// service detects that a new calendar day has started, implementing log file rotation.
     active_file: File,
+    /// The calendar day (as `timestamp_ms / DAY_MILLIS`) of the currently active log file.
+    ///
+    /// Compared against each incoming entry's timestamp to detect when a day boundary
+    /// has been crossed and a new log file must be opened.
     today: i64,
+    /// The absolute path to the `kosh/logs` directory.
+    ///
+    /// Derived from `dirs::state_dir()` at startup and used when opening new daily files
+    /// during log rotation.
     log_path: PathBuf,
+    /// An unbound Unix Datagram Socket used to broadcast entries to the admin CLI.
+    ///
+    /// Unbound means the socket has no address of its own; it can only send, not receive.
+    /// Each entry is sent to [`SOCKET_ADDR`] after being written to disk. Errors are
+    /// silently ignored so that the absence of the admin CLI has no impact on the server.
     socket: UnixDatagram,
 }
 
 impl Service {
+    /// Initializes the logging service and spawns its background task.
+    ///
+    /// This method must be called once during server startup. It:
+    ///
+    /// 1. Creates a bounded MPSC channel with the specified `capacity`.
+    /// 2. Resolves the XDG state directory and creates `kosh/logs` if it does not exist.
+    /// 3. Opens (or creates) the current day's log file in append mode.
+    /// 4. Creates an unbound Unix Datagram Socket for broadcasting.
+    /// 5. Spawns a dedicated `tokio` task that runs the [`Service::run`] loop.
+    ///
+    /// The returned [`Sender`] should be stored in [`GLOBAL_LOGGER`] immediately after
+    /// this call. The returned [`LoggerHandler`] should be kept alive and awaited during
+    /// graceful shutdown via [`LoggerHandler::shutdown_with_grace`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`error::Error::LogDirectoryInitialization`] if the XDG state directory
+    /// cannot be determined. Returns [`error::Error::Io`] if the log directory cannot be
+    /// created or the initial log file cannot be opened.
     pub async fn start(
         capacity: usize,
     ) -> Result<(Sender<Entry>, LoggerHandler)> {
@@ -66,6 +126,15 @@ impl Service {
         Ok((sender, LoggerHandler(task)))
     }
 
+    /// The main receive loop of the logging service.
+    ///
+    /// Runs until a [`Level::Shutdown`] entry is received, at which point it returns
+    /// and the spawned task completes, allowing [`LoggerHandler::shutdown_with_grace`]
+    /// to join cleanly.
+    ///
+    /// Errors from [`Service::commit`] (disk write failures, serialization failures)
+    /// are printed to `stderr` using `eprintln!` rather than being propagated. This
+    /// ensures that a transient I/O error does not terminate the logging service.
     async fn run(mut self) {
         while let Some(entry) = self.receiver.recv().await {
             if let Level::Shutdown = entry.level {
@@ -77,6 +146,21 @@ impl Service {
         }
     }
 
+    /// Serializes and persists a single log entry.
+    ///
+    /// Before writing, it checks whether the entry's `timestamp_ms` falls on a different
+    /// calendar day than the currently open file. If so, a new daily log file is opened
+    /// and `self.today` is updated. The file is identified purely by the entry's timestamp,
+    /// not by the wall clock, which prevents queue-lag from placing late-night entries into
+    /// the wrong file.
+    ///
+    /// After writing to disk, the serialized bytes are sent to the admin CLI socket.
+    /// Socket errors are silently ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the new daily log file cannot be opened, if `bincode` serialization
+    /// fails, or if the `write_all` call to the active file fails.
     async fn commit(&mut self, entry: Entry) -> Result<()> {
         if entry.timestamp_ms / DAY_MILLIS != self.today {
             self.active_file = fs::OpenOptions::new()
@@ -97,15 +181,38 @@ impl Service {
     }
 }
 
+/// Produces the filename for a daily log file given a Unix timestamp in milliseconds.
+///
+/// The filename takes the form `log_YYYY-M-D.bin`. It is derived entirely from the
+/// provided timestamp rather than from `Utc::now()`, ensuring that entries processed
+/// after midnight due to channel queue lag are still written to the correct file.
+///
+/// If the timestamp cannot be converted to a valid [`DateTime`], the function falls back
+/// to the Unix epoch (1970-01-01) via `unwrap_or_default`.
 fn format_date_time(time_stamp_millis: i64) -> String {
     let time =
         DateTime::from_timestamp_millis(time_stamp_millis).unwrap_or_default();
     format!("log_{}-{}-{}.bin", time.year(), time.month(), time.day())
 }
 
+/// A handle to the background logging task.
+///
+/// Returned by [`Service::start`] alongside the channel sender. The caller should
+/// retain this handle and use it during the server's graceful shutdown sequence to
+/// ensure that all buffered log entries are flushed to disk before the process exits.
 pub struct LoggerHandler(JoinHandle<()>);
 
 impl LoggerHandler {
+    /// Waits for the logging task to finish, with a timeout.
+    ///
+    /// Before calling this method, the caller must send a [`Level::Shutdown`] entry
+    /// through the channel (typically via the [`crate::shutdown!`] macro) to signal the
+    /// service to exit its receive loop. This method then waits up to `secs` seconds for
+    /// the task to join.
+    ///
+    /// If the task does not finish within the grace period, a [`Level::Fatal`] log entry
+    /// is emitted (which will itself be silently dropped if the sender is gone) and the
+    /// method returns, allowing the OS to clean up the task.
     pub async fn shutdown_with_grace(self, secs: u64) {
         if let Err(e) = timeout(Duration::from_secs(secs), self.0).await {
             fatal!(
