@@ -57,10 +57,9 @@ async fn main() -> io::Result<()> {
         .await
         .expect("Failed to connect to SQLite!");
 
-    let (log_sender, logger_handle) =
-        logger::Service::start(1000).await.unwrap_or_else(|e| {
-            panic!("Logging engine failed to boot {e}")
-        });
+    let (log_sender, logger_handle) = logger::Service::start(1000)
+        .await
+        .unwrap_or_else(|e| panic!("Logging engine failed to boot {e}"));
 
     GLOBAL_LOGGER
         .set(log_sender)

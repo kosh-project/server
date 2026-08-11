@@ -92,8 +92,7 @@ impl AppStateBuilder {
     pub fn build(self) -> AppState {
         AppState {
             storage: storage::Service::new(
-                self.vault_path
-                    .expect("FATAL: vault_path is required!"),
+                self.vault_path.expect("FATAL: vault_path is required!"),
             ),
             db: self.db.expect("FATAL: database pool is required!"),
             session_cache: self.session_cache.unwrap_or_else(|| {

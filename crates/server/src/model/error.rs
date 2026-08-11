@@ -51,10 +51,9 @@ impl IntoResponse for Error {
             }
 
             // Internal: hide the SQL details from the client.
-            Database(_) | Internal(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal Server Error",
-            ),
+            Database(_) | Internal(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+            }
         }
         .into_response()
     }

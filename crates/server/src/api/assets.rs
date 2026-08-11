@@ -36,8 +36,7 @@ pub async fn delete(
     let hash_bytes = hex::decode(&hash_str)
         .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
 
-    let wipe_needed =
-        Asset::delete(&state.db, user_id, &hash_bytes).await?;
+    let wipe_needed = Asset::delete(&state.db, user_id, &hash_bytes).await?;
 
     if wipe_needed {
         state.storage.delete_blob(&hash_str).await?;
@@ -70,8 +69,7 @@ pub async fn get(
     let hash_bytes = hex::decode(&hash_str)
         .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
 
-    let owns_file =
-        Asset::owned_by(&state.db, user_id, &hash_bytes).await?;
+    let owns_file = Asset::owned_by(&state.db, user_id, &hash_bytes).await?;
 
     if !owns_file {
         error!(
@@ -146,17 +144,13 @@ pub async fn upload(
     let file_name = headers
         .get("X-File-Name")
         .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| {
-            BadRequest("Missing X-File-Name header".into())
-        })?;
+        .ok_or_else(|| BadRequest("Missing X-File-Name header".into()))?;
 
     let expected_size: u64 = headers
         .get("Content-Length")
         .and_then(|x| x.to_str().ok())
         .and_then(|x| x.parse().ok())
-        .ok_or_else(|| {
-            BadRequest("Missing content length in header".into())
-        })?;
+        .ok_or_else(|| BadRequest("Missing content length in header".into()))?;
 
     if expected_size > 10_000_000_000 {
         return Err(BadRequest("Payload too Large".into()).into());
@@ -170,9 +164,7 @@ pub async fn upload(
         .await
     {
         Ok(metadata) => {
-            match Asset::create(&state.db, user_id, tag, &metadata)
-                .await
-            {
+            match Asset::create(&state.db, user_id, tag, &metadata).await {
                 Ok(()) => {
                     info!(
                         Module::Asset,

@@ -24,18 +24,13 @@ pub async fn register(
     State(state): State<AppState>,
     Json(register_request): Json<RegisterRequest>,
 ) -> Result<StatusCode> {
-    let Ok(identity_hash) =
-        hex::decode(&register_request.identity_hash)
-    else {
+    let Ok(identity_hash) = hex::decode(&register_request.identity_hash) else {
         Err(BadRequest("identity_hash failed to decode".into()))?
     };
 
-    let result = User::create(
-        &state.db,
-        &identity_hash,
-        register_request.auth_verifier,
-    )
-    .await;
+    let result =
+        User::create(&state.db, &identity_hash, register_request.auth_verifier)
+            .await;
 
     match result {
         Ok(()) => {

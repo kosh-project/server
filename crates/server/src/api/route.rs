@@ -49,15 +49,9 @@ fn auth_route() -> Router<AppState> {
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/upload/{tag}", post(assets::upload))
-        .route(
-            "/assets/{hash}",
-            get(assets::get).delete(assets::delete),
-        )
+        .route("/assets/{hash}", get(assets::get).delete(assets::delete))
         .route("/storage", get(storage))
-        .route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth_guard,
-        ))
+        .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
 }
 
 async fn health() -> Json<Value> {

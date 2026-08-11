@@ -1,6 +1,5 @@
 use std::{
-    fs::Metadata as StdMeta, os::unix::fs::MetadataExt,
-    time::UNIX_EPOCH,
+    fs::Metadata as StdMeta, os::unix::fs::MetadataExt, time::UNIX_EPOCH,
 };
 
 use blake3::Hash;

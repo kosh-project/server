@@ -43,16 +43,11 @@ impl Asset {
     ///
     /// # Errors
     /// - Fails with [`sqlx::Error`] if fails to work with database
-    pub async fn exists(
-        pool: &SqlitePool,
-        hash: Vec<u8>,
-    ) -> Result<bool> {
-        let result = query!(
-            "SELECT 1 AS matched FROM assets WHERE hash = ?",
-            hash
-        )
-        .fetch_optional(pool)
-        .await?;
+    pub async fn exists(pool: &SqlitePool, hash: Vec<u8>) -> Result<bool> {
+        let result =
+            query!("SELECT 1 AS matched FROM assets WHERE hash = ?", hash)
+                .fetch_optional(pool)
+                .await?;
 
         Ok(result.is_some())
     }
@@ -144,7 +139,8 @@ impl Asset {
         "#,
             user,
             hash,
-        ).fetch_optional(pool)
+        )
+        .fetch_optional(pool)
         .await?;
 
         Ok(result.is_some())
@@ -154,9 +150,7 @@ impl Asset {
 impl TryFrom<&str> for AssetTag {
     type Error = ();
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        use AssetTag::{
-            DriveItem, DriveMeta, GalleryItem, GalleryMeta,
-        };
+        use AssetTag::{DriveItem, DriveMeta, GalleryItem, GalleryMeta};
 
         Ok(match value {
             "0" => GalleryMeta,
@@ -212,10 +206,7 @@ mod tests {
         Ok(())
     }
 
-    async fn count_owners(
-        pool: &SqlitePool,
-        hash: &[u8],
-    ) -> Result<i64> {
+    async fn count_owners(pool: &SqlitePool, hash: &[u8]) -> Result<i64> {
         let count = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM assets WHERE hash = ?",
             hash as &[u8]

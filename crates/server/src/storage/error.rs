@@ -81,21 +81,18 @@ wrap_internal_err! { TryFromIntError, SystemTimeError => Error::Internal }
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         use Error::{
-            CreateTempFile, FileAlreadyExists, Internal,
-            InvalidFileName, InvalidPath, NotFound, RenameError,
-            StreamReadError, VaultNotFound, WriteChunkFailure,
+            CreateTempFile, FileAlreadyExists, Internal, InvalidFileName,
+            InvalidPath, NotFound, RenameError, StreamReadError, VaultNotFound,
+            WriteChunkFailure,
         };
 
         match self {
             // Client-facing errors: safe to expose details.
-            InvalidFileName | InvalidPath { .. } => (
-                StatusCode::BAD_REQUEST,
-                "Invalid file path or name".into(),
-            ),
-            FileAlreadyExists(msg) => (StatusCode::CONFLICT, msg),
-            NotFound => {
-                (StatusCode::NOT_FOUND, "Blob not found".into())
+            InvalidFileName | InvalidPath { .. } => {
+                (StatusCode::BAD_REQUEST, "Invalid file path or name".into())
             }
+            FileAlreadyExists(msg) => (StatusCode::CONFLICT, msg),
+            NotFound => (StatusCode::NOT_FOUND, "Blob not found".into()),
 
             // Internal errors: hide details from the client.
             VaultNotFound

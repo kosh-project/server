@@ -86,16 +86,13 @@ impl IntoResponse for Error {
             ModelError(e) => e.into_response(),
 
             // Top-level variants that don't belong to a sub-domain.
-            Conflict(msg) => {
-                (StatusCode::CONFLICT, msg).into_response()
-            }
+            Conflict(msg) => (StatusCode::CONFLICT, msg).into_response(),
 
             // These are always sensitive — never expose details to the client.
-            DatabaseError(_) | InternalError(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal Server Error",
-            )
-                .into_response(),
+            DatabaseError(_) | InternalError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+                    .into_response()
+            }
         };
 
         if let Some(t) = telemetry {
@@ -106,8 +103,7 @@ impl IntoResponse for Error {
 }
 
 use Error::{
-    ApiError, Conflict, DatabaseError, InternalError, ModelError,
-    StorageError,
+    ApiError, Conflict, DatabaseError, InternalError, ModelError, StorageError,
 };
 
 pub type Result<T> = core::result::Result<T, Error>;
@@ -119,9 +115,7 @@ impl Loggable for Error {
             Error::ApiError(e) => e.log_level(),
             Error::Conflict(_) => Level::Warning,
             Error::ModelError(e) => e.log_level(),
-            Error::DatabaseError(_) | Error::InternalError(_) => {
-                Level::Error
-            }
+            Error::DatabaseError(_) | Error::InternalError(_) => Level::Error,
         }
     }
 

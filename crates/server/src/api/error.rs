@@ -64,9 +64,8 @@ pub type Result<T> = core::result::Result<T, Error>;
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         use Error::{
-            BadRequest, Internal, InvalidHeader, IoError,
-            MalformedMultipart, MissingField, NotFound,
-            StreamReadError, Unauthorized,
+            BadRequest, Internal, InvalidHeader, IoError, MalformedMultipart,
+            MissingField, NotFound, StreamReadError, Unauthorized,
         };
 
         let self_arc = Arc::new(self);
@@ -74,18 +73,15 @@ impl IntoResponse for Error {
         let mut response = match &*self_arc {
             // Client errors: safe to return the message directly.
             BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            Unauthorized(msg) => {
-                (StatusCode::UNAUTHORIZED, msg.clone())
-            }
+            Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
             NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             MalformedMultipart => (
                 StatusCode::BAD_REQUEST,
                 "Malformed Multipart Payload".into(),
             ),
-            MissingField => (
-                StatusCode::BAD_REQUEST,
-                "Missing required field".into(),
-            ),
+            MissingField => {
+                (StatusCode::BAD_REQUEST, "Missing required field".into())
+            }
             InvalidHeader(_) => {
                 (StatusCode::BAD_REQUEST, "Invalid Header Value".into())
             }
@@ -109,9 +105,7 @@ impl Loggable for Error {
     fn log_level(&self) -> Level {
         use Error::*;
         match self {
-            BadRequest(_) | Unauthorized(_) | MissingField => {
-                Level::Warning
-            }
+            BadRequest(_) | Unauthorized(_) | MissingField => Level::Warning,
             NotFound(_) => Level::Info,
             _ => Level::Error,
         }
