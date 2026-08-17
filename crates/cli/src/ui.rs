@@ -36,6 +36,11 @@ impl Widget for &mut EntryList {
         self.last_msg_col_w = msg_width;
         self.last_viewport_h = inner_area.height;
 
+        if self.force_scroll_to_bottom {
+            self.force_scroll_to_bottom = false;
+            self.scroll_to_bottom();
+        }
+
         let visible_logs = self.logs.iter().skip(self.top_log_idx);
         let mut current_y = inner_area.y;
         let mut is_first = true;

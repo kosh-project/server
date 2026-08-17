@@ -21,6 +21,8 @@ pub struct EntryList {
     pub col_module_w: u16,
     pub col_time_w: u16,
 
+    pub force_scroll_to_bottom: bool,
+
     pub area: Rect,
 
     pub dragging_col: Option<usize>,
@@ -38,6 +40,7 @@ impl Default for EntryList {
             col_module_w: 12,
             col_time_w: 10,
             dragging_col: None,
+            force_scroll_to_bottom: true,
             area: Rect::default(),
         }
     }
@@ -206,8 +209,8 @@ impl EntryList {
                 }
             }
             MouseEventKind::Up(MouseButton::Left) => self.dragging_col = None,
-            MouseEventKind::ScrollUp => self.scroll_up(3),
-            MouseEventKind::ScrollDown => self.scroll_down(3),
+            MouseEventKind::ScrollUp => self.scroll_up(2),
+            MouseEventKind::ScrollDown => self.scroll_down(2),
             _ => {}
         }
     }
