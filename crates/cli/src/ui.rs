@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::Span,
-    widgets::{Block, BorderType, Borders, Paragraph, Widget, Wrap},
+    widgets::{Block, BorderType, Borders, Padding, Paragraph, Widget, Wrap},
 };
 
 use crate::list::EntryList;
@@ -15,10 +15,11 @@ impl Widget for &mut EntryList {
         Self: Sized,
     {
         let block = Block::default()
-            .title(" System Logs ")
+            .title(">  System Logs  |")
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Black));
+            .padding(Padding::new(2, 2, 1, 1))
+            .border_style(Style::default());
 
         let inner_area = block.inner(area);
         self.area = inner_area;
@@ -91,6 +92,7 @@ impl Widget for &mut EntryList {
             let msg = Span::raw(log.message.as_str());
             Paragraph::new(msg)
                 .wrap(Wrap { trim: false })
+                .scroll((hidden_lines, 0))
                 .render(columns[2], buf);
 
             buf.set_span(

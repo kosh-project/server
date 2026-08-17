@@ -17,8 +17,6 @@ pub struct EntryList {
     pub last_msg_col_w: u16,
     pub last_viewport_h: u16,
 
-    pub is_focused: bool,
-
     pub col_level_w: u16,
     pub col_module_w: u16,
     pub col_time_w: u16,
@@ -36,7 +34,6 @@ impl Default for EntryList {
             top_log_line_offset: 0,
             last_msg_col_w: 10,
             last_viewport_h: 10,
-            is_focused: false,
             col_level_w: 7,
             col_module_w: 12,
             col_time_w: 10,
@@ -70,12 +67,9 @@ impl EntryList {
     }
 
     pub fn handle_key(&mut self, key: &KeyEvent) {
-        if !self.is_focused {
-            return;
-        }
         match key.code {
-            KeyCode::Up => self.scroll_up(1),
-            KeyCode::Down => self.scroll_down(1),
+            KeyCode::Up | KeyCode::Char('k') => self.scroll_up(1),
+            KeyCode::Down | KeyCode::Char('j') => self.scroll_down(1),
             KeyCode::PageUp => self.scroll_up(10),
             KeyCode::PageDown => self.scroll_down(10),
             _ => {}
@@ -93,6 +87,8 @@ impl EntryList {
                 self.top_log_line_offset = self
                     .calculate_height(&self.logs[self.top_log_idx].message)
                     .saturating_sub(1);
+
+                steps -= 1;
             } else {
                 break;
             }
@@ -112,6 +108,8 @@ impl EntryList {
             if self.top_log_idx >= self.logs.len() {
                 break;
             }
+
+            self.top_log_line_offset += 1;
 
             if self.top_log_line_offset
                 >= self.calculate_height(&self.logs[self.top_log_idx].message)

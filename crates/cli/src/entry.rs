@@ -1,3 +1,4 @@
+use chrono::{DateTime, Timelike};
 use ratatui::{
     style::{Color, Style},
     text::Span,
@@ -43,12 +44,25 @@ fn module_into_span(value: Module) -> Span<'static> {
     }
 }
 
+fn timestamp_millis_span(timestamp_ms: i64) -> Span<'static> {
+    let time = DateTime::from_timestamp_millis(timestamp_ms).unwrap();
+
+    let time = format!(
+        "{:02}:{:02}:{:02}",
+        time.hour(),
+        time.minute(),
+        time.second(),
+    );
+
+    Span::styled(time, GRAY)
+}
+
 impl Entry {
     pub fn from(entry: logger::Entry) -> Self {
         Self {
             level: level_into_span(entry.level),
             module: module_into_span(entry.module),
-            time: Span::default(),
+            time: timestamp_millis_span(entry.timestamp_ms),
             message: entry.message,
         }
     }

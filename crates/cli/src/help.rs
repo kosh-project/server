@@ -1,11 +1,10 @@
 use std::sync::OnceLock;
 
-use crossterm::terminal::Clear;
 use ratatui::{
     layout::HorizontalAlignment,
-    style::{Color, Modifier, Style},
+    style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Widget},
+    widgets::{Block, BorderType, Borders, Clear, Padding, Widget},
 };
 
 pub struct Help;
@@ -53,17 +52,23 @@ impl Widget for Help {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .title("Hotkey Menu")
+            .title("|  Hotkey Menu  |")
+            .padding(Padding::new(2, 2, 1, 1))
+            .fg(Color::Green)
             .title_alignment(HorizontalAlignment::Center);
 
         let inner_area = block.inner(area);
 
         let help_body = help_body();
 
+        Clear.render(area, buf);
+
+        block.render(area, buf);
+
         for (i, line) in help_body.iter().enumerate() {
             if i as u16 >= inner_area.height {
                 break;
-            } // Don't draw past the border!
+            }
 
             buf.set_line(
                 inner_area.x,
