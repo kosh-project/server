@@ -5,6 +5,7 @@ use crossterm::event::{
     KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind,
 };
 use ratatui::layout::Rect;
+use webdav_server::logger;
 
 use crate::entry::Entry;
 
@@ -26,6 +27,11 @@ pub struct EntryList {
     pub area: Rect,
 
     pub dragging_col: Option<usize>,
+
+    pub filtered_list: Option<Vec<usize>>,
+    pub filter_level: Option<logger::Level>,
+    pub filter_module: Option<logger::Module>,
+    pub filter_string: Option<String>,
 }
 
 impl Default for EntryList {
@@ -42,6 +48,10 @@ impl Default for EntryList {
             dragging_col: None,
             force_scroll_to_bottom: true,
             area: Rect::default(),
+            filter_level: None,
+            filter_module: None,
+            filter_string: None,
+            filtered_list: None,
         }
     }
 }
@@ -88,7 +98,7 @@ impl EntryList {
             } else if self.top_log_idx > 0 {
                 self.top_log_idx -= 1;
                 self.top_log_line_offset = self
-                    .calculate_height(&self.logs[self.top_log_idx].message)
+                    .calculate_height(&self.logs[self.top_log_idx].raw.message)
                     .saturating_sub(1);
 
                 steps -= 1;
@@ -115,7 +125,8 @@ impl EntryList {
             self.top_log_line_offset += 1;
 
             if self.top_log_line_offset
-                >= self.calculate_height(&self.logs[self.top_log_idx].message)
+                >= self
+                    .calculate_height(&self.logs[self.top_log_idx].raw.message)
             {
                 self.top_log_idx += 1;
                 self.top_log_line_offset = 0;
@@ -136,7 +147,7 @@ impl EntryList {
         let mut total_hieght = 0;
         let mut is_first = true;
         for log in self.logs.iter().skip(self.top_log_idx) {
-            let h = self.calculate_height(&log.message);
+            let h = self.calculate_height(&log.raw.message);
             let hidden = if is_first {
                 self.top_log_line_offset
             } else {
@@ -235,7 +246,8 @@ impl EntryList {
         }
 
         self.top_log_idx = self.logs.len() - 1;
-        let height = self.calculate_height(&self.logs.back().unwrap().message);
+        let height =
+            self.calculate_height(&self.logs.back().unwrap().raw.message);
         self.top_log_line_offset = height.saturating_sub(1);
 
         self.scroll_up(self.last_viewport_h.saturating_sub(1));

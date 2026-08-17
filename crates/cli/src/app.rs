@@ -1,7 +1,7 @@
 use std::fs;
 
 use bincode_next::{
-    config::{self, Configuration},
+    config::{self},
     decode_from_slice,
 };
 use chrono::Utc;

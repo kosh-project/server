@@ -1,4 +1,4 @@
-use chrono::{DateTime, Timelike};
+use chrono::{DateTime, Local, Timelike};
 use ratatui::{
     style::{Color, Style},
     text::Span,
@@ -7,8 +7,9 @@ use ratatui::{
 pub struct Entry {
     pub level: Span<'static>,
     pub module: Span<'static>,
-    pub message: String,
     pub time: Span<'static>,
+
+    pub raw: logger::Entry,
 }
 
 use webdav_server::logger::{self, Level, Module};
@@ -27,7 +28,7 @@ fn level_into_span(value: Level) -> Span<'static> {
         Warning => Span::styled("WARNING", YELLOW),
         Error => Span::styled("ERROR", LIGHT_RED),
         Fatal => Span::styled("FATAL", RED),
-        Shutdown => Span::styled("SHUTDOWN", Style::default()),
+        Shutdown => Span::styled("SHUTDOWN", GRAY),
     }
 }
 
@@ -45,7 +46,9 @@ fn module_into_span(value: Module) -> Span<'static> {
 }
 
 fn timestamp_millis_span(timestamp_ms: i64) -> Span<'static> {
-    let time = DateTime::from_timestamp_millis(timestamp_ms).unwrap();
+    let time = DateTime::from_timestamp_millis(timestamp_ms)
+        .unwrap()
+        .with_timezone(&Local);
 
     let time = format!(
         "{:02}:{:02}:{:02}",
@@ -63,7 +66,7 @@ impl Entry {
             level: level_into_span(entry.level),
             module: module_into_span(entry.module),
             time: timestamp_millis_span(entry.timestamp_ms),
-            message: entry.message,
+            raw: entry,
         }
     }
 }

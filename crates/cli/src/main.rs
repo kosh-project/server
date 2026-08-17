@@ -4,7 +4,6 @@ mod help;
 mod list;
 mod ui;
 
-use color_eyre::eyre::ContextCompat;
 use crossterm::{
     event::{
         DisableBracketedPaste, DisableFocusChange, DisableMouseCapture,
@@ -60,6 +59,8 @@ async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
     let _ = fs::remove_file(SOCKET_ADDR).await;
     let socket = UnixDatagram::bind(SOCKET_ADDR)?;
     let mut buffer = [0u8; 1024];
+
+    let mut oreo = 0;
 
     while !app.should_quit {
         terminal.draw(|f| app.render(f.area(), f.buffer_mut()))?;

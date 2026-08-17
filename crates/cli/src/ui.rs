@@ -2,7 +2,7 @@ use std::cmp;
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::Style,
     text::Span,
     widgets::{Block, BorderType, Borders, Padding, Paragraph, Widget, Wrap},
 };
@@ -18,7 +18,7 @@ impl Widget for &mut EntryList {
             .title(">  System Logs  |")
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .padding(Padding::new(2, 2, 1, 1))
+            .padding(Padding::new(2, 2, 1, 0))
             .border_style(Style::default());
 
         let inner_area = block.inner(area);
@@ -46,7 +46,7 @@ impl Widget for &mut EntryList {
         let mut is_first = true;
 
         for log in visible_logs {
-            let log_height = self.calculate_height(&log.message);
+            let log_height = self.calculate_height(&log.raw.message);
 
             let hidden_lines = if is_first {
                 is_first = false;
@@ -94,7 +94,7 @@ impl Widget for &mut EntryList {
                 columns[1].width,
             );
 
-            let msg = Span::raw(log.message.as_str());
+            let msg = Span::raw(log.raw.message.as_str());
             Paragraph::new(msg)
                 .wrap(Wrap { trim: false })
                 .scroll((hidden_lines, 0))

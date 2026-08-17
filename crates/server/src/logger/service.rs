@@ -142,6 +142,7 @@ impl Service {
     async fn run(mut self) {
         while let Some(entry) = self.receiver.recv().await {
             if let Level::Shutdown = entry.level {
+                let _ = self.commit(entry);
                 return;
             };
             if let Err(e) = self.commit(entry).await {
