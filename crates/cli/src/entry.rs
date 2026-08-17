@@ -1,0 +1,55 @@
+use ratatui::{
+    style::{Color, Style},
+    text::Span,
+};
+
+pub struct Entry {
+    pub level: Span<'static>,
+    pub module: Span<'static>,
+    pub message: String,
+    pub time: Span<'static>,
+}
+
+use webdav_server::logger::{self, Level, Module};
+
+const GREEN: Style = Style::new().fg(Color::Green);
+const RED: Style = Style::new().fg(Color::Red);
+const YELLOW: Style = Style::new().fg(Color::Yellow);
+const GRAY: Style = Style::new().fg(Color::Gray);
+const LIGHT_RED: Style = Style::new().fg(Color::Gray);
+
+fn level_into_span(value: Level) -> Span<'static> {
+    use Level::{Error, Fatal, Info, Shutdown, Warning};
+
+    match value {
+        Info => Span::styled("INFO", GRAY),
+        Warning => Span::styled("WARNING", YELLOW),
+        Error => Span::styled("ERROR", LIGHT_RED),
+        Fatal => Span::styled("FATAL", RED),
+        Shutdown => Span::styled("SHUTDOWN", Style::default()),
+    }
+}
+
+fn module_into_span(value: Module) -> Span<'static> {
+    use Module::{Api, Asset, Database, Logger, Server, Storage};
+
+    match value {
+        Api => Span::styled("Api", GREEN),
+        Database => Span::styled("Database", GREEN),
+        Server => Span::styled("Server", GREEN),
+        Asset => Span::styled("Asset", GREEN),
+        Storage => Span::styled("Storage", GREEN),
+        Logger => Span::styled("Logger", YELLOW),
+    }
+}
+
+impl Entry {
+    pub fn from(entry: logger::Entry) -> Self {
+        Self {
+            level: level_into_span(entry.level),
+            module: module_into_span(entry.module),
+            time: Span::default(),
+            message: entry.message,
+        }
+    }
+}

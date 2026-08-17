@@ -44,12 +44,14 @@ mod error;
 mod r#macro;
 mod service;
 
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use bincode_next::{Decode, Encode};
 mod loggable;
 
 pub use loggable::Loggable;
+pub use service::{SOCKET_ADDR, format_date_time};
 
 /// The global channel sender used to submit log entries to the background logging service.
 ///
@@ -159,3 +161,7 @@ pub enum Module {
 
 pub use service::Service;
 use tokio::sync::mpsc::Sender;
+
+pub fn path() -> Option<PathBuf> {
+    dirs::state_dir().map(|x| x.join("kosh").join("logs"))
+}

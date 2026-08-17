@@ -126,6 +126,10 @@ impl Service {
         Ok((sender, LoggerHandler(task)))
     }
 
+    pub fn path() -> Option<PathBuf> {
+        dirs::state_dir().map(|x| x.join("kosh").join("logs"))
+    }
+
     /// The main receive loop of the logging service.
     ///
     /// Runs until a [`Level::Shutdown`] entry is received, at which point it returns
@@ -189,7 +193,7 @@ impl Service {
 ///
 /// If the timestamp cannot be converted to a valid [`DateTime`], the function falls back
 /// to the Unix epoch (1970-01-01) via `unwrap_or_default`.
-fn format_date_time(time_stamp_millis: i64) -> String {
+pub fn format_date_time(time_stamp_millis: i64) -> String {
     let time =
         DateTime::from_timestamp_millis(time_stamp_millis).unwrap_or_default();
     format!("log_{}-{}-{}.bin", time.year(), time.month(), time.day())
@@ -225,16 +229,12 @@ impl LoggerHandler {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        env::{self, remove_var, set_var, var_os},
-        io::BufReader,
-    };
+    use std::env::{self, remove_var, set_var, var_os};
 
+    use super::*;
     use chrono::Utc;
     use serial_test::serial;
-    use std::fs::File;
     use tmpdir::TmpDir;
-    use super::*;
 
     async fn with_temp_env<F, Fut, T>(f: F) -> anyhow::Result<T>
     where
@@ -248,8 +248,7 @@ mod test {
         unsafe {
             env::set_var("XDG_STATE_HOME", temp_dir.to_path_buf());
 
-            let (sender, log_handler) =
-                Service::start(1000).await.unwrap();
+            let (sender, log_handler) = Service::start(1000).await.unwrap();
             result = f(temp_dir.to_path_buf(), sender, log_handler).await;
 
             match old_state_dir {
@@ -302,10 +301,11 @@ mod test {
 
             let file_bytes = std::fs::read(&log_file)?;
 
-            let (entry1, len1): (Entry, usize) = bincode_next::decode_from_slice(
-                &file_bytes,
-                config::standard(),
-            )?;
+            let (entry1, len1): (Entry, usize) =
+                bincode_next::decode_from_slice(
+                    &file_bytes,
+                    config::standard(),
+                )?;
 
             let (entry2, _): (Entry, usize) = bincode_next::decode_from_slice(
                 &file_bytes[len1..],
