@@ -22,13 +22,15 @@ pub struct EntryList {
     pub col_module_w: u16,
     pub col_time_w: u16,
 
+    pub base_id: u64,
+
     pub force_scroll_to_bottom: bool,
 
     pub area: Rect,
 
     pub dragging_col: Option<usize>,
 
-    pub filtered_list: Option<Vec<usize>>,
+    pub filtered_list: VecDeque<u64>,
     pub filter_level: Option<logger::Level>,
     pub filter_module: Option<logger::Module>,
     pub filter_string: Option<String>,
@@ -43,6 +45,7 @@ impl Default for EntryList {
             last_msg_col_w: 10,
             last_viewport_h: 10,
             col_level_w: 7,
+            base_id: 0,
             col_module_w: 12,
             col_time_w: 10,
             dragging_col: None,
@@ -51,7 +54,7 @@ impl Default for EntryList {
             filter_level: None,
             filter_module: None,
             filter_string: None,
-            filtered_list: None,
+            filtered_list: VecDeque::with_capacity(3000),
         }
     }
 }
@@ -162,6 +165,7 @@ impl EntryList {
         }
         true
     }
+
     pub fn calculate_height(&self, msg: &str) -> u16 {
         if self.last_msg_col_w == 0 {
             return 1;
@@ -226,17 +230,99 @@ impl EntryList {
         }
     }
 
+    pub fn matches_filters(&self, entry: &Entry) -> bool {
+        if let Some(lvl) = self.filter_level {
+            if entry.raw.level != lvl {
+                return false;
+            }
+        }
+
+        if let Some(module) = self.filter_module {
+            if entry.raw.module != module {
+                return false;
+            }
+        }
+
+        if let Some(query) = self.filter_string.as_ref() {
+            if !entry.raw.message.contains(query) {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    pub fn apply_filter(&mut self) {
+        self.filtered_list.clear();
+
+        for (idx, log) in self.logs.iter().enumerate() {
+            if let Some(lvl) = self.filter_level {
+                if log.raw.level != lvl {
+                    continue;
+                }
+            }
+
+            if let Some(module) = self.filter_module {
+                if log.raw.module != module {
+                    continue;
+                }
+            }
+
+            if let Some(query) = self.filter_string.as_ref() {
+                if !log.raw.message.contains(query) {
+                    continue;
+                }
+            }
+
+            self.filtered_list.push_back(self.base_id + idx as u64);
+        }
+
+        self.scroll_to_bottom();
+    }
+
+    pub const fn filters_active(&self) -> bool {
+        self.filter_level.is_some()
+            || self.filter_module.is_some()
+            || self.filter_string.is_some()
+    }
+
     pub fn add_log(&mut self, entry: Entry) {
         let at_bottom = self.is_at_bottom();
 
         if self.logs.len() > 2999 {
             self.logs.pop_front();
+            self.base_id += 1;
+
+            if let Some(&first_id) = self.filtered_list.front() {
+                if first_id < self.base_id {
+                    self.filtered_list.pop_front();
+                }
+            }
         }
 
+        let new_id = self.base_id + self.logs.len() as u64;
         self.logs.push_back(entry);
+
+        if self.filters_active()
+            && self.matches_filters(self.logs.back().unwrap())
+        {
+            self.filtered_list.push_back(new_id);
+        }
 
         if at_bottom {
             self.scroll_to_bottom();
+        }
+    }
+
+    pub fn active_log(&self, idx: usize) -> &Entry {
+        if self.filters_active() {
+            let target_id = self.filtered_list[idx];
+
+            let idx = (target_id - self.base_id) as usize;
+
+            &self.logs[idx]
+        } else {
+            &self.logs[idx]
         }
     }
 

@@ -4,6 +4,11 @@ use ratatui::{
     text::Span,
 };
 
+mod list;
+mod ui;
+
+pub use list::EntryList as List;
+
 pub struct Entry {
     pub level: Span<'static>,
     pub module: Span<'static>,

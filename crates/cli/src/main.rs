@@ -1,8 +1,6 @@
 mod app;
 mod entry;
 mod help;
-mod list;
-mod ui;
 
 use crossterm::{
     event::{
@@ -14,7 +12,7 @@ use crossterm::{
     execute,
 };
 use futures::StreamExt;
-use ratatui::{DefaultTerminal, Frame, widgets::Widget};
+use ratatui::{DefaultTerminal, widgets::Widget};
 use tokio::{fs, net::UnixDatagram};
 use webdav_server::SOCKET_ADDR;
 
@@ -60,8 +58,6 @@ async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
     let socket = UnixDatagram::bind(SOCKET_ADDR)?;
     let mut buffer = [0u8; 1024];
 
-    let mut oreo = 0;
-
     while !app.should_quit {
         terminal.draw(|f| app.render(f.area(), f.buffer_mut()))?;
 
@@ -77,8 +73,4 @@ async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-fn render(frame: &mut Frame) {
-    help::Help.render(frame.area(), frame.buffer_mut());
 }
