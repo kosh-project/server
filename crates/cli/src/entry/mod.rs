@@ -16,7 +16,7 @@ pub struct Entry {
     pub level: Span<'static>,
     pub module: Span<'static>,
     pub time: Span<'static>,
-
+    pub msg: String,
     pub raw: logger::Entry,
 }
 
@@ -69,11 +69,18 @@ fn timestamp_millis_span(timestamp_ms: i64) -> Span<'static> {
 }
 
 impl Entry {
-    pub fn from(entry: logger::Entry) -> Self {
+    pub fn from(mut entry: logger::Entry) -> Self {
+        let search_index = entry.message.to_ascii_lowercase();
+        let message = entry.message;
+
+        entry.message = search_index;
+
         Self {
             level: level_into_span(entry.level),
             module: module_into_span(entry.module),
             time: timestamp_millis_span(entry.timestamp_ms),
+            msg: message,
+
             raw: entry,
         }
     }

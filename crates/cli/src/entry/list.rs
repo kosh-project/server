@@ -32,7 +32,6 @@ pub struct EntryList {
 
     pub filter: Filter,
     pub filtered_list: VecDeque<u64>,
-    pub raw: VecDeque<logger::Entry>,
 }
 
 impl Default for EntryList {
@@ -52,7 +51,6 @@ impl Default for EntryList {
             area: Rect::default(),
             filter: Filter::default(),
             filtered_list: VecDeque::with_capacity(3000),
-            raw: VecDeque::with_capacity(3000),
         }
     }
 }
@@ -68,8 +66,6 @@ impl EntryList {
                     config::standard(),
                 )
         {
-            list.raw.push_back(entry.clone());
-
             let entry = Entry::from(entry);
             list.logs.push_back(entry);
 
@@ -246,7 +242,7 @@ impl EntryList {
             return;
         }
 
-        for (idx, log) in self.raw.iter().enumerate() {
+        for (idx, log) in self.logs.iter().enumerate() {
             if self.filter.matches(log) {
                 self.filtered_list.push_back(self.base_id + idx as u64);
             }
@@ -260,7 +256,6 @@ impl EntryList {
 
         if self.logs.len() > 2999 {
             self.logs.pop_front();
-            self.raw.pop_front();
             self.base_id += 1;
 
             if let Some(&first_id) = self.filtered_list.front() {
@@ -272,10 +267,9 @@ impl EntryList {
 
         let new_id = self.base_id + self.logs.len() as u64;
         self.logs.push_back(Entry::from(entry.clone()));
-        self.raw.push_back(entry);
 
         if self.filter.is_active()
-            && self.filter.matches(self.raw.back().unwrap())
+            && self.filter.matches(self.logs.back().as_ref().unwrap())
         {
             self.filtered_list.push_back(new_id);
         }

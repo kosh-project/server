@@ -66,7 +66,7 @@ impl entry::List {
                 columns[1].width,
             );
 
-            let msg = Span::raw(log.raw.message.as_str());
+            let msg = Span::raw(log.msg.as_str());
             Paragraph::new(msg)
                 .wrap(Wrap { trim: false })
                 .scroll((hidden_lines, 0))
@@ -141,7 +141,7 @@ impl entry::List {
                 columns[1].width,
             );
 
-            let msg = Span::raw(log.raw.message.as_str());
+            let msg = Span::raw(log.msg.as_str());
             Paragraph::new(msg)
                 .wrap(Wrap { trim: false })
                 .scroll((hidden_lines, 0))

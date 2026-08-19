@@ -5,16 +5,19 @@ use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style, Stylize},
-    text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Widget},
+    text::Span,
+    widgets::{Block, BorderType, Borders, Padding, Widget},
 };
-use webdav_server::logger::{Entry, Level, Module};
+use webdav_server::logger::{Level, Module};
+
+use crate::entry::Entry;
 
 #[derive(Default)]
 pub struct Filter {
     module: Option<Module>,
     level: Option<Level>,
     pattern: String,
+    raw_pattern: String,
     pub selected: Selected,
     pub is_open: bool,
 }
@@ -73,18 +76,18 @@ impl Filter {
     #[inline]
     pub(crate) fn matches(&self, entry: &Entry) -> bool {
         if let Some(module) = self.module {
-            if module != entry.module {
+            if module != entry.raw.module {
                 return false;
             }
         }
         if let Some(level) = self.level {
-            if level != entry.level {
+            if level != entry.raw.level {
                 return false;
             }
         }
 
         if !self.pattern.is_empty() {
-            return entry.message.contains(self.pattern.as_str());
+            return entry.raw.message.contains(self.raw_pattern.as_str());
         }
 
         return true;
@@ -103,9 +106,11 @@ impl Filter {
             }
             KeyCode::Char(x) if Selected::Pattern == self.selected => {
                 self.pattern.push(x);
+                self.raw_pattern.push(x.to_ascii_lowercase());
                 return true;
             }
             KeyCode::Backspace if Selected::Pattern == self.selected => {
+                self.raw_pattern.pop();
                 return self.pattern.pop().is_some();
             }
             _ => {}
@@ -117,36 +122,48 @@ impl Filter {
         match self.selected {
             Selected::Level => self.level = next_lvl(self.level),
             Selected::Module => self.module = next_mod(self.module),
-            Selected::Pattern => self.pattern.push(' '),
+            Selected::Pattern => {
+                self.pattern.push(' ');
+                self.raw_pattern.push(' ');
+            }
         }
     }
 
     pub fn help_line(&self) -> Vec<Span> {
         match self.selected {
             Selected::Module => vec![
-                " <h> -".blue().bold(),
-                " Help ".into(),
-                " <TAB> -".blue().bold(),
-                " Switch Filter ".into(),
-                " <SPACE> -".blue().bold(),
-                " Switch Module ".into(),
+                "<Esc> ".blue().bold(),
+                "Hide Filters".into(),
+                " | ".yellow(),
+                "<h> ".blue().bold(),
+                "Help".into(),
+                " | ".yellow(),
+                "<TAB> ".blue().bold(),
+                "Switch Filter".into(),
+                " | ".yellow(),
+                "<SPACE> ".blue().bold(),
+                "Switch Module".into(),
             ],
             Selected::Level => vec![
-                " <h> -".blue().bold(),
-                " Help ".into(),
-                " <TAB> -".blue().bold(),
-                " Switch Filter ".into(),
-                " <SPACE> -".blue().bold(),
-                " Switch Level ".into(),
+                "<Esc> ".blue().bold(),
+                "Hide Filters".into(),
+                " | ".yellow(),
+                "<h> ".blue().bold(),
+                "Help".into(),
+                " | ".yellow(),
+                "<TAB> ".blue().bold(),
+                "Switch Filter".into(),
+                " | ".yellow(),
+                "<SPACE> ".blue().bold(),
+                "Switch Level".into(),
             ],
-            Selected::Pattern => {
-                vec![
-                    " <h> -".blue().bold(),
-                    " Help ".into(),
-                    " <TAB> -".blue().bold(),
-                    " Switch Filter ".into(),
-                ]
-            }
+            Selected::Pattern => vec![
+                "<Esc> ".blue().bold(),
+                "Hide Filters".into(),
+                " | ".yellow(),
+                "<TAB> ".blue().bold(),
+                "Switch Filter".into(),
+            ],
         }
     }
 }
@@ -215,7 +232,7 @@ impl Widget for &Filter {
         Self: Sized,
     {
         let block = Block::new()
-            .title("Filter Logs")
+            .title("> Filter Logs |")
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
 
@@ -225,7 +242,7 @@ impl Widget for &Filter {
             .constraints([
                 Constraint::Fill(1),
                 Constraint::Length(2),
-                Constraint::Length(15),
+                Constraint::Length(20),
                 Constraint::Length(2),
                 Constraint::Length(20),
             ])
@@ -247,6 +264,9 @@ impl Widget for &Filter {
         );
 
         block.render(area, buf);
+
+        "|".render(layout[1], buf);
+        "|".render(layout[3], buf);
 
         module_span.render(layout[2], buf);
         pattern_span.render(layout[0], buf);
