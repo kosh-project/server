@@ -2,6 +2,8 @@ mod app;
 mod entry;
 mod help;
 
+use std::time::Duration;
+
 use crossterm::{
     event::{
         DisableBracketedPaste, DisableFocusChange, DisableMouseCapture,
@@ -13,7 +15,7 @@ use crossterm::{
 };
 use futures::StreamExt;
 use ratatui::{DefaultTerminal, widgets::Widget};
-use tokio::{fs, net::UnixDatagram};
+use tokio::{fs, net::UnixDatagram, time::interval};
 use webdav_server::SOCKET_ADDR;
 
 use crate::app::App;
@@ -58,15 +60,26 @@ async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
     let socket = UnixDatagram::bind(SOCKET_ADDR)?;
     let mut buffer = [0u8; 65536];
 
+    let mut ticker = interval(Duration::from_millis(100));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut needs_render = false;
+
     while !app.should_quit {
-        terminal.draw(|f| app.render(f.area(), f.buffer_mut()))?;
+        if needs_render {
+            terminal.draw(|f| app.render(f.area(), f.buffer_mut()))?;
+            needs_render = false;
+        }
 
         tokio::select! {
             Some(event) = event_stream.next() => {
                 app.handle_event(&event?);
+                needs_render = true;
             },
             Ok(len) = socket.recv(&mut buffer) => {
                 app.append(&mut buffer[..len]);
+            },
+            _ = ticker.tick() => {
+                needs_render = true;
             }
 
         }
