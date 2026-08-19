@@ -90,7 +90,7 @@ impl entry::List {
             .filtered_list
             .iter()
             .skip(self.top_log_idx)
-            .map(|x| &self.logs[*x as usize]);
+            .map(|x| &self.logs[(*x - self.base_id) as usize]);
 
         for log in visible_logs {
             let log_height = self.calculate_height(&log.raw.message);
@@ -190,7 +190,7 @@ impl Widget for &mut entry::List {
             self.scroll_to_bottom();
         }
 
-        if self.filters_active() {
+        if self.filter.is_active() {
             self.show_filtered(inner_area, buf);
         } else {
             self.show_logs(inner_area, buf);

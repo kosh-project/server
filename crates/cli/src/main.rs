@@ -56,7 +56,7 @@ async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
     let mut event_stream = EventStream::new();
     let _ = fs::remove_file(SOCKET_ADDR).await;
     let socket = UnixDatagram::bind(SOCKET_ADDR)?;
-    let mut buffer = [0u8; 1024];
+    let mut buffer = [0u8; 65536];
 
     while !app.should_quit {
         terminal.draw(|f| app.render(f.area(), f.buffer_mut()))?;

@@ -1,13 +1,13 @@
 use std::{cmp, collections::VecDeque};
 
-use bincode_next::config;
+use bincode_next::config::{self, Config};
 use crossterm::event::{
     KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind,
 };
 use ratatui::layout::Rect;
 use webdav_server::logger;
 
-use crate::entry::Entry;
+use crate::entry::{Entry, Filter};
 
 pub struct EntryList {
     pub logs: VecDeque<Entry>,
@@ -30,10 +30,9 @@ pub struct EntryList {
 
     pub dragging_col: Option<usize>,
 
+    pub filter: Filter,
     pub filtered_list: VecDeque<u64>,
-    pub filter_level: Option<logger::Level>,
-    pub filter_module: Option<logger::Module>,
-    pub filter_string: Option<String>,
+    pub raw: VecDeque<logger::Entry>,
 }
 
 impl Default for EntryList {
@@ -51,10 +50,9 @@ impl Default for EntryList {
             dragging_col: None,
             force_scroll_to_bottom: true,
             area: Rect::default(),
-            filter_level: None,
-            filter_module: None,
-            filter_string: None,
+            filter: Filter::default(),
             filtered_list: VecDeque::with_capacity(3000),
+            raw: VecDeque::with_capacity(3000),
         }
     }
 }
@@ -65,8 +63,13 @@ impl EntryList {
 
         while !bytes.is_empty()
             && let Ok((entry, bytes_read)) =
-                bincode_next::decode_from_slice(bytes, config::standard())
+                bincode_next::decode_from_slice::<logger::Entry, _>(
+                    bytes,
+                    config::standard(),
+                )
         {
+            list.raw.push_back(entry.clone());
+
             let entry = Entry::from(entry);
             list.logs.push_back(entry);
 
@@ -80,6 +83,12 @@ impl EntryList {
         list.scroll_to_bottom();
 
         list
+    }
+
+    pub fn handle_filter(&mut self, event: &KeyEvent) {
+        if self.filter.handle_key(event) {
+            self.apply_filter();
+        }
     }
 
     pub fn handle_key(&mut self, key: &KeyEvent) {
@@ -230,67 +239,28 @@ impl EntryList {
         }
     }
 
-    pub fn matches_filters(&self, entry: &Entry) -> bool {
-        if let Some(lvl) = self.filter_level {
-            if entry.raw.level != lvl {
-                return false;
-            }
-        }
-
-        if let Some(module) = self.filter_module {
-            if entry.raw.module != module {
-                return false;
-            }
-        }
-
-        if let Some(query) = self.filter_string.as_ref() {
-            if !entry.raw.message.contains(query) {
-                return false;
-            }
-        }
-
-        true
-    }
-
     pub fn apply_filter(&mut self) {
         self.filtered_list.clear();
 
-        for (idx, log) in self.logs.iter().enumerate() {
-            if let Some(lvl) = self.filter_level {
-                if log.raw.level != lvl {
-                    continue;
-                }
-            }
+        if !self.filter.is_active() {
+            return;
+        }
 
-            if let Some(module) = self.filter_module {
-                if log.raw.module != module {
-                    continue;
-                }
+        for (idx, log) in self.raw.iter().enumerate() {
+            if self.filter.matches(log) {
+                self.filtered_list.push_back(self.base_id + idx as u64);
             }
-
-            if let Some(query) = self.filter_string.as_ref() {
-                if !log.raw.message.contains(query) {
-                    continue;
-                }
-            }
-
-            self.filtered_list.push_back(self.base_id + idx as u64);
         }
 
         self.scroll_to_bottom();
     }
 
-    pub const fn filters_active(&self) -> bool {
-        self.filter_level.is_some()
-            || self.filter_module.is_some()
-            || self.filter_string.is_some()
-    }
-
-    pub fn add_log(&mut self, entry: Entry) {
+    pub fn add_log(&mut self, entry: logger::Entry) {
         let at_bottom = self.is_at_bottom();
 
         if self.logs.len() > 2999 {
             self.logs.pop_front();
+            self.raw.pop_front();
             self.base_id += 1;
 
             if let Some(&first_id) = self.filtered_list.front() {
@@ -301,10 +271,11 @@ impl EntryList {
         }
 
         let new_id = self.base_id + self.logs.len() as u64;
-        self.logs.push_back(entry);
+        self.logs.push_back(Entry::from(entry.clone()));
+        self.raw.push_back(entry);
 
-        if self.filters_active()
-            && self.matches_filters(self.logs.back().unwrap())
+        if self.filter.is_active()
+            && self.filter.matches(self.raw.back().unwrap())
         {
             self.filtered_list.push_back(new_id);
         }
@@ -315,7 +286,7 @@ impl EntryList {
     }
 
     pub fn active_log(&self, idx: usize) -> &Entry {
-        if self.filters_active() {
+        if self.filter.is_active() {
             let target_id = self.filtered_list[idx];
 
             let idx = (target_id - self.base_id) as usize;

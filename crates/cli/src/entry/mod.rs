@@ -4,8 +4,11 @@ use ratatui::{
     text::Span,
 };
 
+mod filter;
 mod list;
 mod ui;
+
+pub use filter::Filter;
 
 pub use list::EntryList as List;
 
@@ -23,7 +26,7 @@ const GREEN: Style = Style::new().fg(Color::Green);
 const RED: Style = Style::new().fg(Color::Red);
 const YELLOW: Style = Style::new().fg(Color::Yellow);
 const GRAY: Style = Style::new().fg(Color::Gray);
-const LIGHT_RED: Style = Style::new().fg(Color::Gray);
+const LIGHT_RED: Style = Style::new().fg(Color::LightRed);
 
 fn level_into_span(value: Level) -> Span<'static> {
     use Level::{Error, Fatal, Info, Shutdown, Warning};
