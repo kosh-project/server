@@ -86,7 +86,7 @@ impl Filter {
             }
         }
 
-        if !self.pattern.is_empty() {
+        if !self.raw_pattern.is_empty() {
             return entry.raw.message.contains(self.raw_pattern.as_str());
         }
 
@@ -129,7 +129,7 @@ impl Filter {
         }
     }
 
-    pub fn help_line(&self) -> Vec<Span> {
+    pub fn help_line(&self) -> Vec<Span<'_>> {
         match self.selected {
             Selected::Module => vec![
                 "<Esc> ".blue().bold(),
@@ -240,6 +240,7 @@ impl Widget for &Filter {
         let layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
+                Constraint::Length(9),
                 Constraint::Fill(1),
                 Constraint::Length(2),
                 Constraint::Length(20),
@@ -248,10 +249,16 @@ impl Widget for &Filter {
             ])
             .split(inner_area);
 
-        let pattern_span = Span::styled(
-            format!("Search : {}_", self.pattern),
-            span_style(self.selected.is_pattern()),
-        );
+        let search_span =
+            Span::styled("Search :", span_style(self.selected.is_pattern()));
+
+        let pattern_length = self.pattern.chars().count();
+
+        let pattern = if layout[1].width as usize >= pattern_length {
+            self.pattern.as_str()
+        } else {
+            &self.pattern[pattern_length - layout[1].width as usize..]
+        };
 
         let module_span = Span::styled(
             format!("Module : {}", module_str(self.module)),
@@ -265,11 +272,12 @@ impl Widget for &Filter {
 
         block.render(area, buf);
 
-        "|".render(layout[1], buf);
-        "|".render(layout[3], buf);
+        "|".render(layout[2], buf);
+        "|".render(layout[4], buf);
 
-        module_span.render(layout[2], buf);
-        pattern_span.render(layout[0], buf);
-        level_span.render(layout[4], buf);
+        pattern.render(layout[1], buf);
+        module_span.render(layout[3], buf);
+        search_span.render(layout[0], buf);
+        level_span.render(layout[5], buf);
     }
 }

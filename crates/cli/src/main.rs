@@ -62,7 +62,7 @@ async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
 
     let mut ticker = interval(Duration::from_millis(100));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let mut needs_render = false;
+    let mut needs_render = true;
 
     while !app.should_quit {
         if needs_render {

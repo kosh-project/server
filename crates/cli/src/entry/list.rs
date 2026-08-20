@@ -32,6 +32,8 @@ pub struct EntryList {
 
     pub filter: Filter,
     pub filtered_list: VecDeque<u64>,
+
+    pub auto_scroll: bool,
 }
 
 impl Default for EntryList {
@@ -51,6 +53,8 @@ impl Default for EntryList {
             area: Rect::default(),
             filter: Filter::default(),
             filtered_list: VecDeque::with_capacity(3000),
+
+            auto_scroll: false,
         }
     }
 }
@@ -98,6 +102,7 @@ impl EntryList {
     }
 
     pub fn scroll_up(&mut self, mut steps: u16) {
+        self.auto_scroll = false;
         while steps > 0 {
             if self.top_log_line_offset > 0 {
                 let scroll_amount = cmp::min(steps, self.top_log_line_offset);
@@ -122,7 +127,7 @@ impl EntryList {
         }
 
         for _ in 0..steps {
-            if self.is_at_bottom() {
+            if self.auto_scroll {
                 break;
             }
 
@@ -142,8 +147,11 @@ impl EntryList {
         }
 
         if self.top_log_idx >= self.logs.len() {
-            self.top_log_idx = self.logs.len().saturating_sub(1);
-            self.top_log_line_offset = 0;
+            self.scroll_to_bottom();
+        }
+
+        if self.is_at_bottom() {
+            self.auto_scroll = true;
         }
     }
 
@@ -252,7 +260,7 @@ impl EntryList {
     }
 
     pub fn add_log(&mut self, entry: logger::Entry) {
-        let at_bottom = self.is_at_bottom();
+        let at_bottom = self.auto_scroll;
 
         if self.logs.len() > 2999 {
             self.logs.pop_front();
@@ -266,7 +274,7 @@ impl EntryList {
         }
 
         let new_id = self.base_id + self.logs.len() as u64;
-        self.logs.push_back(Entry::from(entry.clone()));
+        self.logs.push_back(Entry::from(entry));
 
         if self.filter.is_active()
             && self.filter.matches(self.logs.back().as_ref().unwrap())
@@ -279,24 +287,24 @@ impl EntryList {
         }
     }
 
-    pub fn active_log(&self, idx: usize) -> &Entry {
-        if self.filter.is_active() {
-            let target_id = self.filtered_list[idx];
-
-            let idx = (target_id - self.base_id) as usize;
-
-            &self.logs[idx]
-        } else {
-            &self.logs[idx]
-        }
-    }
-
     pub fn scroll_to_bottom(&mut self) {
         if self.logs.is_empty() || self.last_viewport_h == 0 {
             return;
         }
 
-        self.top_log_idx = self.logs.len() - 1;
+        let list_len = if self.filter.is_active() {
+            self.filtered_list.len()
+        } else {
+            self.logs.len()
+        };
+
+        if list_len == 0 {
+            self.top_log_idx = 0;
+            self.top_log_line_offset = 0;
+            return;
+        }
+
+        self.top_log_idx = list_len - 1;
         let height =
             self.calculate_height(&self.logs.back().unwrap().raw.message);
         self.top_log_line_offset = height.saturating_sub(1);
