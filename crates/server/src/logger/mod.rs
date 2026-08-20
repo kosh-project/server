@@ -116,7 +116,7 @@ pub struct Entry {
 ///
 /// The admin CLI (`kosh-cli`) uses these levels to apply color coding and filtering
 /// when rendering the log feed.
-#[derive(Encode, Decode, Clone, Copy, PartialEq)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
     /// Routine informational events: successful logins, uploads, health checks.
     Info,
@@ -142,7 +142,7 @@ pub enum Level {
 ///
 /// Used by the admin CLI to filter or group log entries by origin. Each domain error
 /// type reports its module through the [`Loggable`] trait.
-#[derive(Encode, Decode, Clone, Copy, PartialEq)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq)]
 pub enum Module {
     /// HTTP layer: route handlers, middleware, request parsing.
     Api,
@@ -162,6 +162,7 @@ pub enum Module {
 pub use service::Service;
 use tokio::sync::mpsc::Sender;
 
+#[must_use]
 pub fn path() -> Option<PathBuf> {
     dirs::state_dir().map(|x| x.join("kosh").join("logs"))
 }

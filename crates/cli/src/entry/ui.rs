@@ -11,7 +11,7 @@ use ratatui::{
 use crate::entry;
 
 impl entry::List {
-    fn show_logs(&mut self, area: Rect, buf: &mut Buffer) {
+    fn show_logs(&self, area: Rect, buf: &mut Buffer) {
         let mut current_y = area.y;
         let mut is_first = true;
 
@@ -82,7 +82,7 @@ impl entry::List {
         }
     }
 
-    fn show_filtered(&mut self, area: Rect, buf: &mut Buffer) {
+    fn show_filtered(&self, area: Rect, buf: &mut Buffer) {
         let mut current_y = area.y;
         let mut is_first = true;
 

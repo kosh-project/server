@@ -1,12 +1,10 @@
-use std::{env::SplitPaths, net::Shutdown};
-
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style, Stylize},
     text::Span,
-    widgets::{Block, BorderType, Borders, Padding, Widget},
+    widgets::{Block, BorderType, Borders, Widget},
 };
 use webdav_server::logger::{Level, Module};
 
@@ -22,10 +20,11 @@ pub struct Filter {
     pub is_open: bool,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq, Default)]
 pub enum Selected {
     Module,
     Level,
+    #[default]
     Pattern,
 }
 
@@ -59,38 +58,32 @@ impl Selected {
     }
 }
 
-impl Default for Selected {
-    #[inline]
-    fn default() -> Self {
-        return Self::Pattern;
-    }
-}
-
 impl Filter {
     pub(crate) const fn is_active(&self) -> bool {
-        return self.module.is_some()
+        self.module.is_some()
             || self.level.is_some()
-            || !self.pattern.is_empty();
+            || !self.pattern.is_empty()
     }
 
     #[inline]
     pub(crate) fn matches(&self, entry: &Entry) -> bool {
-        if let Some(module) = self.module {
-            if module != entry.raw.module {
-                return false;
-            }
+        if let Some(module) = self.module
+            && module != entry.raw.module
+        {
+            return false;
         }
-        if let Some(level) = self.level {
-            if level != entry.raw.level {
-                return false;
-            }
+
+        if let Some(level) = self.level
+            && level != entry.raw.level
+        {
+            return false;
         }
 
         if !self.raw_pattern.is_empty() {
             return entry.raw.message.contains(self.raw_pattern.as_str());
         }
 
-        return true;
+        true
     }
 
     pub fn handle_key(&mut self, key_event: &KeyEvent) -> bool {
@@ -174,7 +167,6 @@ const fn next_lvl(lvl: Option<Level>) -> Option<Level> {
         Some(Error) => Some(Warning),
         Some(Warning) => Some(Fatal),
         Some(Fatal) => Some(Info),
-        Some(Info) => None,
         None => Some(Error),
         Some(_) => None, // Shutdown Module Can't be logged
     }
@@ -215,8 +207,8 @@ const fn module_str(module: Option<Module>) -> &'static str {
 }
 
 #[inline]
-const fn lvl_str(module: Option<Level>) -> &'static str {
-    match module {
+const fn lvl_str(lvl: Option<Level>) -> &'static str {
+    match lvl {
         Some(Level::Info) => "Info",
         Some(Level::Warning) => "Warning",
         Some(Level::Error) => "Error",

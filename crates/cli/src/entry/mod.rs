@@ -68,8 +68,8 @@ fn timestamp_millis_span(timestamp_ms: i64) -> Span<'static> {
     Span::styled(time, GRAY)
 }
 
-impl Entry {
-    pub fn from(mut entry: logger::Entry) -> Self {
+impl From<logger::Entry> for Entry {
+    fn from(mut entry: logger::Entry) -> Self {
         let search_index = entry.message.to_ascii_lowercase();
         let message = entry.message;
 

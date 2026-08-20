@@ -61,7 +61,7 @@ impl IntoResponse for Error {
 
 impl Loggable for Error {
     fn log_level(&self) -> crate::logger::Level {
-        use Error::*;
+        use Error::{AssetNotFound, Database, Internal};
         match self {
             AssetNotFound => Level::Info,
             Internal(_) => Level::Fatal,

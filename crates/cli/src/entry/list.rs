@@ -1,6 +1,6 @@
 use std::{cmp, collections::VecDeque};
 
-use bincode_next::config::{self, Config};
+use bincode_next::config;
 use crossterm::event::{
     KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind,
 };
@@ -36,10 +36,12 @@ pub struct EntryList {
     pub auto_scroll: bool,
 }
 
+const MAX_LOG_BUFFER: usize = 3000;
+
 impl Default for EntryList {
     fn default() -> Self {
         Self {
-            logs: VecDeque::with_capacity(3000),
+            logs: VecDeque::with_capacity(MAX_LOG_BUFFER),
             top_log_idx: 0,
             top_log_line_offset: 0,
             last_msg_col_w: 10,
@@ -52,9 +54,9 @@ impl Default for EntryList {
             force_scroll_to_bottom: true,
             area: Rect::default(),
             filter: Filter::default(),
-            filtered_list: VecDeque::with_capacity(3000),
+            filtered_list: VecDeque::with_capacity(MAX_LOG_BUFFER),
 
-            auto_scroll: false,
+            auto_scroll: true,
         }
     }
 }
@@ -77,7 +79,7 @@ impl EntryList {
         }
 
         if !bytes.is_empty() {
-            list = EntryList::default();
+            list = Self::default();
         }
 
         list.scroll_to_bottom();
@@ -195,7 +197,7 @@ impl EntryList {
         let area = self.area;
 
         let border_level_x = area.x + self.col_level_w;
-        let border_module_x = border_level_x + 1 + self.col_module_w;
+        // let border_module_x = border_level_x + 1 + self.col_module_w;
         let border_time_x =
             area.x + area.width.saturating_sub(self.col_level_w);
 
@@ -203,10 +205,6 @@ impl EntryList {
             MouseEventKind::Down(MouseButton::Left) => {
                 if mouse.column >= border_level_x.saturating_sub(1)
                     && mouse.column <= border_level_x + 1
-                {
-                    self.dragging_col = Some(1);
-                } else if mouse.column >= border_module_x.saturating_sub(1)
-                    && mouse.column <= border_module_x + 1
                 {
                     self.dragging_col = Some(1);
                 } else if mouse.column >= border_time_x.saturating_sub(1)
@@ -262,14 +260,14 @@ impl EntryList {
     pub fn add_log(&mut self, entry: logger::Entry) {
         let at_bottom = self.auto_scroll;
 
-        if self.logs.len() > 2999 {
+        if self.logs.len() > MAX_LOG_BUFFER {
             self.logs.pop_front();
             self.base_id += 1;
 
-            if let Some(&first_id) = self.filtered_list.front() {
-                if first_id < self.base_id {
-                    self.filtered_list.pop_front();
-                }
+            if let Some(&first_id) = self.filtered_list.front()
+                && first_id < self.base_id
+            {
+                self.filtered_list.pop_front();
             }
         }
 
@@ -287,16 +285,21 @@ impl EntryList {
         }
     }
 
+    #[inline]
+    fn active_len(&self) -> usize {
+        if self.filter.is_active() {
+            self.filtered_list.len()
+        } else {
+            self.logs.len()
+        }
+    }
+
     pub fn scroll_to_bottom(&mut self) {
         if self.logs.is_empty() || self.last_viewport_h == 0 {
             return;
         }
 
-        let list_len = if self.filter.is_active() {
-            self.filtered_list.len()
-        } else {
-            self.logs.len()
-        };
+        let list_len = self.active_len();
 
         if list_len == 0 {
             self.top_log_idx = 0;

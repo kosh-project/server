@@ -126,6 +126,7 @@ impl Service {
         Ok((sender, LoggerHandler(task)))
     }
 
+    #[must_use]
     pub fn path() -> Option<PathBuf> {
         dirs::state_dir().map(|x| x.join("kosh").join("logs"))
     }
@@ -141,10 +142,10 @@ impl Service {
     /// ensures that a transient I/O error does not terminate the logging service.
     async fn run(mut self) {
         while let Some(entry) = self.receiver.recv().await {
-            if let Level::Shutdown = entry.level {
-                let _ = self.commit(entry);
+            if Level::Shutdown == entry.level {
+                let _ = self.commit(entry).await;
                 return;
-            };
+            }
             if let Err(e) = self.commit(entry).await {
                 eprintln!("Failed to commit log : {e}");
             }
@@ -194,6 +195,7 @@ impl Service {
 ///
 /// If the timestamp cannot be converted to a valid [`DateTime`], the function falls back
 /// to the Unix epoch (1970-01-01) via `unwrap_or_default`.
+#[must_use]
 pub fn format_date_time(time_stamp_millis: i64) -> String {
     let time =
         DateTime::from_timestamp_millis(time_stamp_millis).unwrap_or_default();
@@ -223,8 +225,8 @@ impl LoggerHandler {
             fatal!(
                 Module::Logger,
                 "Grace period of {secs} secs, timed out, forcefully terminating engine.\n{e}"
-            )
-        };
+            );
+        }
     }
 }
 

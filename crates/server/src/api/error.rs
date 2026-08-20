@@ -68,9 +68,9 @@ impl IntoResponse for Error {
 
         match self {
             // Client errors: safe to return the message directly.
-            BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
-            NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
+            NotFound(msg) => (StatusCode::NOT_FOUND, msg),
             MalformedMultipart => (
                 StatusCode::BAD_REQUEST,
                 "Malformed Multipart Payload".into(),
@@ -95,7 +95,7 @@ impl IntoResponse for Error {
 use crate::logger::{Level, Module};
 impl Loggable for Error {
     fn log_level(&self) -> Level {
-        use Error::*;
+        use Error::{BadRequest, MissingField, NotFound, Unauthorized};
         match self {
             BadRequest(_) | Unauthorized(_) | MissingField => Level::Warning,
             NotFound(_) => Level::Info,

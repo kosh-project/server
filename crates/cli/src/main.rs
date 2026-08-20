@@ -4,6 +4,7 @@ mod help;
 
 use std::time::Duration;
 
+use anyhow::anyhow;
 use crossterm::{
     event::{
         DisableBracketedPaste, DisableFocusChange, DisableMouseCapture,
@@ -22,7 +23,7 @@ use crate::app::App;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    color_eyre::install().unwrap();
+    color_eyre::install().map_err(|e| anyhow!("{e}"))?;
 
     let mut term = ratatui::init();
 
@@ -36,6 +37,7 @@ async fn main() -> anyhow::Result<()> {
         EnableFocusChange,
     )?;
 
+    #[allow(clippy::large_futures)]
     let result = app(&mut term).await;
 
     execute!(
@@ -53,11 +55,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
-    let mut app: App = App::try_init().unwrap();
+    let mut app: App =
+        App::try_init().ok_or_else(|| anyhow!("Failed to initiate app"))?;
 
     let mut event_stream = EventStream::new();
     let _ = fs::remove_file(SOCKET_ADDR).await;
     let socket = UnixDatagram::bind(SOCKET_ADDR)?;
+
+    #[allow(clippy::large_stack_arrays)]
     let mut buffer = [0u8; 65536];
 
     let mut ticker = interval(Duration::from_millis(100));
@@ -76,7 +81,7 @@ async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                 needs_render = true;
             },
             Ok(len) = socket.recv(&mut buffer) => {
-                app.append(&mut buffer[..len]);
+                app.append(&buffer[..len]);
             },
             _ = ticker.tick() => {
                 needs_render = true;

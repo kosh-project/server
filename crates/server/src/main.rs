@@ -72,7 +72,7 @@ async fn main() -> io::Result<()> {
 
     let app = route_main(app_state);
 
-    let addr = Ipv4Addr::new(0, 0, 0, 0);
+    let addr = Ipv4Addr::UNSPECIFIED;
     let listener = TcpListener::bind((addr, PORT)).await?;
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
@@ -92,7 +92,7 @@ async fn main() -> io::Result<()> {
     tokio::select! {
         res = &mut server => {
             if let Err(e) = res {
-                fatal!(Module::Server, "Server error {e}")
+                fatal!(Module::Server, "Server error {e}");
             }
         },
         () = shutdown_signal() => {

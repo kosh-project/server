@@ -19,9 +19,11 @@ use ratatui::{
 use webdav_server::logger::{self, format_date_time};
 
 use crate::{
-    entry::{self, Entry, List},
+    entry::{self, List},
     help::Help,
 };
+
+#[derive(Default)]
 pub struct App {
     entries: entry::List,
     show_help: bool,
@@ -33,16 +35,14 @@ impl App {
         let log_path = logger::path()?;
         let timestamp_millis = Utc::now().timestamp_millis();
 
-        let mut entry_list = None;
-
-        if let Ok(bytes) =
+        let entry_list =
             fs::read(log_path.join(format_date_time(timestamp_millis)))
-        {
-            entry_list = Some(List::init_or_default(&bytes));
-        }
+                .map_or(None, |bytes| Some(List::init_or_default(&bytes)));
 
-        let mut app = Self::default();
-        app.entries = entry_list.unwrap_or_default();
+        let app = Self {
+            entries: entry_list.unwrap_or_default(),
+            ..Default::default()
+        };
 
         Some(app)
     }
@@ -69,21 +69,25 @@ impl App {
                 | KeyCode::Tab
                     if self.filter_open() =>
                 {
-                    self.entries.handle_filter(key_event)
+                    self.entries.handle_filter(key_event);
                 }
-                KeyCode::Char('q') | KeyCode::Char('Q') => {
-                    self.should_quit = true
+                KeyCode::Char('q' | 'Q') => {
+                    self.should_quit = true;
                 }
-                KeyCode::Char('/') => self.entries.filter.is_open = true,
-                KeyCode::Char('h') | KeyCode::Char('H') => {
-                    self.show_help = !self.show_help
+                KeyCode::Char('/') => {
+                    self.entries.filter.is_open = true;
                 }
-                _ => self.entries.handle_key(key_event),
+                KeyCode::Char('h' | 'H') => {
+                    self.show_help = !self.show_help;
+                }
+                _ => {
+                    self.entries.handle_key(key_event);
+                }
             }
         }
     }
 
-    fn handle_esc(&mut self) {
+    const fn handle_esc(&mut self) {
         if self.show_help {
             self.show_help = false;
         } else if self.filter_open() {
@@ -124,16 +128,6 @@ impl App {
             ]
         } else {
             &[Constraint::Fill(1), Constraint::Length(1)]
-        }
-    }
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            entries: List::default(),
-            show_help: false,
-            should_quit: false,
         }
     }
 }
