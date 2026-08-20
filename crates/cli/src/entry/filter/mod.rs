@@ -1,12 +1,13 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    buffer::Buffer,
-    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style, Stylize},
     text::Span,
-    widgets::{Block, BorderType, Borders, Widget},
 };
 use webdav_server::logger::{Level, Module};
+
+mod selected;
+use selected::Selected;
+mod render;
 
 use crate::entry::Entry;
 
@@ -18,44 +19,6 @@ pub struct Filter {
     raw_pattern: String,
     pub selected: Selected,
     pub is_open: bool,
-}
-
-#[derive(PartialEq, Eq, Default)]
-pub enum Selected {
-    Module,
-    Level,
-    #[default]
-    Pattern,
-}
-
-impl Selected {
-    const fn next(&self) -> Self {
-        match self {
-            Self::Level => Self::Module,
-            Self::Module => Self::Pattern,
-            Self::Pattern => Self::Level,
-        }
-    }
-
-    const fn prev(&self) -> Self {
-        match self {
-            Self::Level => Self::Pattern,
-            Self::Pattern => Self::Module,
-            Self::Module => Self::Level,
-        }
-    }
-
-    const fn is_pattern(&self) -> bool {
-        matches!(self, Self::Pattern)
-    }
-
-    const fn is_module(&self) -> bool {
-        matches!(self, Self::Module)
-    }
-
-    const fn is_level(&self) -> bool {
-        matches!(self, Self::Level)
-    }
 }
 
 impl Filter {
@@ -87,9 +50,6 @@ impl Filter {
     }
 
     pub fn handle_key(&mut self, key_event: &KeyEvent) -> bool {
-        // todo!(
-        //     "Make this function return a bool, so that you know, if key event tweaks a filter"
-        // );
         match key_event.code {
             KeyCode::Tab => self.selected = self.selected.next(),
             KeyCode::BackTab => self.selected = self.selected.prev(),
@@ -215,61 +175,5 @@ const fn lvl_str(lvl: Option<Level>) -> &'static str {
         Some(Level::Fatal) => "Fatal",
         Some(Level::Shutdown) => "",
         None => "ALL",
-    }
-}
-
-impl Widget for &Filter {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        let block = Block::new()
-            .title("> Filter Logs |")
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded);
-
-        let inner_area = block.inner(area);
-        let layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(9),
-                Constraint::Fill(1),
-                Constraint::Length(2),
-                Constraint::Length(20),
-                Constraint::Length(2),
-                Constraint::Length(20),
-            ])
-            .split(inner_area);
-
-        let search_span =
-            Span::styled("Search :", span_style(self.selected.is_pattern()));
-
-        let pattern_length = self.pattern.chars().count();
-
-        let pattern = if layout[1].width as usize >= pattern_length {
-            self.pattern.as_str()
-        } else {
-            &self.pattern[pattern_length - layout[1].width as usize..]
-        };
-
-        let module_span = Span::styled(
-            format!("Module : {}", module_str(self.module)),
-            span_style(self.selected.is_module()),
-        );
-
-        let level_span = Span::styled(
-            format!("Level : {}", lvl_str(self.level)),
-            span_style(self.selected.is_level()),
-        );
-
-        block.render(area, buf);
-
-        "|".render(layout[2], buf);
-        "|".render(layout[4], buf);
-
-        pattern.render(layout[1], buf);
-        module_span.render(layout[3], buf);
-        search_span.render(layout[0], buf);
-        level_span.render(layout[5], buf);
     }
 }

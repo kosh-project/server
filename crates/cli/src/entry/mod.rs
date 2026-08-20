@@ -6,7 +6,6 @@ use ratatui::{
 
 mod filter;
 mod list;
-mod ui;
 
 pub use filter::Filter;
 
