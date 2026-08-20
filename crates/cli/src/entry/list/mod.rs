@@ -23,6 +23,9 @@ pub struct EntryList {
     pub col_module_w: u16,
     pub col_time_w: u16,
 
+    /// Acts as an offset to keep absolute IDs for our logs.
+    /// When the logs ring buffer fills up and we pop the oldest log,
+    /// we increment base_id instead of having to shift all filtered indices.
     pub base_id: u64,
 
     // pub force_scroll_to_bottom: bool,
@@ -31,8 +34,13 @@ pub struct EntryList {
     pub dragging_col: Option<usize>,
 
     pub filter: Filter,
+    
+    /// Stores absolute IDs (base_id + physical index) of logs that match the current filter.
+    /// This allows O(1) matching without re-evaluating the entire list when evicting old logs.
     pub filtered_list: VecDeque<u64>,
 
+    /// Toggles the "tail-follow" mode. Set to false when the user manually scrolls up,
+    /// and true when they reach the bottom of the log list.
     pub auto_scroll: bool,
 }
 
@@ -107,6 +115,8 @@ impl EntryList {
         let at_bottom = self.auto_scroll;
 
         if self.logs.len() >= MAX_LOG_BUFFER {
+            // Evict the oldest log to maintain a stable memory footprint.
+            // We increment base_id so absolute IDs in the filtered list remain mathematically valid.
             self.logs.pop_front();
             self.base_id += 1;
 

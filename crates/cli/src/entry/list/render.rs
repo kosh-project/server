@@ -22,6 +22,8 @@ impl entry::List {
             .filtered_list
             .iter()
             .skip(self.top_log_idx)
+            // Convert the absolute ID stored in the filter list back into 
+            // a physical index for the current logs ring buffer.
             .map(|x| &self.logs[(*x - self.base_id) as usize]);
 
         self.draw_logs(iter, area, buf);
