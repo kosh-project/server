@@ -51,3 +51,4 @@ pub mod storage;
 pub mod error;
 
 pub use error::{Error, Result};
+pub use logger::SOCKET_ADDR;

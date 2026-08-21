@@ -111,20 +111,20 @@ pub type Result<T> = core::result::Result<T, Error>;
 impl Loggable for Error {
     fn log_level(&self) -> crate::logger::Level {
         match self {
-            Error::StorageError(e) => e.log_level(),
-            Error::ApiError(e) => e.log_level(),
-            Error::Conflict(_) => Level::Warning,
-            Error::ModelError(e) => e.log_level(),
-            Error::DatabaseError(_) | Error::InternalError(_) => Level::Error,
+            Self::StorageError(e) => e.log_level(),
+            Self::ApiError(e) => e.log_level(),
+            Self::Conflict(_) => Level::Warning,
+            Self::ModelError(e) => e.log_level(),
+            Self::DatabaseError(_) | Self::InternalError(_) => Level::Error,
         }
     }
 
     #[inline]
     fn log_module(&self) -> crate::logger::Module {
         match self {
-            Error::StorageError(e) => e.log_module(),
-            Error::ApiError(e) => e.log_module(),
-            Error::ModelError(e) => e.log_module(),
+            Self::StorageError(e) => e.log_module(),
+            Self::ApiError(e) => e.log_module(),
+            Self::ModelError(e) => e.log_module(),
             _ => crate::logger::Module::Server,
         }
     }

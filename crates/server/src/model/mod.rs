@@ -1,6 +1,6 @@
 //! Database entity definitions and query functions.
 //!
-//! This module contains the data model for every entity stored in the SQLite database.
+//! This module contains the data model for every entity stored in the `SQLite` database.
 //! Each sub-module corresponds to one table and owns the query functions that operate
 //! on that table. All query functions accept a [`sqlx::SqlitePool`] reference rather than
 //! taking ownership, so they can be called freely from any async context.

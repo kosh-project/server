@@ -113,7 +113,7 @@ impl Loggable for Error {
     fn log_level(&self) -> crate::logger::Level {
         use logger::Level;
         match self {
-            Error::VaultNotFound => Level::Fatal,
+            Self::VaultNotFound => Level::Fatal,
             _ => Level::Error,
         }
     }

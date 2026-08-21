@@ -24,12 +24,12 @@
 #[macro_export]
 macro_rules! info {
     ($module:expr, $($arg:tt)+) => {
-        if let Some(logger) = crate::logger::GLOBAL_LOGGER.get() {
+        if let Some(logger) = $crate::logger::GLOBAL_LOGGER.get() {
             let message = format!($($arg)+);
 
-            let entry = crate::logger::Entry {
+            let entry = $crate::logger::Entry {
                 module: $module,
-                level: crate::logger::Level::Info,
+                level: $crate::logger::Level::Info,
                 timestamp_ms: chrono::Utc::now().timestamp_millis(),
                 message,
             };
@@ -55,12 +55,12 @@ macro_rules! info {
 #[macro_export]
 macro_rules! warn {
     ($module:expr, $($arg:tt)+) => {
-        if let Some(logger) = crate::logger::GLOBAL_LOGGER.get() {
+        if let Some(logger) = $crate::logger::GLOBAL_LOGGER.get() {
             let message = format!($($arg)+);
 
-            let entry = crate::logger::Entry {
+            let entry = $crate::logger::Entry {
                 module: $module,
-                level: crate::logger::Level::Warning,
+                level: $crate::logger::Level::Warning,
                 timestamp_ms: chrono::Utc::now().timestamp_millis(),
                 message,
             };
@@ -86,12 +86,12 @@ macro_rules! warn {
 #[macro_export]
 macro_rules! error {
     ($module:expr, $($arg:tt)+) => {
-        if let Some(logger) = crate::logger::GLOBAL_LOGGER.get() {
+        if let Some(logger) = $crate::logger::GLOBAL_LOGGER.get() {
             let message = format!($($arg)+);
 
-            let entry = crate::logger::Entry {
+            let entry = $crate::logger::Entry {
                 module: $module,
-                level: crate::logger::Level::Error,
+                level: $crate::logger::Level::Error,
                 timestamp_ms: chrono::Utc::now().timestamp_millis(),
                 message,
             };
@@ -121,12 +121,12 @@ macro_rules! error {
 #[macro_export]
 macro_rules! shutdown {
     ($($arg:tt)+) => {
-        if let Some(logger) = crate::logger::GLOBAL_LOGGER.get() {
+        if let Some(logger) = $crate::logger::GLOBAL_LOGGER.get() {
             let message = format!($($arg)+);
 
-            let entry = crate::logger::Entry {
-                module: crate::logger::Module::Server,
-                level: crate::logger::Level::Shutdown,
+            let entry = $crate::logger::Entry {
+                module: $crate::logger::Module::Server,
+                level: $crate::logger::Level::Shutdown,
                 timestamp_ms: chrono::Utc::now().timestamp_millis(),
                 message,
             };
@@ -154,12 +154,12 @@ macro_rules! shutdown {
 #[macro_export]
 macro_rules! fatal {
     ($module:expr, $($arg:tt)+) => {
-        if let Some(logger) = crate::logger::GLOBAL_LOGGER.get() {
+        if let Some(logger) = $crate::logger::GLOBAL_LOGGER.get() {
             let message = format!($($arg)+);
 
-            let entry = crate::logger::Entry {
+            let entry = $crate::logger::Entry {
                 module: $module,
-                level: crate::logger::Level::Fatal,
+                level: $crate::logger::Level::Fatal,
                 timestamp_ms: chrono::Utc::now().timestamp_millis(),
                 message,
             };
