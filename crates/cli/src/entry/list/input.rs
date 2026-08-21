@@ -36,7 +36,7 @@ impl List {
                 if mouse.column >= border_level_x.saturating_sub(1)
                     && mouse.column <= border_level_x + 1
                 {
-                    self.dragging_col = Some(1);
+                    self.dragging_col = Some(0);
                 } else if mouse.column >= border_time_x.saturating_sub(1)
                     && mouse.column <= border_time_x + 1
                 {
@@ -69,5 +69,69 @@ impl List {
             MouseEventKind::ScrollDown => self.scroll_down(2),
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crossterm::event::KeyModifiers;
+    use ratatui::layout::Rect;
+
+    use super::*;
+
+    #[test]
+    fn test_mouse_drag_boundary_clamps() {
+        let mut list = List::default();
+
+        list.area = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 50,
+        };
+        list.col_level_w = 7;
+        list.col_module_w = 12;
+
+        let click_down = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 7,
+            row: 0,
+            modifiers: KeyModifiers::empty(),
+        };
+        list.handle_mouse(&click_down);
+
+        assert_eq!(list.dragging_col, Some(0), "Failed to grab the separator");
+
+        let drag_left = MouseEvent {
+            kind: MouseEventKind::Drag(MouseButton::Left),
+            column: 1,
+            row: 0,
+            modifiers: KeyModifiers::empty(),
+        };
+        list.handle_mouse(&drag_left);
+
+        let drag_left = MouseEvent {
+            column: 3,
+            ..drag_left
+        };
+        list.handle_mouse(&drag_left);
+
+        assert_eq!(
+            list.col_level_w, 4,
+            "Column width failed to clamp to the safe minimum!"
+        );
+
+        let mouse_up = MouseEvent {
+            kind: MouseEventKind::Up(MouseButton::Left),
+            column: 1,
+            row: 0,
+            modifiers: KeyModifiers::empty(),
+        };
+        list.handle_mouse(&mouse_up);
+
+        assert_eq!(
+            list.dragging_col, None,
+            "Mouse release failed to clear dragging state"
+        );
     }
 }

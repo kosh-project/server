@@ -129,3 +129,73 @@ impl List {
         total
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_height_math() {
+        let list = List {
+            last_msg_col_w: 10,
+            ..Default::default()
+        };
+
+        assert_eq!(list.calculate_height(""), 0);
+
+        assert_eq!(list.calculate_height("short"), 1);
+
+        assert_eq!(list.calculate_height("1234567890"), 2);
+
+        assert_eq!(list.calculate_height("line1\nline2\nline3"), 3);
+
+        assert_eq!(list.calculate_height("short\nand a long message"), 3);
+    }
+
+    #[test]
+    fn test_viewport_scrolling_simulation() {
+        use crate::entry::Entry;
+        use webdav_server::logger::{Entry as LogEntry, Level, Module};
+
+        let mut list = List::default();
+        list.last_viewport_h = 5;
+        list.last_msg_col_w = 100;
+        for _ in 0..10 {
+            let log = LogEntry {
+                timestamp_ms: 0,
+                module: Module::Server,
+                level: Level::Info,
+                message: "A".to_string(),
+            };
+            list.logs.push_back(Entry::from(log));
+        }
+
+        list.scroll_to_bottom();
+        assert!(
+            list.auto_scroll,
+            "Snapping to bottom should engage the auto_scroll lock"
+        );
+
+        assert_eq!(list.top_log_idx, 5);
+        assert_eq!(list.top_log_line_offset, 0);
+
+        list.scroll_up(2);
+        assert!(
+            !list.auto_scroll,
+            "Manual scrolling up MUST break the auto_scroll lock!"
+        );
+
+        assert_eq!(list.top_log_idx, 3);
+
+        list.scroll_down(2);
+        assert_eq!(list.top_log_idx, 5);
+
+        list.scroll_down(100);
+
+        assert_eq!(list.top_log_idx, 5);
+        assert!(
+            list.auto_scroll,
+            "Smashing the bottom boundary should re-engage auto_scroll!"
+        );
+    }
+}

@@ -176,3 +176,53 @@ impl Widget for &mut App {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn press(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::empty())
+    }
+
+    #[test]
+    fn test_app_input_routing() {
+        let mut app = App {
+            entries: crate::entry::List::default(),
+            show_help: false,
+            should_quit: false,
+        };
+
+        assert!(!app.should_quit);
+        assert!(!app.show_help);
+        assert!(!app.entries.filter.is_open);
+
+        app.handle_key(&press(KeyCode::Char('/')));
+        assert!(
+            app.entries.filter.is_open,
+            "Slash should open the filter overlay"
+        );
+
+        app.handle_key(&press(KeyCode::Char('q')));
+        assert!(
+            !app.should_quit,
+            "Typing 'q' in the search bar should not quit the app!"
+        );
+
+        app.handle_key(&press(KeyCode::Esc));
+        assert!(!app.entries.filter.is_open, "Esc should close the filter");
+
+        app.handle_key(&press(KeyCode::Char('h')));
+        assert!(app.show_help, "'h' should open the help menu");
+
+        app.handle_key(&press(KeyCode::Esc));
+        assert!(!app.show_help, "Esc should close the help menu");
+
+        app.handle_key(&press(KeyCode::Char('q')));
+        assert!(
+            app.should_quit,
+            "'q' should quit the app when nothing is actively focused"
+        );
+    }
+}

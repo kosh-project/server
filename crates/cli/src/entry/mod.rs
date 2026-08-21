@@ -53,9 +53,10 @@ fn module_into_span(value: Module) -> Span<'static> {
 }
 
 fn timestamp_millis_span(timestamp_ms: i64) -> Span<'static> {
-    let time = DateTime::from_timestamp_millis(timestamp_ms)
-        .unwrap()
-        .with_timezone(&Local);
+    let time = match DateTime::from_timestamp_millis(timestamp_ms) {
+        Some(t) => t.with_timezone(&Local),
+        None => return Span::styled("??:??:??", GRAY),
+    };
 
     let time = format!(
         "{:02}:{:02}:{:02}",
@@ -82,5 +83,25 @@ impl From<logger::Entry> for Entry {
 
             raw: entry,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use webdav_server::logger::{Entry as LogEntry, Level, Module};
+
+    #[test]
+    fn test_corrupt_timestamp_panic() {
+        let corrupt_log = LogEntry {
+            timestamp_ms: i64::MAX,
+            module: Module::Server,
+            level: Level::Info,
+            message: "I am going to crash the UI".to_string(),
+        };
+
+        let entry = Entry::from(corrupt_log);
+
+        assert_eq!(entry.time.content, "??:??:??");
     }
 }

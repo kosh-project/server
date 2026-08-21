@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq, Default)]
+#[derive(PartialEq, Eq, Default, Debug)]
 pub enum Selected {
     Module,
     Level,

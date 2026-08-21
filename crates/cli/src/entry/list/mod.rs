@@ -34,7 +34,7 @@ pub struct EntryList {
     pub dragging_col: Option<usize>,
 
     pub filter: Filter,
-    
+
     /// Stores absolute IDs (base_id + physical index) of logs that match the current filter.
     /// This allows O(1) matching without re-evaluating the entire list when evicting old logs.
     pub filtered_list: VecDeque<u64>,
@@ -139,5 +139,107 @@ impl EntryList {
         if at_bottom {
             self.scroll_to_bottom();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use webdav_server::logger::{Entry, Level, Module};
+
+    use super::*;
+
+    fn dummy_log(msg: &str, level: Level) -> Entry {
+        Entry {
+            timestamp_ms: 0,
+            module: Module::Server,
+            level,
+            message: msg.to_owned(),
+        }
+    }
+
+    #[test]
+    fn entry_log_eviction_math() {
+        let mut list = EntryList::default();
+
+        for _ in 0..MAX_LOG_BUFFER {
+            list.add_log(dummy_log("Very Normal Log", Level::Info));
+        }
+
+        assert_eq!(list.logs.len(), MAX_LOG_BUFFER);
+        assert_eq!(list.base_id, 0);
+
+        for _ in 0..5 {
+            list.add_log(dummy_log("More logs!", Level::Info));
+        }
+
+        assert_eq!(list.logs.len(), MAX_LOG_BUFFER);
+        assert_eq!(list.base_id, 5);
+    }
+
+    #[test]
+    fn test_filtered_list_eviction() {
+        let mut list = EntryList::default();
+
+        list.filter.level = Some(Level::Error);
+
+        list.add_log(dummy_log("Very Old Err", Level::Error));
+
+        for _ in 0..(MAX_LOG_BUFFER - 1) {
+            list.add_log(dummy_log("Normal Log", Level::Info));
+        }
+
+        assert_eq!(list.filtered_list.len(), 1);
+        assert_eq!(list.filtered_list[0], 0);
+
+        list.add_log(dummy_log("One More Log", Level::Info));
+
+        assert_eq!(list.filtered_list.len(), 0);
+    }
+
+    #[test]
+    fn perfect_payload_deserialization() {
+        use bincode_next::config;
+        use webdav_server::logger::{Entry as LogEntry, Level, Module};
+
+        let log1 = LogEntry {
+            timestamp_ms: 100,
+            module: Module::Server,
+            level: Level::Info,
+            message: "Valid".to_string(),
+        };
+        let log2 = LogEntry {
+            timestamp_ms: 200,
+            module: Module::Api,
+            level: Level::Error,
+            message: "Corrupted".to_string(),
+        };
+
+        let bytes1 =
+            bincode_next::encode_to_vec(&log1, config::standard()).unwrap();
+        let bytes2 =
+            bincode_next::encode_to_vec(&log2, config::standard()).unwrap();
+
+        let mut perfect_payload = bytes1.clone();
+        perfect_payload.extend(bytes2.iter());
+
+        let list = EntryList::init_or_default(&perfect_payload);
+        assert_eq!(
+            list.logs.len(),
+            2,
+            "Failed to decode a perfect network payload"
+        );
+
+        assert_eq!(list.logs[0].raw.message, "valid");
+
+        perfect_payload.truncate(perfect_payload.len() - 5);
+        let corrupted = perfect_payload;
+
+        let corrupted_list = EntryList::init_or_default(&corrupted);
+
+        assert_eq!(
+            corrupted_list.logs.len(),
+            0,
+            "Failed rejecting corruted network bytes!"
+        );
     }
 }
