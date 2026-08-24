@@ -91,34 +91,18 @@ impl Asset {
         pool: &SqlitePool,
         user: i64,
         hash: &[u8],
-    ) -> Result<bool> {
-        let mut tx = pool.begin().await?;
-
-        let result = sqlx::query!(
+    ) -> Result<()> {
+        sqlx::query!(
             r#"
             DELETE FROM assets WHERE user_id = ? AND hash = ?
         "#,
             user,
             hash
         )
-        .execute(&mut *tx)
+        .execute(pool)
         .await?;
 
-        if result.rows_affected() == 0 {
-            tx.rollback().await?;
-            return Ok(false);
-        }
-
-        let count: i64 = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM assets WHERE hash = ? ",
-            hash
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        tx.commit().await?;
-
-        Ok(count == 0)
+        Ok(())
     }
 
     /// Checks if any [`Asset`] with provided `hash` exists, and is owned by the specified `user` as well

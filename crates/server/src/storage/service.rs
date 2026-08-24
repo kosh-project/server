@@ -91,12 +91,6 @@ impl Service {
             return Err(InvalidFileName);
         }
 
-        let target_path = self.vault_path.join(file_name);
-
-        if target_path.exists() {
-            return Err(FileAlreadyExists(file_name.to_string()));
-        }
-
         Ok(Transaction::new(&self.vault_path))
     }
 }
