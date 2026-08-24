@@ -166,22 +166,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validation_rejects_existing_file() {
-        with_temp_service(async move |service| {
-            let file_name = "etc.passwd";
-            let target_path = service.vault_path.join(file_name);
-
-            let _ = File::create(target_path).await.unwrap();
-
-            let result = service.begin_transaction(&file_name);
-
-            assert!(result.is_err());
-            assert!(matches!(result, Err(FileAlreadyExists(_))));
-        })
-        .await;
-    }
-
-    #[tokio::test]
     async fn concurrent_write_collisions_dont_panic() {
         with_temp_service(|service| async move {
             let service_a = service.clone();

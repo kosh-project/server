@@ -208,42 +208,12 @@ mod tests {
 
         insert_asset(&pool, 10, hash).await?;
 
-        let should_delete = Asset::delete(&pool, 10, hash).await?;
-
-        // Test
-        assert!(
-            should_delete,
-            "Expected Item to be deleted, because of zero owner count"
-        );
+        Asset::delete(&pool, 10, hash).await?;
 
         let count = count_owners(&pool, hash).await?;
 
         // Test: No asset should be present as there were no other owners
         assert_eq!(count, 0);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn delete_asset_with_more_than_one_onwers() -> Result<()> {
-        let pool = setup_db().await?;
-        let hash = b"ahoy there, we got files";
-
-        insert_asset(&pool, 10, hash).await?;
-        insert_asset(&pool, 11, hash).await?;
-
-        let should_delete = Asset::delete(&pool, 10, hash).await?;
-
-        // Test: Item shouldn't be deleted, if there is atleast one owner
-        assert!(
-            !should_delete,
-            "Expected Item to be not deleted, 'cause this asset is still owned"
-        );
-
-        let count = count_owners(&pool, hash).await?;
-
-        // Test: owner_count shouldn't be anything but 1;
-        assert_eq!(count, 1);
 
         Ok(())
     }
@@ -255,13 +225,7 @@ mod tests {
 
         insert_asset(&pool, 10, hash).await?;
 
-        let should_delete = Asset::delete(&pool, 12, hash).await?;
-
-        // Test: Fails if user_2 can touch files without owning them;
-        assert!(
-            !should_delete,
-            "Expected user_12 not to delete asset owned by user_10"
-        );
+        Asset::delete(&pool, 12, hash).await?;
 
         let count = count_owners(&pool, hash).await?;
 

@@ -36,11 +36,9 @@ pub async fn delete(
     let hash_bytes = hex::decode(&hash_str)
         .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
 
-    let wipe_needed = Asset::delete(&state.db, user_id, &hash_bytes).await?;
+    Asset::delete(&state.db, user_id, &hash_bytes).await?;
 
-    if wipe_needed {
-        state.storage.delete_blob(&hash_str).await?;
-    }
+    state.storage.delete_blob(&hash_str).await?;
 
     info!(
         Module::Asset,
