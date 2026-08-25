@@ -1,4 +1,5 @@
 use crate::{model::error::Result, storage::file::Metadata};
+use serde::Serialize;
 use sqlx::{SqlitePool, query};
 use uuid::Uuid;
 
@@ -128,6 +129,50 @@ impl Asset {
         .await?;
 
         Ok(result.is_some())
+    }
+}
+
+#[derive(Serialize)]
+pub struct AssetMetadataRow {
+    pub hash: String,
+    pub size_bytes: i64,
+    pub last_modified: i64,
+    pub tag: i16,
+}
+
+impl Asset {
+    pub async fn list(
+        pool: &SqlitePool,
+        user_id: i64,
+        tag_filter: Option<i16>,
+    ) -> Result<Vec<AssetMetadataRow>> {
+        let tag_str = tag_filter.map(|t| t.to_string());
+        let rows = sqlx::query!(
+            r#"
+            SELECT hash, size_bytes, last_modified, tag
+            FROM assets
+            WHERE user_id = ?
+                AND (? IS NULL OR tag = ?)
+            ORDER BY last_modified DESC
+            "#,
+            user_id,
+            tag_str,
+            tag_str,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let items = rows
+            .into_iter()
+            .map(|row| AssetMetadataRow {
+                hash: hex::encode(row.hash),
+                size_bytes: row.size_bytes,
+                last_modified: row.last_modified,
+                tag: row.tag.parse::<i64>().unwrap_or(0) as i16,
+            })
+            .collect();
+
+        Ok(items)
     }
 }
 

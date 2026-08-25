@@ -4,17 +4,17 @@ use crate::{
     app::State as AppState,
     error, info,
     logger::Module,
-    model::asset::{Asset, AssetTag},
+    model::asset::{Asset, AssetMetadataRow, AssetTag},
     storage::Payload,
 };
 use axum::{
     Extension, Json,
     body::Body,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::IntoResponse,
 };
 use hyper::{HeaderMap, StatusCode};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio_util::io::ReaderStream;
 
 use crate::Result;
@@ -194,4 +194,24 @@ pub async fn upload(
     };
 
     Ok(Json(status))
+}
+
+#[derive(Deserialize)]
+pub struct ListQuery {
+    pub tag: Option<i16>,
+}
+
+#[derive(Serialize)]
+pub struct ListResponse {
+    pub assets: Vec<AssetMetadataRow>,
+}
+
+pub async fn list(
+    State(state): State<AppState>,
+    Extension(user_id): Extension<i64>,
+    Query(query): Query<ListQuery>,
+) -> Result<impl IntoResponse> {
+    let assets = Asset::list(&state.db, user_id, query.tag).await?;
+
+    Ok(Json(ListResponse { assets }))
 }
