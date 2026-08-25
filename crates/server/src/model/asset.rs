@@ -279,4 +279,60 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn list_assets_filters_by_tag_and_orders_newest_first() -> Result<()>
+    {
+        let pool = setup_db().await?;
+        let user_id = 99;
+
+        sqlx::query!(
+            "INSERT INTO users (id, identity_hash, auth_verifier) VALUES (?, ?, ?)",
+            user_id, "dummy_hash_99", "dummy_verifier"
+        ).execute(&pool).await?;
+
+        let insert = async move |pool: &SqlitePool,
+                                 hash: &[u8],
+                                 last_modified: i64,
+                                 tag: &str| {
+            sqlx::query!(
+                r#"
+                INSERT INTO assets (id, user_id, hash, size_bytes, last_modified, tag)
+                VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+                Uuid::new_v4().as_bytes().to_vec(),
+                user_id,
+                hash,
+                1024,
+                last_modified,
+                tag
+            ).execute(&pool.clone()).await
+        };
+
+        insert(&pool, b"hash_a", 100, "0").await?;
+        insert(&pool, b"hash_b", 200, "1").await?;
+        insert(&pool, b"hash_c", 300, "0").await?;
+
+        let all_assets = Asset::list(&pool, user_id, None).await?;
+        assert_eq!(all_assets.len(), 3);
+        assert_eq!(
+            all_assets[0].last_modified, 300,
+            "Expected newest asset to be listed, first"
+        );
+        assert_eq!(
+            all_assets[2].last_modified, 100,
+            "Expected oldest item to be listed last"
+        );
+
+        let meta_assets = Asset::list(&pool, user_id, Some(0)).await?;
+        assert_eq!(meta_assets.len(), 2, "Should filter out tag 1");
+        assert_eq!(meta_assets[0].tag, 0);
+        assert_eq!(meta_assets[1].tag, 0);
+        assert_eq!(
+            meta_assets[0].last_modified, 300,
+            "Newest meta should be listed first"
+        );
+
+        Ok(())
+    }
 }
