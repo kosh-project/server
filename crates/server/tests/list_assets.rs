@@ -24,7 +24,7 @@ async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
             "Expected 401 for missing token"
         );
 
-        // Test: Authenticated Reuest (Empty Gallery)
+        // Test: Authenticated Reuest (Zero Assts)
         let empty_resp = ctx
             .client
             .get(&endpoint)
@@ -40,7 +40,7 @@ async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
             "Expected 0 assets in list"
         );
 
-        // Test: Authenticated Request (but with Data)
+        // Test: Authenticated Request (but with Assets)
         sqlx::query!(r#"
             INSERT INTO assets (id, user_id, hash, size_bytes, last_modified, tag)
             VALUES (?, ?, ?, ?, ?, ?)
