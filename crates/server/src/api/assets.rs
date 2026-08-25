@@ -4,17 +4,17 @@ use crate::{
     app::State as AppState,
     error, info,
     logger::Module,
-    model::asset::{Asset, AssetTag},
+    model::asset::{Asset, AssetMetadataRow, AssetTag},
     storage::Payload,
 };
 use axum::{
     Extension, Json,
     body::Body,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::IntoResponse,
 };
 use hyper::{HeaderMap, StatusCode};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio_util::io::ReaderStream;
 
 use crate::Result;
@@ -36,11 +36,9 @@ pub async fn delete(
     let hash_bytes = hex::decode(&hash_str)
         .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
 
-    let wipe_needed = Asset::delete(&state.db, user_id, &hash_bytes).await?;
+    Asset::delete(&state.db, user_id, &hash_bytes).await?;
 
-    if wipe_needed {
-        state.storage.delete_blob(&hash_str).await?;
-    }
+    state.storage.delete_blob(&hash_str).await?;
 
     info!(
         Module::Asset,
@@ -196,4 +194,24 @@ pub async fn upload(
     };
 
     Ok(Json(status))
+}
+
+#[derive(Deserialize)]
+pub struct ListQuery {
+    pub tag: Option<i16>,
+}
+
+#[derive(Serialize)]
+pub struct ListResponse {
+    pub assets: Vec<AssetMetadataRow>,
+}
+
+pub async fn list(
+    State(state): State<AppState>,
+    Extension(user_id): Extension<i64>,
+    Query(query): Query<ListQuery>,
+) -> Result<impl IntoResponse> {
+    let assets = Asset::list(&state.db, user_id, query.tag).await?;
+
+    Ok(Json(ListResponse { assets }))
 }

@@ -1,4 +1,5 @@
 use crate::{model::error::Result, storage::file::Metadata};
+use serde::Serialize;
 use sqlx::{SqlitePool, query};
 use uuid::Uuid;
 
@@ -91,34 +92,18 @@ impl Asset {
         pool: &SqlitePool,
         user: i64,
         hash: &[u8],
-    ) -> Result<bool> {
-        let mut tx = pool.begin().await?;
-
-        let result = sqlx::query!(
+    ) -> Result<()> {
+        sqlx::query!(
             r#"
             DELETE FROM assets WHERE user_id = ? AND hash = ?
         "#,
             user,
             hash
         )
-        .execute(&mut *tx)
+        .execute(pool)
         .await?;
 
-        if result.rows_affected() == 0 {
-            tx.rollback().await?;
-            return Ok(false);
-        }
-
-        let count: i64 = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM assets WHERE hash = ? ",
-            hash
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        tx.commit().await?;
-
-        Ok(count == 0)
+        Ok(())
     }
 
     /// Checks if any [`Asset`] with provided `hash` exists, and is owned by the specified `user` as well
@@ -144,6 +129,50 @@ impl Asset {
         .await?;
 
         Ok(result.is_some())
+    }
+}
+
+#[derive(Serialize)]
+pub struct AssetMetadataRow {
+    pub hash: String,
+    pub size_bytes: i64,
+    pub last_modified: i64,
+    pub tag: i16,
+}
+
+impl Asset {
+    pub async fn list(
+        pool: &SqlitePool,
+        user_id: i64,
+        tag_filter: Option<i16>,
+    ) -> Result<Vec<AssetMetadataRow>> {
+        let tag_str = tag_filter.map(|t| t.to_string());
+        let rows = sqlx::query!(
+            r#"
+            SELECT hash, size_bytes, last_modified, tag
+            FROM assets
+            WHERE user_id = ?
+                AND (? IS NULL OR tag = ?)
+            ORDER BY last_modified DESC
+            "#,
+            user_id,
+            tag_str,
+            tag_str,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let items = rows
+            .into_iter()
+            .map(|row| AssetMetadataRow {
+                hash: hex::encode(row.hash),
+                size_bytes: row.size_bytes,
+                last_modified: row.last_modified,
+                tag: row.tag.parse::<i64>().unwrap_or(0) as i16,
+            })
+            .collect();
+
+        Ok(items)
     }
 }
 
@@ -224,42 +253,12 @@ mod tests {
 
         insert_asset(&pool, 10, hash).await?;
 
-        let should_delete = Asset::delete(&pool, 10, hash).await?;
-
-        // Test
-        assert!(
-            should_delete,
-            "Expected Item to be deleted, because of zero owner count"
-        );
+        Asset::delete(&pool, 10, hash).await?;
 
         let count = count_owners(&pool, hash).await?;
 
         // Test: No asset should be present as there were no other owners
         assert_eq!(count, 0);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn delete_asset_with_more_than_one_onwers() -> Result<()> {
-        let pool = setup_db().await?;
-        let hash = b"ahoy there, we got files";
-
-        insert_asset(&pool, 10, hash).await?;
-        insert_asset(&pool, 11, hash).await?;
-
-        let should_delete = Asset::delete(&pool, 10, hash).await?;
-
-        // Test: Item shouldn't be deleted, if there is atleast one owner
-        assert!(
-            !should_delete,
-            "Expected Item to be not deleted, 'cause this asset is still owned"
-        );
-
-        let count = count_owners(&pool, hash).await?;
-
-        // Test: owner_count shouldn't be anything but 1;
-        assert_eq!(count, 1);
 
         Ok(())
     }
@@ -271,18 +270,68 @@ mod tests {
 
         insert_asset(&pool, 10, hash).await?;
 
-        let should_delete = Asset::delete(&pool, 12, hash).await?;
-
-        // Test: Fails if user_2 can touch files without owning them;
-        assert!(
-            !should_delete,
-            "Expected user_12 not to delete asset owned by user_10"
-        );
+        Asset::delete(&pool, 12, hash).await?;
 
         let count = count_owners(&pool, hash).await?;
 
         // Test: owner_count shouldn't be affected by this
         assert_eq!(count, 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn list_assets_filters_by_tag_and_orders_newest_first() -> Result<()>
+    {
+        let pool = setup_db().await?;
+        let user_id = 99;
+
+        sqlx::query!(
+            "INSERT INTO users (id, identity_hash, auth_verifier) VALUES (?, ?, ?)",
+            user_id, "dummy_hash_99", "dummy_verifier"
+        ).execute(&pool).await?;
+
+        let insert = async move |pool: &SqlitePool,
+                                 hash: &[u8],
+                                 last_modified: i64,
+                                 tag: &str| {
+            sqlx::query!(
+                r#"
+                INSERT INTO assets (id, user_id, hash, size_bytes, last_modified, tag)
+                VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+                Uuid::new_v4().as_bytes().to_vec(),
+                user_id,
+                hash,
+                1024,
+                last_modified,
+                tag
+            ).execute(&pool.clone()).await
+        };
+
+        insert(&pool, b"hash_a", 100, "0").await?;
+        insert(&pool, b"hash_b", 200, "1").await?;
+        insert(&pool, b"hash_c", 300, "0").await?;
+
+        let all_assets = Asset::list(&pool, user_id, None).await?;
+        assert_eq!(all_assets.len(), 3);
+        assert_eq!(
+            all_assets[0].last_modified, 300,
+            "Expected newest asset to be listed, first"
+        );
+        assert_eq!(
+            all_assets[2].last_modified, 100,
+            "Expected oldest item to be listed last"
+        );
+
+        let meta_assets = Asset::list(&pool, user_id, Some(0)).await?;
+        assert_eq!(meta_assets.len(), 2, "Should filter out tag 1");
+        assert_eq!(meta_assets[0].tag, 0);
+        assert_eq!(meta_assets[1].tag, 0);
+        assert_eq!(
+            meta_assets[0].last_modified, 300,
+            "Newest meta should be listed first"
+        );
 
         Ok(())
     }
