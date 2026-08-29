@@ -12,7 +12,7 @@ pub enum Action {
     },
     Prune {
         user_id: i64,
-        before: TimeStamp,
+        before: u32,
         reply: Sender<Result<()>>,
     },
     Shutdown {

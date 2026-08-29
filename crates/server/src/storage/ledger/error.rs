@@ -7,7 +7,7 @@ use crate::storage::ledger::action::Action;
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Comitter died before an active sender")]
-    ComitterDead,
+    CommitterDead,
 
     #[error("Corrupted segment: {}",.0)]
     CorruptedSegment(String),

@@ -1,6 +1,6 @@
 use crate::storage::ledger::{
     AppendReciept,
-    Error::{self, ComitterDead},
+    Error::{self, CommitterDead},
     Result,
 };
 use std::path::PathBuf;
@@ -38,9 +38,9 @@ impl Handle {
             payload,
             reply,
         };
-        self.tx.send(action).await.map_err(|_| ComitterDead)?;
+        self.tx.send(action).await.map_err(|_| CommitterDead)?;
 
-        recv.await.map_err(|_| ComitterDead)?
+        recv.await.map_err(|_| CommitterDead)?
     }
 
     pub async fn shutdown(&self) {

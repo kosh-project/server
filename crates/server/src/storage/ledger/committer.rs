@@ -4,19 +4,15 @@ use std::{
 };
 
 use bytes::Bytes;
-use chrono::Utc;
 use tokio::{
-    fs::{self, OpenOptions},
+    fs::{self},
     io::AsyncWriteExt,
     sync::{mpsc::Receiver, oneshot::Sender},
 };
 
 use crate::storage::ledger::{
     AppendReciept, Result,
-    action::{
-        Action::{self, Append, Prune, Shutdown},
-        TimeStamp,
-    },
+    action::Action::{self, Append, Prune, Shutdown},
     segment::Segment,
 };
 
@@ -54,8 +50,8 @@ impl Committer {
                     before,
                     reply,
                 } => {
-                    let _ = reply.send(Ok(()));
-                    todo!("Unhandled prune from {user_id}");
+                    let result = self.prune(user_id, before).await;
+                    let _ = reply.send(result);
                 }
                 Shutdown { reply } => {
                     self.shutdown(reply).await;
@@ -113,6 +109,11 @@ impl Committer {
             }
         };
 
+        if active.current_size >= 5_000_000 {
+            let new_segment = active.rotate(&self.vault_path, user_id).await?;
+            *active = new_segment;
+        }
+
         let offset = active.current_size;
 
         active.file.write_all(&payload).await?;
@@ -132,13 +133,4 @@ impl Committer {
 
         let _ = reply.send(());
     }
-}
-
-async fn latest_id<P>(path: P) -> Option<u32>
-where
-    P: AsRef<P>,
-{
-    let mut max_id = 0;
-
-    None
 }

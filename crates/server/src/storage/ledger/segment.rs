@@ -94,7 +94,10 @@ impl Segment {
     where
         P: AsRef<Path>,
     {
-        let dir = vault_path.as_ref().join("ledger").join(user_id.to_string());
+        let dir = vault_path
+            .as_ref()
+            .join("ledgers")
+            .join(user_id.to_string());
 
         let id = self.file_name.trim_start_matches("delta_");
         let current_id: u32 = id.parse()?;
