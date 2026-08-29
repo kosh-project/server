@@ -72,6 +72,19 @@ pub enum Error {
     /// The requested blob was not found in the vault.
     #[error("Blob Not found")]
     NotFound,
+
+    #[error("Failed to append to ledger segment: {path}")]
+    LedgerWriteErr {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("Failed to rotate ledger segment for user: {}", user_id)]
+    LedgerRotationErr {
+        user_id: i64,
+        #[source]
+        source: io::Error,
+    },
 }
 
 pub type Result<T> = core::result::Result<T, storage::Error>;
@@ -104,6 +117,7 @@ impl IntoResponse for Error {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Internal Server Error".into(),
             ),
+            _ => todo!("Missing impl for LedgerWriteErr, LedgerReadErr"),
         }
         .into_response()
     }
