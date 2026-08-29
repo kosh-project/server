@@ -2,8 +2,6 @@ use std::num::ParseIntError;
 
 use tokio::io;
 
-use crate::storage::ledger::action::Action;
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Comitter died before an active sender")]

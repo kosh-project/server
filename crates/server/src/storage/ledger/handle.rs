@@ -1,8 +1,4 @@
-use crate::storage::ledger::{
-    AppendReciept,
-    Error::{self, CommitterDead},
-    Result,
-};
+use crate::storage::ledger::{AppendReciept, Error::CommitterDead, Result};
 use std::path::PathBuf;
 
 use bytes::Bytes;
@@ -26,6 +22,10 @@ impl Handle {
         Self { tx }
     }
 
+    pub fn sender(&self) -> &Sender<Action> {
+        &self.tx
+    }
+
     pub async fn append(
         &self,
         user_id: i64,
@@ -42,10 +42,12 @@ impl Handle {
 
         recv.await.map_err(|_| CommitterDead)?
     }
+}
 
-    pub async fn shutdown(&self) {
+impl Handle {
+    pub async fn shutdown(ref sender: Sender<Action>) {
         let (tx, rx) = oneshot::channel();
-        if self.tx.send(Action::Shutdown { reply: tx }).await.is_ok() {
+        if sender.send(Action::Shutdown { reply: tx }).await.is_ok() {
             let _ = rx.await;
         }
     }

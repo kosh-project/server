@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use tokio::sync::oneshot::Sender;
 
-use crate::storage::ledger::Result;
+use crate::{api::sync::AppendResponse, storage::ledger::Result};
 
 #[derive(Debug)]
 pub enum Action {
@@ -19,8 +19,6 @@ pub enum Action {
         reply: Sender<()>,
     },
 }
-
-pub type TimeStamp = i64;
 
 #[derive(Debug, Clone)]
 pub struct AppendReciept {

@@ -1,8 +1,4 @@
-use std::{
-    fs::metadata,
-    io::{self, SeekFrom},
-    path::Path,
-};
+use std::{io::SeekFrom, path::Path};
 
 use crate::storage::ledger::{Error, Result};
 
