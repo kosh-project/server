@@ -17,13 +17,13 @@ use crate::storage::ledger::{
         Action::{self, Append, Prune, Shutdown},
         TimeStamp,
     },
-    segment::ActiveSegment,
+    segment::Segment,
 };
 
 pub struct Committer {
     vault_path: PathBuf,
     receiver: Receiver<Action>,
-    active_users: HashMap<i64, ActiveSegment>,
+    active_users: HashMap<i64, Segment>,
 }
 
 impl Committer {
@@ -107,12 +107,8 @@ impl Committer {
         let active = match self.active_users.entry(user_id) {
             Entry::Occupied(segment) => segment.into_mut(),
             Entry::Vacant(entry) => {
-                let segment = Self::new_delta(
-                    &self.vault_path,
-                    user_id,
-                    todo!("how do you even find this"),
-                )
-                .await?;
+                let segment =
+                    Segment::load_or_create(&self.vault_path, user_id).await?;
                 entry.insert(segment)
             }
         };
@@ -129,34 +125,6 @@ impl Committer {
         })
     }
 
-    async fn new_delta<P>(vault_path: P, user_id: i64) -> Result<ActiveSegment>
-    where
-        P: AsRef<Path>,
-    {
-        let dir = vault_path
-            .as_ref()
-            .join("ledgers")
-            .join(user_id.to_string());
-
-        fs::create_dir_all(&dir).await?;
-
-        let file_name = format!("delta_{}", last_id + 1);
-        let file_path = dir.join(&file_name);
-
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&file_path)
-            .await?;
-
-        Ok(ActiveSegment {
-            id: last_id + 1,
-            file,
-            file_name,
-            current_size: 0,
-        })
-    }
-
     async fn shutdown(mut self, reply: Sender<()>) {
         for segment in self.active_users.values_mut() {
             let _ = segment.file.sync_all().await;
@@ -164,4 +132,13 @@ impl Committer {
 
         let _ = reply.send(());
     }
+}
+
+async fn latest_id<P>(path: P) -> Option<u32>
+where
+    P: AsRef<P>,
+{
+    let mut max_id = 0;
+
+    None
 }
