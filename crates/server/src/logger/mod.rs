@@ -157,6 +157,8 @@ pub enum Module {
     /// The logging service itself. Used for internal diagnostics such as
     /// grace-period timeout warnings during shutdown.
     Logger,
+
+    Ledger,
 }
 
 pub use service::Service;

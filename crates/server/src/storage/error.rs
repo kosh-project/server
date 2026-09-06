@@ -7,7 +7,8 @@ use tokio::io;
 use crate::{
     error::internal,
     logger::{self, Loggable},
-    storage, wrap_internal_err,
+    storage::{self, ledger},
+    wrap_internal_err,
 };
 
 /// Errors that can occur in the storage layer.
@@ -73,18 +74,8 @@ pub enum Error {
     #[error("Blob Not found")]
     NotFound,
 
-    #[error("Failed to append to ledger segment: {path}")]
-    LedgerWriteErr {
-        path: PathBuf,
-        #[source]
-        source: io::Error,
-    },
-    #[error("Failed to rotate ledger segment for user: {}", user_id)]
-    LedgerRotationErr {
-        user_id: i64,
-        #[source]
-        source: io::Error,
-    },
+    #[error(transparent)]
+    Ledger(#[from] ledger::Error),
 }
 
 pub type Result<T> = core::result::Result<T, storage::Error>;

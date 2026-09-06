@@ -2,6 +2,7 @@ use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
 
+use crate::storage::ledger;
 use crate::{error::internal, logger::Loggable};
 
 /// Errors that can occur while processing an HTTP API request.
@@ -55,6 +56,9 @@ pub enum Error {
     /// This is almost always a bug in the server code, not the client.
     #[error("Invalid header value : {}", .0)]
     InvalidHeader(#[from] InvalidHeaderValue),
+
+    #[error(transparent)]
+    Ledger(#[from] ledger::Error),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
@@ -62,8 +66,9 @@ pub type Result<T> = core::result::Result<T, Error>;
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         use Error::{
-            BadRequest, Internal, InvalidHeader, IoError, MalformedMultipart,
-            MissingField, NotFound, StreamReadError, Unauthorized,
+            BadRequest, Internal, InvalidHeader, IoError, Ledger,
+            MalformedMultipart, MissingField, NotFound, StreamReadError,
+            Unauthorized,
         };
 
         match self {
@@ -83,7 +88,7 @@ impl IntoResponse for Error {
             }
 
             // Internal errors: strip all details before sending.
-            StreamReadError | IoError(_) | Internal(_) => (
+            StreamReadError | IoError(_) | Internal(_) | Ledger(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Internal Server Error".into(),
             ),
