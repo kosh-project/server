@@ -61,12 +61,11 @@ impl Committer {
         }
     }
 
-    async fn prune(&mut self, user_id: i64, before: u32) -> Result<()> {
+    async fn prune(&self, user_id: i64, before: u32) -> Result<()> {
         let dir = self.vault_path.join("ledgers").join(user_id.to_string());
 
-        let mut entries = match fs::read_dir(&dir).await {
-            Ok(e) => e,
-            Err(_) => return Ok(()),
+        let Ok(mut entries) = fs::read_dir(&dir).await else {
+            return Ok(());
         };
 
         let active_segment = self

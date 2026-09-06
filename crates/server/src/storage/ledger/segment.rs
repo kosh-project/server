@@ -65,8 +65,10 @@ impl Segment {
         let file_name = "delta_0000001";
         let path = dir.as_ref().join(file_name);
 
+        let _ = fs::remove_file(&path).await;
+
         let mut file = OpenOptions::new()
-            .create(true)
+            .create_new(true)
             .append(true)
             .read(true)
             .open(&path)
@@ -100,12 +102,14 @@ impl Segment {
 
         let next_id = current_id + 1;
 
-        let file_name = format!("delta_{:07}", next_id);
+        let file_name = format!("delta_{next_id:07}");
         let path = dir.join(&file_name);
+
+        let _ = fs::remove_file(&path).await;
 
         let mut file = OpenOptions::new()
             .append(true)
-            .create(true)
+            .create_new(true)
             .read(true)
             .open(&path)
             .await?;

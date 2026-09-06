@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use tokio::sync::oneshot::Sender;
 
-use crate::{api::sync::AppendResponse, storage::ledger::Result};
+use crate::storage::ledger::Result;
 
 #[derive(Debug)]
 pub enum Action {
