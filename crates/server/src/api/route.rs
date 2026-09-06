@@ -51,6 +51,7 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .route("/upload/{tag}", post(assets::upload))
         .route("/assets/{hash}", get(assets::get).delete(assets::delete))
         .route("/storage", get(storage))
+        .route("/sync/delta", post(api::sync::append_delta))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
 }
 
