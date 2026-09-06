@@ -3,7 +3,10 @@ use std::path::Path;
 use moka::future::Cache;
 use sqlx::SqlitePool;
 
-use crate::{model::session::TokenHash, storage};
+use crate::{
+    model::session::TokenHash,
+    storage::{self, ledger},
+};
 
 pub type UserId = i64;
 
@@ -20,6 +23,7 @@ pub struct State {
     pub storage: storage::Service,
     /// The `SQLite` connection pool for all database queries.
     pub db: SqlitePool,
+    pub ledger: ledger::Handle,
     /// In-memory session cache. Checked before every database lookup in `auth_guard`
     /// to avoid hitting the disk on every authenticated request.
     pub session_cache: Cache<TokenHash, UserId>,

@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 use crate::{
     app::{State as AppState, state::UserId},
     model::session::TokenHash,
-    storage,
+    storage::{self, ledger},
 };
 
 /// A builder for constructing [`AppState`].
@@ -90,10 +90,10 @@ impl AppStateBuilder {
     #[allow(clippy::expect_used)]
     #[must_use]
     pub fn build(self) -> AppState {
+        let vault_path =
+            self.vault_path.expect("FATAL: vault_path is required!");
         AppState {
-            storage: storage::Service::new(
-                self.vault_path.expect("FATAL: vault_path is required!"),
-            ),
+            storage: storage::Service::new(vault_path.clone()),
             db: self.db.expect("FATAL: database pool is required!"),
             session_cache: self.session_cache.unwrap_or_else(|| {
                 Cache::builder()
@@ -101,6 +101,7 @@ impl AppStateBuilder {
                     .max_capacity(10_000)
                     .build()
             }),
+            ledger: ledger::Handle::spawn(vault_path),
         }
     }
 }
