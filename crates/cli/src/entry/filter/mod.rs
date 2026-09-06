@@ -133,14 +133,15 @@ const fn next_lvl(lvl: Option<Level>) -> Option<Level> {
 }
 
 const fn next_mod(module: Option<Module>) -> Option<Module> {
-    use Module::{Api, Asset, Database, Logger, Server, Storage};
+    use Module::{Api, Asset, Database, Ledger, Logger, Server, Storage};
     match module {
         Some(Api) => Some(Database),
         Some(Database) => Some(Server),
         Some(Server) => Some(Asset),
         Some(Asset) => Some(Storage),
         Some(Storage) => Some(Logger),
-        Some(Logger) => None,
+        Some(Logger) => Some(Ledger),
+        Some(Ledger) => None,
         None => Some(Api),
     }
 }
@@ -162,6 +163,7 @@ const fn module_str(module: Option<Module>) -> &'static str {
         Some(Module::Asset) => "Asset",
         Some(Module::Storage) => "Storage",
         Some(Module::Logger) => "Logger",
+        Some(Module::Ledger) => "Ledger",
         None => "ALL",
     }
 }
@@ -244,7 +246,7 @@ mod tests {
         filter.handle_space();
         assert_eq!(filter.module, Some(Module::Database));
 
-        for _ in 0..5 {
+        for _ in 0..6 {
             filter.handle_space();
         }
         assert_eq!(filter.module, None);
