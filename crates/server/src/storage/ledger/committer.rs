@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, hash_map::Entry},
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 
@@ -11,7 +12,7 @@ use tokio::{
 };
 
 use crate::storage::ledger::{
-    AppendReciept, Result,
+    AppendReciept, Error, Result,
     action::Action::{self, Append, Prune, Shutdown},
     segment::Segment,
 };
@@ -64,8 +65,19 @@ impl Committer {
     async fn prune(&self, user_id: i64, before: u32) -> Result<()> {
         let dir = self.vault_path.join("ledgers").join(user_id.to_string());
 
-        let Ok(mut entries) = fs::read_dir(&dir).await else {
+        let Some(active_id) = self.active_segment_id(&dir, user_id).await?
+        else {
             return Ok(());
+        };
+
+        if before >= active_id {
+            return Err(Error::InvalidPrune);
+        }
+
+        let mut entries = match fs::read_dir(&dir).await {
+            Ok(e) => e,
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(Error::IoError(e)),
         };
 
         let active_segment = self
@@ -93,6 +105,22 @@ impl Committer {
         Ok(())
     }
 
+    async fn active_segment_id(
+        &self,
+        dir: &Path,
+        user_id: i64,
+    ) -> Result<Option<u32>> {
+        if let Some(segment) = self.active_users.get(&user_id) {
+            return Ok(parse_segment_id(&segment.file_name));
+        }
+
+        match fs::read_to_string(dir.join("CURRENT")).await {
+            Ok(current) => Ok(parse_segment_id(current.trim())),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(Error::IoError(e)),
+        }
+    }
+
     async fn append(
         &mut self,
         user_id: i64,
@@ -113,11 +141,11 @@ impl Committer {
             *active = new_segment;
         }
 
-        let offset = active.current_size;
-
         active.file.write_all(&payload).await?;
 
         active.current_size += payload.len() as u64;
+
+        let offset = active.current_size;
 
         Ok(AppendReciept {
             file_name: active.file_name.clone(),
@@ -132,4 +160,8 @@ impl Committer {
 
         let _ = reply.send(());
     }
+}
+
+fn parse_segment_id(file_name: &str) -> Option<u32> {
+    file_name.strip_prefix("delta_")?.parse().ok()
 }

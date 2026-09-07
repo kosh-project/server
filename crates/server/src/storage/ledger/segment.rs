@@ -1,4 +1,7 @@
-use std::{io::SeekFrom, path::Path};
+use std::{
+    io::{ErrorKind, SeekFrom},
+    path::Path,
+};
 
 use crate::storage::ledger::{Error, Result};
 
@@ -25,13 +28,13 @@ impl Segment {
 
         let current_path = dir.join("CURRENT");
 
-        if let Ok(current_data) = fs::read_to_string(&current_path).await
-            && let Ok(segment) = Self::load(&dir, current_data).await
-        {
-            return Ok(segment);
+        match fs::read_to_string(&current_path).await {
+            Ok(current_data) => Self::load(dir, current_data).await,
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                Self::create(dir, current_path).await
+            }
+            Err(e) => Err(Error::IoError(e)),
         }
-
-        Self::create(dir, current_path).await
     }
 
     async fn load<S, P>(dir: P, name: S) -> Result<Self>

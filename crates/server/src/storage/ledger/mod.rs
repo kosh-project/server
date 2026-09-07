@@ -10,3 +10,6 @@ pub type Result<T> = core::result::Result<T, Error>;
 pub(crate) use action::AppendReciept;
 
 pub use handle::Handle;
+
+#[cfg(test)]
+mod tests;

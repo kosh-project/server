@@ -28,11 +28,14 @@ pub enum Error {
 
     #[error("Invalid File Name")]
     InvalidFileName,
+
+    #[error("Cannot prune active or future segments")]
+    InvalidPrune,
 }
 
 use Error::{
-    CommitterDead, CorruptedSegment, InvalidFileName, InvalidOffset, IoError,
-    ParseIntFailure, SegmentNotFound,
+    CommitterDead, CorruptedSegment, InvalidFileName, InvalidOffset,
+    InvalidPrune, IoError, ParseIntFailure, SegmentNotFound,
 };
 
 impl IntoResponse for Error {
@@ -42,7 +45,7 @@ impl IntoResponse for Error {
                 (StatusCode::NOT_FOUND, "Requested delta log doesn't exist")
                     .into_response()
             }
-            InvalidOffset | InvalidFileName => (
+            InvalidOffset | InvalidFileName | InvalidPrune => (
                 StatusCode::BAD_REQUEST,
                 "Requested offset exceeds the ledger size",
             )
