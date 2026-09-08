@@ -2,6 +2,7 @@ use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
 
+use crate::storage::ledger;
 use crate::{error::internal, logger::Loggable};
 
 /// Errors that can occur while processing an HTTP API request.
@@ -55,6 +56,16 @@ pub enum Error {
     /// This is almost always a bug in the server code, not the client.
     #[error("Invalid header value : {}", .0)]
     InvalidHeader(#[from] InvalidHeaderValue),
+
+    /// An error propagated from the delta-CRDT sync ledger subsystem.
+    ///
+    /// This variant delegates `IntoResponse` directly to [`ledger::Error`],
+    /// which maps `SegmentNotFound` to `404`, `InvalidOffset`/`InvalidFileName`/
+    /// `InvalidPrune` to `400`, and all internal failures to `500`. This ensures
+    /// that the ledger domain's own HTTP semantics are preserved rather than
+    /// being masked by the API layer's generic catch-all.
+    #[error(transparent)]
+    Ledger(#[from] ledger::Error),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
@@ -62,8 +73,9 @@ pub type Result<T> = core::result::Result<T, Error>;
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         use Error::{
-            BadRequest, Internal, InvalidHeader, IoError, MalformedMultipart,
-            MissingField, NotFound, StreamReadError, Unauthorized,
+            BadRequest, Internal, InvalidHeader, IoError, Ledger,
+            MalformedMultipart, MissingField, NotFound, StreamReadError,
+            Unauthorized,
         };
 
         match self {
@@ -71,6 +83,8 @@ impl IntoResponse for Error {
             BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
             NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+
+            Ledger(e) => return e.into_response(),
             MalformedMultipart => (
                 StatusCode::BAD_REQUEST,
                 "Malformed Multipart Payload".into(),

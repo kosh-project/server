@@ -20,6 +20,7 @@ pub mod assets;
 pub mod auth;
 pub mod middleware;
 pub mod route;
+pub mod sync;
 
 pub mod error;
 

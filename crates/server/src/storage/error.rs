@@ -7,7 +7,8 @@ use tokio::io;
 use crate::{
     error::internal,
     logger::{self, Loggable},
-    storage, wrap_internal_err,
+    storage::{self, ledger},
+    wrap_internal_err,
 };
 
 /// Errors that can occur in the storage layer.
@@ -72,6 +73,9 @@ pub enum Error {
     /// The requested blob was not found in the vault.
     #[error("Blob Not found")]
     NotFound,
+
+    #[error(transparent)]
+    Ledger(#[from] ledger::Error),
 }
 
 pub type Result<T> = core::result::Result<T, storage::Error>;
@@ -104,6 +108,7 @@ impl IntoResponse for Error {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Internal Server Error".into(),
             ),
+            _ => todo!("Missing impl for LedgerWriteErr, LedgerReadErr"),
         }
         .into_response()
     }

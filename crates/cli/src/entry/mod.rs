@@ -40,7 +40,7 @@ fn level_into_span(value: Level) -> Span<'static> {
 }
 
 fn module_into_span(value: Module) -> Span<'static> {
-    use Module::{Api, Asset, Database, Logger, Server, Storage};
+    use Module::{Api, Asset, Database, Ledger, Logger, Server, Storage};
 
     match value {
         Api => Span::styled("Api", GREEN),
@@ -49,6 +49,7 @@ fn module_into_span(value: Module) -> Span<'static> {
         Asset => Span::styled("Asset", GREEN),
         Storage => Span::styled("Storage", GREEN),
         Logger => Span::styled("Logger", YELLOW),
+        Ledger => Span::styled("Ledger", GREEN),
     }
 }
 

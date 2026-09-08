@@ -13,6 +13,7 @@ use webdav_server::{
     error, fatal, info,
     logger::{self, GLOBAL_LOGGER, Module},
     shutdown,
+    storage::ledger,
 };
 
 use sqlx::sqlite::SqlitePoolOptions;
@@ -70,6 +71,8 @@ async fn main() -> io::Result<()> {
         .vault_path(std::path::PathBuf::from("./vault"))
         .build();
 
+    let ledger_sender = app_state.ledger.sender().clone();
+
     let app = route_main(app_state);
 
     let addr = Ipv4Addr::UNSPECIFIED;
@@ -113,6 +116,8 @@ async fn main() -> io::Result<()> {
         "Safely closing database connection pool..."
     );
     pool.close().await;
+
+    ledger::Handle::shutdown(&ledger_sender).await;
 
     shutdown!("Waiting to flush remaining entries...");
     logger_handle.shutdown_with_grace(10).await;

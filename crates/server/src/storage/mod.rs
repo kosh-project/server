@@ -19,6 +19,7 @@
 /// is cleaned up and the vault is left untouched.
 pub mod error;
 pub mod file;
+pub mod ledger;
 pub mod service;
 pub mod transaction;
 
