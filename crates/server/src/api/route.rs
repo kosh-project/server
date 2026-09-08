@@ -8,7 +8,8 @@ use serde_json::{Value, json};
 
 use crate::{
     api::{
-        self, assets,
+        self,
+        assets::{self, list},
         middleware::{auth_guard, log_middleware},
     },
     app::State as AppState,
@@ -52,6 +53,7 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .route("/assets/{hash}", get(assets::get).delete(assets::delete))
         .route("/storage", get(storage))
         .route("/sync/delta", post(api::sync::append_delta))
+        .route("/assets", get(list))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
 }
 

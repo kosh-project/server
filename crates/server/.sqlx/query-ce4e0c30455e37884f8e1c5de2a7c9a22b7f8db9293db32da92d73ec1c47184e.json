@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT hash, size_bytes, last_modified, tag\n            FROM assets\n            WHERE user_id = ?\n                AND (? IS NULL OR tag = ?)\n            ORDER BY last_modified DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "hash",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "assets",
+            "name": "hash"
+          }
+        }
+      },
+      {
+        "name": "size_bytes",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "assets",
+            "name": "size_bytes"
+          }
+        }
+      },
+      {
+        "name": "last_modified",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "assets",
+            "name": "last_modified"
+          }
+        }
+      },
+      {
+        "name": "tag",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "assets",
+            "name": "tag"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ce4e0c30455e37884f8e1c5de2a7c9a22b7f8db9293db32da92d73ec1c47184e"
+}
