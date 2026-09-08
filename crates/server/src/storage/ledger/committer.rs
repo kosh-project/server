@@ -70,7 +70,7 @@ impl Committer {
             return Ok(());
         };
 
-        if before >= active_id {
+        if before > active_id {
             return Err(Error::InvalidPrune);
         }
 

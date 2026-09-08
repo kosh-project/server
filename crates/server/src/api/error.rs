@@ -76,6 +76,8 @@ impl IntoResponse for Error {
             BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
             NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+
+            Ledger(e) => return e.into_response(),
             MalformedMultipart => (
                 StatusCode::BAD_REQUEST,
                 "Malformed Multipart Payload".into(),
@@ -88,7 +90,7 @@ impl IntoResponse for Error {
             }
 
             // Internal errors: strip all details before sending.
-            StreamReadError | IoError(_) | Internal(_) | Ledger(_) => (
+            StreamReadError | IoError(_) | Internal(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Internal Server Error".into(),
             ),

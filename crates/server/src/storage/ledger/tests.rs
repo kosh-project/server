@@ -172,7 +172,7 @@ async fn actor_prune_logic() -> anyhow::Result<()> {
         .append(user_id, Bytes::from("tiny mini payload"))
         .await?;
 
-    handle.prune(user_id, 2).await?;
+    handle.prune(user_id, 3).await?;
 
     let delta_dir = vault_path.join("ledgers").join(user_id.to_string());
 
