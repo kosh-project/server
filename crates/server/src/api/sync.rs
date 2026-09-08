@@ -1,3 +1,33 @@
+//! HTTP handlers for the Delta-CRDT sync ledger endpoints.
+//!
+//! These three handlers expose the append-only ledger to Android clients and
+//! allow them to synchronize encrypted CRDT action events across devices.
+//!
+//! ## Endpoints
+//!
+//! | Method | Path | Handler |
+//! |--------|------|---------|
+//! | `POST` | `/api/v1/sync/delta` | [`append_delta`] |
+//! | `GET` | `/api/v1/sync/delta` | [`stream_delta`] |
+//! | `DELETE` | `/api/v1/sync/prune` | [`prune_ledger`] |
+//!
+//! All endpoints require a valid Bearer token and are placed behind
+//! `auth_guard` in `api/route.rs`.
+//!
+//! ## Framing
+//!
+//! The server treats every payload as an opaque byte blob. It never parses
+//! the encrypted content. However, `append_delta` prepends a 4-byte
+//! little-endian length prefix to each payload before writing it to disk:
+//!
+//! ```text
+//! [4 bytes LE: payload length][N bytes: encrypted payload]
+//! ```
+//!
+//! This framing is the convention shared with the Android client. When the
+//! client calls `stream_delta`, it can use the length prefix to read one
+//! action at a time from the raw byte stream.
+
 use axum::body::Body;
 use axum::extract::Query;
 use axum::response::{IntoResponse, Response};
@@ -11,9 +41,21 @@ use tokio_util::io::ReaderStream;
 use crate::api::{Error, Result};
 use crate::{app, storage::ledger::AppendReciept};
 
+/// The JSON response body returned by [`append_delta`].
+///
+/// These two fields form the **high-water mark cursor** that the client stores
+/// after each successful upload. On the next sync session the client passes
+/// them back as query parameters to [`stream_delta`] to resume streaming from
+/// exactly where it left off, with no gap and no duplication.
 #[derive(Serialize)]
 pub struct AppendResponse {
+    /// Name of the segment file the payload was written to, e.g. `"delta_0000003"`.
     pub file_name: String,
+    /// Byte offset immediately after the last written byte in that segment.
+    ///
+    /// This is an **end offset**, not a start offset. Passing this value as
+    /// the `offset` query parameter in a subsequent `GET /sync/delta` request
+    /// will begin streaming from the first byte after the data just uploaded.
     pub offset: u64,
 }
 
@@ -26,6 +68,28 @@ impl From<AppendReciept> for AppendResponse {
     }
 }
 
+/// `POST /api/v1/sync/delta`
+///
+/// Accepts a raw encrypted payload from the client and appends it to that
+/// user's active ledger segment.
+///
+/// ## Framing
+///
+/// Before passing the bytes to the ledger actor, this handler prepends a
+/// 4-byte little-endian length value equal to the body size. The ledger
+/// domain layer itself is framing-agnostic and stores whatever bytes it
+/// receives verbatim.
+///
+/// ## Response
+///
+/// Returns `200 OK` with an [`AppendResponse`] JSON body containing the
+/// segment name and high-water mark offset.
+///
+/// ## Errors
+///
+/// Propagates any [`crate::storage::ledger::Error`] returned by the actor,
+/// including `500 Internal Server Error` if the actor task has terminated
+/// unexpectedly.
 pub async fn append_delta(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
@@ -42,14 +106,52 @@ pub async fn append_delta(
     Ok(Json(receipt.into()))
 }
 
+/// Query parameters accepted by [`stream_delta`].
 #[derive(Deserialize)]
 pub struct SyncRequest {
+    /// The segment filename to read from, e.g. `"delta_0000003"`.
+    ///
+    /// Must start with `"delta_"` and must not contain path separators.
     pub file: String,
+    /// The byte offset to start streaming from within the segment.
+    ///
+    /// The server silently clamps this to a minimum of `500` (the KOSH
+    /// header size) so that clients passing `0` are equivalent to clients
+    /// passing `500`. See [`Handle::read_segment`] for the full offset
+    /// validation logic.
+    ///
+    /// [`Handle::read_segment`]: crate::storage::ledger::handle::Handle::read_segment
     pub offset: u64,
 }
 
 use crate::api::Error::InvalidHeader;
 
+/// `GET /api/v1/sync/delta`
+///
+/// Streams the contents of a specific ledger segment starting from a given
+/// byte offset. The response body is a raw `application/octet-stream`.
+///
+/// The client reads the returned bytes and uses the 4-byte length prefixes
+/// written by [`append_delta`] to deserialize individual encrypted actions.
+///
+/// ## Path traversal protection
+///
+/// The `file` query parameter is validated at this handler level before being
+/// passed to [`Handle::read_segment`], which applies the same check again as
+/// a second line of defense. Requests with a filename that contains `/`, `\`,
+/// or does not start with `"delta_"` are rejected with `400 Bad Request`
+/// immediately, without touching the filesystem.
+///
+/// ## Errors
+///
+/// | Condition | Status |
+/// |-----------|--------|
+/// | Invalid `file` name | `400 Bad Request` |
+/// | Segment does not exist | `404 Not Found` |
+/// | `offset` out of bounds | `400 Bad Request` |
+/// | Actor is dead | `500 Internal Server Error` |
+///
+/// [`Handle::read_segment`]: crate::storage::ledger::handle::Handle::read_segment
 pub async fn stream_delta(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
@@ -79,11 +181,33 @@ pub async fn stream_delta(
     Ok((StatusCode::OK, headers, body))
 }
 
+/// Query parameters accepted by [`prune_ledger`].
 #[derive(Deserialize)]
 pub struct PruneRequest {
+    /// All segments with a numeric ID strictly less than this value will be deleted.
     pub before: u32,
 }
 
+/// `DELETE /api/v1/sync/prune`
+///
+/// Instructs the ledger actor to delete all delta segments for the
+/// authenticated user whose segment ID is strictly less than `before`.
+///
+/// This is called by the Android client after it has confirmed that all
+/// devices it manages have consumed and applied the events in those old
+/// segments. Pruning keeps the per-user ledger directory from growing
+/// indefinitely.
+///
+/// ## Safety
+///
+/// The actor enforces the invariant that the active segment is never deleted,
+/// even if the `before` value happens to equal the active segment's ID. Passing
+/// a `before` value **greater than** the active segment ID is rejected with
+/// `400 Bad Request`.
+///
+/// ## Response
+///
+/// Returns `200 OK` with an empty body on success.
 pub async fn prune_ledger(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
@@ -93,6 +217,7 @@ pub async fn prune_ledger(
 
     Ok(StatusCode::OK)
 }
+
 
 #[cfg(test)]
 mod tests {

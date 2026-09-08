@@ -158,12 +158,21 @@ pub enum Module {
     /// grace-period timeout warnings during shutdown.
     Logger,
 
+    /// Delta-CRDT sync ledger: segment writes, rotations, and prune operations.
     Ledger,
 }
 
 pub use service::Service;
 use tokio::sync::mpsc::Sender;
 
+/// Returns the platform-specific directory where Kosh stores its log files.
+///
+/// The path is `$XDG_STATE_HOME/kosh/logs` on Linux (typically
+/// `~/.local/state/kosh/logs`). Returns `None` if the platform does not
+/// provide a state directory.
+///
+/// Used by [`Service::start`] to determine where to create daily log files,
+/// and by the admin CLI (`kosh-cli`) to locate historical log files to display.
 #[must_use]
 pub fn path() -> Option<PathBuf> {
     dirs::state_dir().map(|x| x.join("kosh").join("logs"))

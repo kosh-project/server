@@ -23,6 +23,9 @@ pub struct State {
     pub storage: storage::Service,
     /// The `SQLite` connection pool for all database queries.
     pub db: SqlitePool,
+    /// The handle to the background ledger actor that manages per-user delta sync files.
+    ///
+    /// Cloning this is cheap — the `Handle` wraps an `mpsc::Sender` backed by an `Arc`.
     pub ledger: ledger::Handle,
     /// In-memory session cache. Checked before every database lookup in `auth_guard`
     /// to avoid hitting the disk on every authenticated request.

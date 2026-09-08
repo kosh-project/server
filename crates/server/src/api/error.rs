@@ -57,6 +57,13 @@ pub enum Error {
     #[error("Invalid header value : {}", .0)]
     InvalidHeader(#[from] InvalidHeaderValue),
 
+    /// An error propagated from the delta-CRDT sync ledger subsystem.
+    ///
+    /// This variant delegates `IntoResponse` directly to [`ledger::Error`],
+    /// which maps `SegmentNotFound` to `404`, `InvalidOffset`/`InvalidFileName`/
+    /// `InvalidPrune` to `400`, and all internal failures to `500`. This ensures
+    /// that the ledger domain's own HTTP semantics are preserved rather than
+    /// being masked by the API layer's generic catch-all.
     #[error(transparent)]
     Ledger(#[from] ledger::Error),
 }
