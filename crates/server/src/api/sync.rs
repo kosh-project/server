@@ -218,7 +218,6 @@ pub async fn prune_ledger(
     Ok(StatusCode::OK)
 }
 
-
 #[cfg(test)]
 mod tests {
     use anyhow::Result;

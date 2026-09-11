@@ -80,4 +80,3 @@ pub struct AppendReciept {
     /// uploaded — skipping nothing and re-reading nothing.
     pub offset: u64,
 }
-
