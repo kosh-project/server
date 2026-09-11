@@ -1,11 +1,8 @@
-use crate::storage::{
-    Payload,
-    ledger::{
+use crate::storage::ledger::{
         AppendReciept,
         Error::{self, CommitterDead},
         Result,
-    },
-};
+    };
 use std::{
     cmp,
     io::ErrorKind,

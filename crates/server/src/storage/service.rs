@@ -10,7 +10,7 @@ use crate::logger::Module;
 use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
 use crate::storage::{
-    Error::{FileAlreadyExists, Internal, InvalidFileName, NotFound},
+    Error::{Internal, InvalidFileName, NotFound},
     Payload, Result,
 };
 use std::path::PathBuf;

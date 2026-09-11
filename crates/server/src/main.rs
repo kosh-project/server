@@ -22,7 +22,7 @@ async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
-            .expect("Failed to install Ctrl+C handler")
+            .expect("Failed to install Ctrl+C handler");
     };
 
     #[cfg(unix)]
@@ -39,7 +39,7 @@ async fn shutdown_signal() {
     let term = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
+        () = ctrl_c => {},
         _ = term => {},
     }
 }
