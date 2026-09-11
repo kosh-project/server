@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddr};
 
 use tokio::{
     io::{self},
@@ -75,19 +75,22 @@ async fn main() -> io::Result<()> {
 
     let app = route_main(app_state);
 
-    let addr = Ipv4Addr::UNSPECIFIED;
+    let addr = Ipv4Addr::from_octets([0, 0, 0, 0]);
     let listener = TcpListener::bind((addr, PORT)).await?;
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
-    let server = axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            let mut rx = shutdown_rx.clone();
-            let _ = rx.changed().await;
+    let server = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move {
+        let mut rx = shutdown_rx.clone();
+        let _ = rx.changed().await;
 
-            info!(Module::Server, "Graceful shutdown initiated...");
-        })
-        .into_future();
+        info!(Module::Server, "Graceful shutdown initiated...");
+    })
+    .into_future();
 
     pin!(server);
     info!(Module::Server, "Listening on port {PORT}");

@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::SocketAddr;
 
 use crate::logger::Entry;
 use crate::logger::GLOBAL_LOGGER;
@@ -28,7 +28,7 @@ use axum::{
 /// log message is only allocated inside the `if let` block, which is only entered
 /// when an error entry is actually present in the response extensions.
 pub async fn log_middleware(
-    ConnectInfo(addr): ConnectInfo<Ipv4Addr>,
+    ConnectInfo(socket): ConnectInfo<SocketAddr>,
     request: Request,
     next: Next,
 ) -> impl IntoResponse {
@@ -42,7 +42,10 @@ pub async fn log_middleware(
     {
         entry.message = format!(
             "[{}] {} {} FAILED:\n{}",
-            addr, method, path, entry.message
+            socket.ip(),
+            method,
+            path,
+            entry.message
         );
 
         let _ = sender.try_send(entry);
