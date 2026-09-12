@@ -134,18 +134,17 @@ impl Service {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use core::result::Result;
+    use anyhow::Result;
     use std::io::Error as IoErr;
-
-    use tokio::fs::File;
 
     use super::*;
 
     use crate::storage::tests::with_temp_service;
 
     #[tokio::test]
-    async fn reject_invalid_filename() -> crate::storage::Result<()> {
+    async fn reject_invalid_filename() -> Result<()> {
         with_temp_service(|service| async move {
             // Reject for any occurrence of forward slash
             let result = service.begin_transaction(&"o///reo/hiuh//i");
@@ -158,15 +157,16 @@ mod tests {
             assert!(matches!(result, Err(InvalidFileName)));
             let result = service.begin_transaction(&"../../../../etc/passwd");
             assert!(result.is_err());
-            assert!(matches!(result, Err(InvalidFileName)))
-        })
-        .await;
+            assert!(matches!(result, Err(InvalidFileName)));
 
-        Ok(())
+            Ok(())
+        })
+        .await
     }
 
     #[tokio::test]
-    async fn concurrent_write_collisions_dont_panic() {
+    #[allow(clippy::expect_used)]
+    async fn concurrent_write_collisions_dont_panic() -> Result<()> {
         with_temp_service(|service| async move {
             let service_a = service.clone();
             let service_b = service.clone();
@@ -194,8 +194,8 @@ mod tests {
             let (result_a, result_b) = tokio::join!(task_a, task_b);
 
             // Test : Writing to same file doesn't fail
-            let metadata_a = result_a.unwrap().expect("task_a failed");
-            let metadata_b = result_b.unwrap().expect("task_b failed");
+            let metadata_a = result_a?.expect("task_a failed");
+            let metadata_b = result_b?.expect("task_b failed");
 
             // Test: Both files wrote exact same data
             assert_eq!(
@@ -207,17 +207,19 @@ mod tests {
                 service.vault_path.join(metadata_a.hash.to_string());
             // Test: Expected path exists
             assert!(expected_path.exists());
+
+            Ok(())
         })
-        .await;
+        .await
     }
 
     #[tokio::test]
-    async fn validation_success() {
+    async fn validation_success() -> Result<()> {
         with_temp_service(async move |service| {
             // Valid name rules
-            let result = service.begin_transaction(&"oreo.tmp.jks");
-            assert!(result.is_ok());
-            assert!(matches!(result, Ok(_)));
+            service.begin_transaction(&"oreo.tmp.jks")?;
+
+            Ok(())
         })
         .await
     }

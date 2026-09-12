@@ -66,8 +66,10 @@ pub async fn auth_guard(
 }
 
 #[cfg(test)]
+#[allow(clippy::panic_in_result_fn)]
 mod tests {
     use crate::app::AppStateBuilder;
+    use anyhow::Result;
     use axum::{Router, body::Body, http::Request, routing::get};
     use blake3::hash;
     use sqlx::sqlite::SqlitePoolOptions;
@@ -78,15 +80,12 @@ mod tests {
     // This test checks, that in-memory cache is being used first, instead of
     // querrying the database first.
     #[tokio::test]
-    async fn auth_guard_bypasses_db_on_cache_hit() {
+    async fn auth_guard_bypasses_db_on_cache_hit() -> Result<()> {
         // Even though we simulate establishing a connection to db,
         // but accessing this db will itself result in error.
         // and Ofcourse, this error will be bypassed if AppState::session_cache
         // returns the user_id, which is exactly what we want to know.
-        let pool = SqlitePoolOptions::new()
-            .connect("sqlite::memory:")
-            .await
-            .unwrap();
+        let pool = SqlitePoolOptions::new().connect("sqlite::memory:").await?;
 
         let state = AppStateBuilder::new().vault_path("/tmp").db(pool).build();
 
@@ -112,5 +111,7 @@ mod tests {
 
         // Test: We bypassed db querry for token check?
         assert_eq!(response.status(), 200);
+
+        Ok(())
     }
 }

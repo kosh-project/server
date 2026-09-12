@@ -7,6 +7,8 @@ use webdav_server::model::{session::Session, user::User};
 
 #[tokio::test]
 #[serial_test::serial]
+#[allow(clippy::panic_in_result_fn)]
+#[allow(clippy::clippy::indexing_slicing)]
 async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
     with_sandbox_env("webdav_list_test", async move |ctx| {
         User::create(&ctx.db, &vec![0u8; 32], "fake_verifier".into()).await?;
@@ -28,7 +30,7 @@ async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
         let empty_resp = ctx
             .client
             .get(&endpoint)
-            .header("Authorization", format!("Bearer {}", token))
+            .header("Authorization", format!("Bearer {token}"))
             .send()
             .await?;
 
@@ -53,8 +55,8 @@ async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
             "0"
         ).execute(&ctx.db).await?;
 
-        let resp = ctx.client.get(format!("{}?tag=0", endpoint))
-            .header("Authorization", format!("Bearer {}", token))
+        let resp = ctx.client.get(format!("{endpoint}?tag=0"))
+            .header("Authorization", format!("Bearer {token}"))
             .send()
             .await?;
 
