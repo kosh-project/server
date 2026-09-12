@@ -81,16 +81,17 @@ mod tests {
 
     #[test]
     fn test_mouse_drag_boundary_clamps() {
-        let mut list = List::default();
-
-        list.area = Rect {
-            x: 0,
-            y: 0,
-            width: 100,
-            height: 50,
+        let mut list = List {
+            area: Rect {
+                x: 0,
+                y: 0,
+                width: 100,
+                height: 50,
+            },
+            col_level_w: 7,
+            col_module_w: 12,
+            ..Default::default()
         };
-        list.col_level_w = 7;
-        list.col_module_w = 12;
 
         let click_down = MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),

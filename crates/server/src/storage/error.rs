@@ -93,10 +93,17 @@ impl IntoResponse for Error {
         match self {
             // Client-facing errors: safe to expose details.
             InvalidFileName | InvalidPath { .. } => {
-                (StatusCode::BAD_REQUEST, "Invalid file path or name".into())
+                (StatusCode::BAD_REQUEST, "Invalid file path or name")
+                    .into_response()
             }
-            FileAlreadyExists(msg) => (StatusCode::CONFLICT, msg),
-            NotFound => (StatusCode::NOT_FOUND, "Blob not found".into()),
+            FileAlreadyExists(msg) => {
+                (StatusCode::CONFLICT, msg).into_response()
+            }
+            NotFound => {
+                (StatusCode::NOT_FOUND, "Blob not found").into_response()
+            }
+
+            Self::Ledger(msg) => msg.into_response(),
 
             // Internal errors: hide details from the client.
             VaultNotFound
@@ -104,13 +111,11 @@ impl IntoResponse for Error {
             | WriteChunkFailure { .. }
             | StreamReadError(_)
             | RenameError { .. }
-            | Internal(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal Server Error".into(),
-            ),
-            _ => todo!("Missing impl for LedgerWriteErr, LedgerReadErr"),
+            | Internal(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+                    .into_response()
+            }
         }
-        .into_response()
     }
 }
 
