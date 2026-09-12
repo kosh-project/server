@@ -107,7 +107,8 @@ macro_rules! error {
 /// service receives this entry, it exits its receive loop cleanly.
 ///
 /// This must be called during the server's graceful shutdown sequence, before
-/// awaiting [`crate::logger::service::LoggerHandler::shutdown_with_grace`].
+/// awaiting `LoggerHandler::shutdown_with_grace` on the handle returned by
+/// `Service::start`.
 ///
 /// This macro is a no-op if the logger has not been initialized.
 ///

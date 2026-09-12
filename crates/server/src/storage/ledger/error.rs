@@ -15,14 +15,13 @@ use crate::logger::{Level, Loggable, Module};
 /// implementation on this type.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    /// The [`Committer`] actor task terminated while a caller was still holding a
+    /// The `Committer` actor task terminated while a caller was still holding a
     /// [`Handle`]. This can happen if the actor panicked or the channel was
     /// closed unexpectedly.
     ///
     /// This is a fatal condition that indicates a bug or resource exhaustion.
     /// The request that triggered it will receive a `500 Internal Server Error`.
     ///
-    /// [`Committer`]: crate::storage::ledger::committer::Committer
     /// [`Handle`]: crate::storage::ledger::handle::Handle
     #[error("Comitter died before an active sender")]
     CommitterDead,

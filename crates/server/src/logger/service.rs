@@ -41,8 +41,8 @@ static DAY_MILLIS: i64 = 86_400_000;
 /// and the unbound Unix Datagram Socket used for broadcasting. It runs entirely on a
 /// dedicated `tokio` task and never shares memory with the HTTP request threads.
 ///
-/// Callers interact with the service indirectly through the [`GLOBAL_LOGGER`] sender
-/// and the [`LoggerHandler`] returned by [`Service::start`]. The `Service` itself is
+/// Callers interact with the service indirectly through the [`crate::logger::GLOBAL_LOGGER`]
+/// sender and the `LoggerHandler` returned by [`Service::start`]. The `Service` itself is
 /// consumed by the background task and is not accessible after startup.
 pub struct Service {
     /// The receive end of the bounded MPSC channel.
@@ -81,16 +81,16 @@ impl Service {
     /// 2. Resolves the XDG state directory and creates `kosh/logs` if it does not exist.
     /// 3. Opens (or creates) the current day's log file in append mode.
     /// 4. Creates an unbound Unix Datagram Socket for broadcasting.
-    /// 5. Spawns a dedicated `tokio` task that runs the [`Service::run`] loop.
+    /// 5. Spawns a dedicated `tokio` task that runs the `Service::run` loop.
     ///
-    /// The returned [`Sender`] should be stored in [`GLOBAL_LOGGER`] immediately after
-    /// this call. The returned [`LoggerHandler`] should be kept alive and awaited during
-    /// graceful shutdown via [`LoggerHandler::shutdown_with_grace`].
+    /// The returned `Sender` should be stored in [`crate::logger::GLOBAL_LOGGER`] immediately
+    /// after this call. The returned `LoggerHandler` should be kept alive and awaited
+    /// during graceful shutdown via `LoggerHandler::shutdown_with_grace`.
     ///
     /// # Errors
     ///
-    /// Returns [`error::Error::LogDirectoryInitialization`] if the XDG state directory
-    /// cannot be determined. Returns [`error::Error::Io`] if the log directory cannot be
+    /// Returns `Error::LogDirectoryInitialization` if the XDG state directory
+    /// cannot be determined. Returns `Error::Io` if the log directory cannot be
     /// created or the initial log file cannot be opened.
     pub async fn start(
         capacity: usize,
@@ -134,7 +134,7 @@ impl Service {
     /// The main receive loop of the logging service.
     ///
     /// Runs until a [`Level::Shutdown`] entry is received, at which point it returns
-    /// and the spawned task completes, allowing [`LoggerHandler::shutdown_with_grace`]
+    /// and the spawned task completes, allowing `LoggerHandler::shutdown_with_grace`
     /// to join cleanly.
     ///
     /// Errors from [`Service::commit`] (disk write failures, serialization failures)
@@ -231,6 +231,7 @@ impl LoggerHandler {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic_in_result_fn)]
 mod test {
     use std::env::{self, remove_var, set_var, var_os};
 

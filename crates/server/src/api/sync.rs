@@ -28,11 +28,11 @@
 //! client calls `stream_delta`, it can use the length prefix to read one
 //! action at a time from the raw byte stream.
 
+use axum::Json;
 use axum::body::Body;
 use axum::extract::Query;
 use axum::response::IntoResponse;
 use axum::{Extension, extract::State};
-use axum::Json;
 use bytes::Bytes;
 use hyper::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -95,7 +95,7 @@ pub async fn append_delta(
     Extension(user_id): Extension<i64>,
     body: Bytes,
 ) -> Result<Json<AppendResponse>> {
-    let len = body.len() as u32;
+    let len = u32::try_from(body.len())?;
 
     let mut payload = Vec::with_capacity(2 + body.len());
     payload.extend_from_slice(&len.to_le_bytes());
@@ -120,7 +120,7 @@ pub struct SyncRequest {
     /// passing `500`. See [`Handle::read_segment`] for the full offset
     /// validation logic.
     ///
-    /// [`Handle::read_segment`]: crate::storage::ledger::handle::Handle::read_segment
+    /// [`Handle::read_segment`]: crate::storage::ledger::Handle::read_segment
     pub offset: u64,
 }
 
@@ -151,7 +151,7 @@ use crate::api::Error::InvalidHeader;
 /// | `offset` out of bounds | `400 Bad Request` |
 /// | Actor is dead | `500 Internal Server Error` |
 ///
-/// [`Handle::read_segment`]: crate::storage::ledger::handle::Handle::read_segment
+/// [`Handle::read_segment`]: crate::storage::ledger::Handle::read_segment
 pub async fn stream_delta(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
@@ -205,6 +205,13 @@ pub struct PruneRequest {
 /// a `before` value **greater than** the active segment ID is rejected with
 /// `400 Bad Request`.
 ///
+/// ## Errors
+///
+/// | Condition | Status |
+/// |-----------|--------|
+/// | `before` exceeds the active segment ID | `400 Bad Request` |
+/// | Actor task has terminated unexpectedly | `500 Internal Server Error` |
+///
 /// ## Response
 ///
 /// Returns `200 OK` with an empty body on success.
@@ -219,6 +226,9 @@ pub async fn prune_ledger(
 }
 
 #[cfg(test)]
+#[allow(clippy::panic_in_result_fn)]
+#[allow(clippy::as_conversions)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     use anyhow::Result;
     use axum::{
@@ -230,7 +240,6 @@ mod tests {
     use http_body_util::BodyExt;
     use hyper::StatusCode;
     use sqlx::SqlitePool;
-    use std::{any, assert_matches};
     use tmpdir::TmpDir;
 
     use crate::{

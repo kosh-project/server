@@ -1,5 +1,6 @@
 use crate::{model::error::Result, storage::file::Metadata};
 use serde::Serialize;
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use sqlx::{SqlitePool, query};
 use uuid::Uuid;
 
@@ -26,7 +27,16 @@ pub struct Asset {
 /// Stored as an `i32` in `SQLite` to minimize storage footprint. The client
 /// uses this tag to route an asset to the correct UI view (gallery or drive)
 /// without needing to inspect the encrypted file contents.
-#[derive(sqlx::Type, Copy, Clone)]
+#[derive(
+    sqlx::Type,
+    Copy,
+    Clone,
+    Serialize_repr,
+    Deserialize_repr,
+    PartialEq,
+    Eq,
+    Debug,
+)]
 #[repr(i32)]
 pub enum AssetTag {
     /// Metadata file for the Gallery section (encrypted index, thumbnails, etc.).
@@ -37,6 +47,13 @@ pub enum AssetTag {
     DriveMeta = 2,
     /// An encrypted file belonging to the Drive section.
     DriveItem = 3,
+}
+
+impl From<AssetTag> for i32 {
+    #[allow(clippy::as_conversions)]
+    fn from(tag: AssetTag) -> Self {
+        tag as Self
+    }
 }
 
 impl Asset {
@@ -137,27 +154,38 @@ pub struct AssetMetadataRow {
     pub hash: String,
     pub size_bytes: i64,
     pub last_modified: i64,
-    pub tag: i16,
+    pub tag: AssetTag,
 }
 
 impl Asset {
+    /// Returns a list of asset metadata rows for a given user.
+    ///
+    /// If `tag_filter` is `Some`, only assets with a matching [`AssetTag`] are
+    /// returned. If `None`, all of the user's assets are returned, ordered by
+    /// `last_modified` descending (newest first).
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`sqlx::Error`] if the database query fails.
     pub async fn list(
         pool: &SqlitePool,
         user_id: i64,
-        tag_filter: Option<i16>,
+        tag_filter: Option<AssetTag>,
     ) -> Result<Vec<AssetMetadataRow>> {
-        let tag_str = tag_filter.map(|t| t.to_string());
         let rows = sqlx::query!(
             r#"
-            SELECT hash, size_bytes, last_modified, tag
+            SELECT
+                hash,
+                size_bytes,
+                last_modified,
+                tag as "tag: AssetTag"
             FROM assets
-            WHERE user_id = ?
-                AND (? IS NULL OR tag = ?)
+            WHERE user_id = ?1
+                AND (?2 IS NULL OR tag = ?2)
             ORDER BY last_modified DESC
             "#,
             user_id,
-            tag_str,
-            tag_str,
+            tag_filter,
         )
         .fetch_all(pool)
         .await?;
@@ -168,7 +196,7 @@ impl Asset {
                 hash: hex::encode(row.hash),
                 size_bytes: row.size_bytes,
                 last_modified: row.last_modified,
-                tag: row.tag.parse::<i64>().unwrap_or(0) as i16,
+                tag: row.tag,
             })
             .collect();
 
@@ -192,12 +220,15 @@ impl TryFrom<&str> for AssetTag {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_in_result)]
+#[allow(clippy::panic_in_result_fn)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     use anyhow::Result;
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::model::asset::Asset;
+    use crate::model::asset::{Asset, AssetTag::GalleryMeta};
 
     async fn setup_db() -> Result<SqlitePool> {
         let pool = SqlitePool::connect("sqlite::memory:").await?;
@@ -238,7 +269,7 @@ mod tests {
     async fn count_owners(pool: &SqlitePool, hash: &[u8]) -> Result<i64> {
         let count = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM assets WHERE hash = ?",
-            hash as &[u8]
+            &hash[..]
         )
         .fetch_one(pool)
         .await?;
@@ -324,10 +355,11 @@ mod tests {
             "Expected oldest item to be listed last"
         );
 
-        let meta_assets = Asset::list(&pool, user_id, Some(0)).await?;
+        let meta_assets =
+            Asset::list(&pool, user_id, Some(GalleryMeta)).await?;
         assert_eq!(meta_assets.len(), 2, "Should filter out tag 1");
-        assert_eq!(meta_assets[0].tag, 0);
-        assert_eq!(meta_assets[1].tag, 0);
+        assert_eq!(meta_assets[0].tag, GalleryMeta);
+        assert_eq!(meta_assets[1].tag, GalleryMeta);
         assert_eq!(
             meta_assets[0].last_modified, 300,
             "Newest meta should be listed first"

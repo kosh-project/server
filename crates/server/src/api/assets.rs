@@ -131,14 +131,11 @@ impl FileStatus {
 /// - Returns an internal error if the storage transaction or database insertion fails.
 pub async fn upload(
     State(state): State<AppState>,
-    Path(tag_str): Path<String>,
+    Path(tag): Path<AssetTag>,
     headers: HeaderMap,
     Extension(user_id): Extension<i64>,
     body: Body,
 ) -> crate::Result<impl IntoResponse> {
-    let tag = AssetTag::try_from(tag_str.as_str())
-        .map_err(|()| BadRequest("Invalid Tag".into()))?;
-
     let file_name = headers
         .get("X-File-Name")
         .and_then(|v| v.to_str().ok())
@@ -198,7 +195,7 @@ pub async fn upload(
 
 #[derive(Deserialize)]
 pub struct ListQuery {
-    pub tag: Option<i16>,
+    pub tag: Option<AssetTag>,
 }
 
 #[derive(Serialize)]
@@ -206,6 +203,15 @@ pub struct ListResponse {
     pub assets: Vec<AssetMetadataRow>,
 }
 
+/// `GET /api/v1/assets`
+///
+/// Returns a JSON list of asset metadata rows for the authenticated user.
+/// An optional `tag` query parameter filters the results to a specific
+/// [`AssetTag`] category. If omitted, assets from all categories are returned.
+///
+/// ## Errors
+///
+/// Returns `500 Internal Server Error` if the database query fails.
 pub async fn list(
     State(state): State<AppState>,
     Extension(user_id): Extension<i64>,
