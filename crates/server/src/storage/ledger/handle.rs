@@ -1,10 +1,7 @@
-use crate::storage::{
-    Payload,
-    ledger::{
-        AppendReciept,
-        Error::{self, CommitterDead},
-        Result,
-    },
+use crate::storage::ledger::{
+    AppendReciept,
+    Error::{self, CommitterDead},
+    Result,
 };
 use std::{
     cmp,
@@ -28,7 +25,7 @@ use crate::storage::ledger::{action::Action, committer::Committer};
 ///
 /// `Handle` is the public interface for all ledger operations. It wraps an
 /// `mpsc::Sender<Action>` and provides typed async methods that send requests
-/// to the single-writer [`Committer`] task and await their results.
+/// to the single-writer `Committer` task and await their results.
 ///
 /// Because `Handle` implements `Clone`, it can be stored in [`AppState`] and
 /// cloned freely on every incoming HTTP request without copying any data — only
@@ -37,13 +34,12 @@ use crate::storage::ledger::{action::Action, committer::Committer};
 /// ## Read vs. write paths
 ///
 /// - **Write path** (`append`, `prune`, `shutdown`): requests are sent through
-///   the `mpsc` channel to the [`Committer`] actor, which processes them
+///   the `mpsc` channel to the `Committer` actor, which processes them
 ///   serially. This guarantees exclusive access to the segment files.
 /// - **Read path** (`read_segment`): opens a segment file directly from the
 ///   calling task without going through the channel. This enables many
 ///   concurrent readers at zero cost to the actor queue.
 ///
-/// [`Committer`]: crate::storage::ledger::committer::Committer
 /// [`AppState`]: crate::app::State
 #[derive(Clone)]
 pub struct Handle {
@@ -52,16 +48,15 @@ pub struct Handle {
 }
 
 impl Handle {
-    /// Spawns the [`Committer`] actor and returns a `Handle` connected to it.
+    /// Spawns the `Committer` actor and returns a `Handle` connected to it.
     ///
     /// Creates a bounded `mpsc` channel with a capacity of 100, constructs a
-    /// [`Committer`] bound to `vault_dir`, and spawns its `run` loop as a
+    /// `Committer` bound to `vault_dir`, and spawns its `run` loop as a
     /// detached Tokio task. The `Handle` wraps the sender end of that channel.
     ///
     /// This is the only way to create a `Handle`. It should be called once at
     /// server startup and the result stored in [`AppState`].
     ///
-    /// [`Committer`]: crate::storage::ledger::committer::Committer
     /// [`AppState`]: crate::app::State
     #[must_use]
     pub fn spawn(vault_dir: PathBuf) -> Self {
@@ -84,7 +79,7 @@ impl Handle {
 
     /// Appends a pre-framed payload to the active segment for a user.
     ///
-    /// Sends an [`Action::Append`] to the [`Committer`] actor and blocks until
+    /// Sends an `Action::Append` to the `Committer` actor and blocks until
     /// the result is returned over a `oneshot` channel.
     ///
     /// The caller is responsible for any framing applied before calling this
@@ -97,9 +92,6 @@ impl Handle {
     /// Returns [`Error::CommitterDead`] if the actor task has terminated
     /// unexpectedly, either because the channel is closed or the `oneshot`
     /// reply was dropped.
-    ///
-    /// [`Action::Append`]: crate::storage::ledger::action::Action::Append
-    /// [`Committer`]: crate::storage::ledger::committer::Committer
     pub async fn append(
         &self,
         user_id: i64,
@@ -200,15 +192,12 @@ impl Handle {
     /// sender is cloned before that move so that the shutdown path still has
     /// something to send on.
     ///
-    /// Sends [`Action::Shutdown`] and awaits the reply. The [`Committer`] calls
+    /// Sends `Action::Shutdown` and awaits the reply. The `Committer` calls
     /// `sync_all()` on every open segment before replying, guaranteeing all
     /// page cache data is committed to disk.
     ///
     /// If the channel is already closed (i.e. the actor crashed), this method
     /// silently does nothing rather than panicking.
-    ///
-    /// [`Action::Shutdown`]: crate::storage::ledger::action::Action::Shutdown
-    /// [`Committer`]: crate::storage::ledger::committer::Committer
     pub async fn shutdown(sender: &Sender<Action>) {
         let (tx, rx) = oneshot::channel();
         if sender.send(Action::Shutdown { reply: tx }).await.is_ok() {
@@ -220,8 +209,8 @@ impl Handle {
     /// the actor.
     ///
     /// All segments with a numeric ID strictly less than `before` are removed
-    /// from disk, provided the actor's safety checks pass. See
-    /// [`Committer::prune`] for the full deletion algorithm and invariants.
+    /// from disk, provided the actor's safety checks pass. See the `Committer::prune`
+    /// method for the full deletion algorithm and invariants.
     ///
     /// ## Errors
     ///
@@ -230,8 +219,6 @@ impl Handle {
     ///
     /// Returns [`Error::CommitterDead`] if the actor task has terminated
     /// unexpectedly.
-    ///
-    /// [`Committer::prune`]: crate::storage::ledger::committer::Committer::prune
     pub async fn prune(&self, user_id: i64, before: u32) -> Result<()> {
         let (reply, recv) = oneshot::channel();
 

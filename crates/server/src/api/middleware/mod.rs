@@ -2,9 +2,9 @@
 //!
 //! This module exposes two middleware functions that wrap the protected route layer:
 //!
-//! - [`auth_guard`]: Validates the session token on every incoming request before
+//! - [`auth_guard()`]: Validates the session token on every incoming request before
 //!   passing it to the handler.
-//! - [`log_middleware`]: Runs after the handler completes and collects error telemetry
+//! - [`log_middleware()`]: Runs after the handler completes and collects error telemetry
 //!   from the response extensions for dispatch to the logging service.
 mod auth_guard;
 mod log;

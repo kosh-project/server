@@ -1,4 +1,4 @@
-use std::any;
+#![allow(clippy::panic_in_result_fn)]
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -7,7 +7,7 @@ use tokio::fs;
 use tokio::io::AsyncReadExt;
 
 use crate::storage::ledger::segment::Segment;
-use crate::storage::ledger::{Error, Handle, handle};
+use crate::storage::ledger::{Error, Handle};
 
 type UserId = i64;
 
@@ -67,7 +67,7 @@ async fn rotation_physics() -> anyhow::Result<()> {
     let (dir, user_id) = set_env().await?;
     let vault_path = dir.to_path_buf();
 
-    let mut segment = Segment::load_or_create(&vault_path, user_id).await?;
+    let segment = Segment::load_or_create(&vault_path, user_id).await?;
 
     let new_segment = segment.rotate(&vault_path, user_id).await?;
 

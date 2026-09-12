@@ -15,7 +15,7 @@ use crate::logger::{Level, Module};
 ///
 /// ## Usage
 ///
-/// This trait is consumed by [`crate::Error::into_response`], which calls `log_level`
+/// This trait is consumed by `Error::into_response`, which calls `log_level`
 /// and `log_module` on the top-level error *before* consuming it (since `into_response`
 /// takes `self` by value). The resulting values are packed into a [`crate::logger::Entry`]
 /// and placed into the response extension backpack for the logging middleware to pick up.

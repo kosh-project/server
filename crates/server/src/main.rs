@@ -1,7 +1,9 @@
-use std::net::{Ipv4Addr, SocketAddr};
+// #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::error::Error;
+use std::net::{Ipv4Addr, SocketAddr};
+use tokio::io;
 use tokio::{
-    io::{self},
     net::TcpListener,
     pin, signal,
     sync::watch,
@@ -18,36 +20,40 @@ use webdav_server::{
 
 use sqlx::sqlite::SqlitePoolOptions;
 
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler")
-    };
+async fn shutdown_signal() -> io::Result<()> {
+    type Err = io::Error;
+    let ctrl_c = signal::ctrl_c();
 
     #[cfg(unix)]
     let term = async {
         use tokio::signal::unix::{SignalKind, signal};
 
-        signal(SignalKind::terminate())
-            .expect("Failed to install SIGTERM handler")
-            .recv()
-            .await
+        let mut signal = signal(SignalKind::terminate())?;
+
+        signal.recv().await;
+
+        Ok::<(), Err>(())
     };
 
     #[cfg(not(unix))]
-    let term = std::future::pending::<()>();
+    let term = async {
+        std::future::pending::<()>().await;
+
+        Ok::<(), Err>(())
+    };
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = term => {},
+        x = ctrl_c => { x?; },
+        x = term => { x?; },
     }
+
+    Ok(())
 }
 
 const PORT: u16 = 6969;
 
 #[tokio::main]
-async fn main() -> io::Result<()> {
+async fn main() -> Result<(), Box<dyn Error>> {
     tokio::fs::create_dir_all("./test/vault").await?;
     info!(Module::Storage, "Vault initialized");
 
@@ -55,16 +61,15 @@ async fn main() -> io::Result<()> {
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect("sqlite://test/vault/metadata.db")
-        .await
-        .expect("Failed to connect to SQLite!");
+        .await?;
 
     let (log_sender, logger_handle) = logger::Service::start(1000)
         .await
-        .unwrap_or_else(|e| panic!("Logging engine failed to boot {e}"));
+        .map_err(|e| format!("Logging engine failed to boot {e}"))?;
 
     GLOBAL_LOGGER
         .set(log_sender)
-        .expect("Failed to initiate global logger");
+        .map_err(|e| format!("Failed to initiate global logger {e:?}"))?;
 
     let app_state = AppStateBuilder::new()
         .db(pool.clone())
@@ -101,7 +106,9 @@ async fn main() -> io::Result<()> {
                 fatal!(Module::Server, "Server error {e}");
             }
         },
-        () = shutdown_signal() => {
+        res = shutdown_signal() => {
+            res?;
+
             info!(Module::Server, "Shutdown signal recieved. Ignoring any new connections...");
 
             let _ = shutdown_tx.send(true);

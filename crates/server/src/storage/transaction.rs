@@ -21,8 +21,8 @@ use uuid::Uuid;
 #[derive(Debug)]
 /// A single write transaction for committing a blob to the vault.
 ///
-/// A `Transaction` is created by [`Service::try_save`] and represents the lifecycle
-/// of one upload from start to finish. It manages two files:
+/// A `Transaction` is created by [`crate::storage::service::Service::try_save`] and
+/// represents the lifecycle of one upload from start to finish. It manages two files:
 ///
 /// 1. A temporary staging file at `<vault>/<uuid>.tmp`, where bytes are streamed.
 /// 2. The final blob file at `<vault>/<blake3_hash>`, which is created via an atomic `rename(2)`.
@@ -217,7 +217,9 @@ impl AsRef<Self> for Transaction {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic_in_result_fn)]
 mod test {
+    use crate::storage::Error::CreateTempFile;
     use blake3::Hasher;
     use bytes::Bytes;
     use std::{
@@ -230,7 +232,7 @@ mod test {
     };
 
     #[tokio::test]
-    async fn successful_commit_and_hash() {
+    async fn successful_commit_and_hash() -> anyhow::Result<()> {
         with_temp_transaction(async move |transaction, vault_path| {
             let chunks: Vec<Result<Bytes, IoErr>> = vec![
                 Ok(Bytes::from("hello")),
@@ -238,41 +240,38 @@ mod test {
                 Ok(Bytes::from("world")),
             ];
 
-            let payload =
-                Payload::new(11 as u64, futures::stream::iter(chunks));
+            let payload = Payload::new(11_u64, futures::stream::iter(chunks));
 
             let result = transaction.commit(payload).await;
 
-            assert!(result.is_ok());
-
-            let metadata = result.as_ref().unwrap();
+            let metadata = result?;
 
             let target_path = vault_path.join(metadata.hash.to_string());
 
             let mut hasher = Hasher::new();
-            let bytes = tokio::fs::read(target_path).await.unwrap();
+            let bytes = tokio::fs::read(target_path).await?;
             hasher.update(&bytes);
 
             let expected_hash = hasher.finalize().to_string();
 
             assert_eq!(expected_hash, metadata.hash.to_string());
+
+            Ok(())
         })
         .await
     }
 
     #[tokio::test]
-    async fn zero_byte_stream_creates_empty_file() {
+    async fn zero_byte_stream_creates_empty_file() -> anyhow::Result<()> {
         with_temp_transaction(async move |transaction, vault_path| {
             let chunks: Vec<Result<Bytes, IoErr>> = Vec::new();
 
-            let payload = Payload::new(0 as u64, futures::stream::iter(chunks));
+            let payload = Payload::new(0u64, futures::stream::iter(chunks));
 
             let result = transaction.commit(payload).await;
 
             // Test: Should succeed w/o panic
-            assert!(result.is_ok());
-
-            let metadata = result.unwrap();
+            let metadata = result?;
 
             assert_eq!(metadata.size, 0);
 
@@ -284,13 +283,15 @@ mod test {
             let expected_hash = Hasher::new().finalize().to_string();
 
             // Test: Hashes match
-            assert_eq!(metadata.hash.to_string(), expected_hash)
+            assert_eq!(metadata.hash.to_string(), expected_hash);
+
+            Ok(())
         })
-        .await;
+        .await
     }
 
     #[tokio::test]
-    async fn aborted_test_cleans_up_garbage() {
+    async fn aborted_test_cleans_up_garbage() -> anyhow::Result<()> {
         with_temp_transaction(async move |transaction, _vault_path| {
             let temp_path = transaction.temp_path().to_owned();
 
@@ -299,21 +300,21 @@ mod test {
                 Err(IoErr::new(ErrorKind::ConnectionAborted, "Wifi dies, lol")),
             ];
 
-            let payload =
-                Payload::new(20 as u64, futures::stream::iter(chunks));
+            let payload = Payload::new(20_u64, futures::stream::iter(chunks));
 
             let result = transaction.commit(payload).await;
 
             assert!(result.is_err());
 
             assert!(!temp_path.exists());
-            // assert!(!target_path.exists());
+
+            Ok(())
         })
-        .await;
+        .await
     }
 
     #[tokio::test]
-    async fn transaction_fails_if_vault_missing() {
+    async fn transaction_fails_if_vault_missing() -> anyhow::Result<()> {
         let vault = PathBuf::from("/tmp/path/that/possibly/doesnt/exist/lol");
         let transaction = Transaction::new(vault);
 
@@ -328,35 +329,37 @@ mod test {
         // Test: No problem parsing the data
         assert!(result.is_err());
 
-        use crate::storage::Error::CreateTempFile;
-
         // Test: Yields CreateTempFile Error, 'cause vault directory was missing
         assert!(
             matches!(result, Err(CreateTempFile { .. })),
             "Expected Err(CreateTempFile)"
         );
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn hardcoded_hash_correctness() {
+    async fn hardcoded_hash_correctness() -> anyhow::Result<()> {
         with_temp_transaction(async move |transaction, _vault_path| {
             let payload : Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("hello world"))];
             let f_stream = futures::stream::iter(payload);
 
-            let payload = Payload::new(11 as u64, f_stream);
+            let payload = Payload::new(11_u64, f_stream);
 
-            let metadata = transaction.commit(payload).await.unwrap();
+            let metadata = transaction.commit(payload).await?;
 
             // Pre-calculated Blake3 hash of "hello world"
             let expected_hash = "d74981efa70a0c880b8d8c1985d075dbcbf679b99a5f9914e5aaf96b831a9e24";
 
             // Test: committed payload generates same hash as expected_hash
             assert_eq!(metadata.hash.to_string(), expected_hash);
-        }).await;
+
+            Ok(())
+        }).await
     }
 
     #[tokio::test]
-    async fn mismatch_content_fails_plus_cleans_up() {
+    async fn mismatch_content_fails_plus_cleans_up() -> anyhow::Result<()> {
         with_temp_transaction(async move |transaction, _| {
             let temp_path = transaction.temp_path().to_owned();
 
@@ -372,7 +375,9 @@ mod test {
 
             // Test: Cleanup is expected on failure
             assert!(!temp_path.exists());
+
+            Ok(())
         })
-        .await;
+        .await
     }
 }

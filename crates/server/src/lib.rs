@@ -8,7 +8,7 @@
 ///
 /// - [`api`] — HTTP route handlers, middleware, and API-layer error types.
 /// - [`app`] — Application state and the builder used to construct it.
-/// - [`error`] — The top-level error type and its domain-specific sub-modules.
+/// - [`mod@error`] — The top-level error type and its domain-specific sub-modules.
 /// - [`logger`] — Structured asynchronous telemetry: MPSC channel, background service,
 ///   daily rolling log files, Unix Datagram Socket broadcasting, and the logging macros.
 /// - [`mod@log`] — A lightweight, deprecated debug-only logging macro and ANSI color helpers.

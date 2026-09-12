@@ -236,7 +236,7 @@ impl Committer {
 
         active.file.write_all(&payload).await?;
 
-        active.current_size += payload.len() as u64;
+        active.current_size += u64::try_from(payload.len()).unwrap_or(0);
 
         let offset = active.current_size;
 

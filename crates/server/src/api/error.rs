@@ -1,3 +1,5 @@
+use std::num::TryFromIntError;
+
 use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
@@ -57,6 +59,9 @@ pub enum Error {
     #[error("Invalid header value : {}", .0)]
     InvalidHeader(#[from] InvalidHeaderValue),
 
+    #[error(transparent)]
+    IntegerConversion(#[from] TryFromIntError),
+
     /// An error propagated from the delta-CRDT sync ledger subsystem.
     ///
     /// This variant delegates `IntoResponse` directly to [`ledger::Error`],
@@ -73,9 +78,9 @@ pub type Result<T> = core::result::Result<T, Error>;
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         use Error::{
-            BadRequest, Internal, InvalidHeader, IoError, Ledger,
-            MalformedMultipart, MissingField, NotFound, StreamReadError,
-            Unauthorized,
+            BadRequest, IntegerConversion, Internal, InvalidHeader, IoError,
+            Ledger, MalformedMultipart, MissingField, NotFound,
+            StreamReadError, Unauthorized,
         };
 
         match self {
@@ -97,7 +102,8 @@ impl IntoResponse for Error {
             }
 
             // Internal errors: strip all details before sending.
-            StreamReadError | IoError(_) | Internal(_) => (
+            StreamReadError | IoError(_) | Internal(_)
+            | IntegerConversion(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Internal Server Error".into(),
             ),

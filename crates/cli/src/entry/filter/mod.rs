@@ -237,7 +237,10 @@ mod tests {
 
     #[test]
     fn test_filter_cycle_states() {
-        let mut filter = Filter::default();
+        let mut filter = Filter {
+            selected: Selected::Module,
+            ..Default::default()
+        };
 
         filter.selected = Selected::Module;
         filter.handle_space();

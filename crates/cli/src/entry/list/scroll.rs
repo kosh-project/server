@@ -157,9 +157,11 @@ mod tests {
         use crate::entry::Entry;
         use webdav_server::logger::{Entry as LogEntry, Level, Module};
 
-        let mut list = List::default();
-        list.last_viewport_h = 5;
-        list.last_msg_col_w = 100;
+        let mut list = List {
+            last_viewport_h: 5,
+            last_msg_col_w: 100,
+            ..Default::default()
+        };
         for _ in 0..10 {
             let log = LogEntry {
                 timestamp_ms: 0,
