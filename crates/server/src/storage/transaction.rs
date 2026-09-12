@@ -371,7 +371,7 @@ mod test {
             let result = transaction.commit(payload).await;
 
             // Test: Unexpected EOF causes failure
-            result?;
+            assert!(result.is_err());
 
             // Test: Cleanup is expected on failure
             assert!(!temp_path.exists());
