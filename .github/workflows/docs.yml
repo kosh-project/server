@@ -1,9 +1,12 @@
 name: Deploy documentation to GitHub Pages
 
 on:
-  push:
-    branches: ["main", "master"]
-  # Allows you to run this workflow manually from the Actions tab
+  workflow_run:
+    workflows: ["test"]
+    types: 
+      - completed
+    branches: 
+      - main
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -21,6 +24,8 @@ concurrency:
 jobs:
   # Build job
   build:
+    # If workflow dispatches manually or there's a push to main
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' ) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
