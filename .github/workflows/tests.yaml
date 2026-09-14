@@ -1,4 +1,4 @@
-name: test
+name: tests
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   fmt-check:
-    name: 'formatting check'
+    name: 'formatting'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
       - run: cargo fmt --all -- --check
 
   clippy-check:
-    name: 'clippy checks'
+    name: 'clippy'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
 
 
   docs:
-    name: 'docs syntax'
+    name: 'docs'
     runs-on: ubuntu-latest
     env:
         RUSTDOCFLAGS: "-D warnings"
@@ -43,7 +43,7 @@ jobs:
       - run: cargo doc --no-deps --document-private-items
 
   tests:
-    name: 'run tests'
+    name: 'unit_integration'
     runs-on: ubuntu-latest
     env:
       SQLX_OFFLINE: true
