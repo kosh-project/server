@@ -3,6 +3,7 @@
 
 # temporary test files
 /test
+/vault
 
 # Ah yes
 .env
