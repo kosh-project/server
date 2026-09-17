@@ -33,6 +33,8 @@ rustls = "0.23.45"
 rustls-pemfile = "2.2.0"
 sha2 = "0.11.0"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+knuffel = "3.2.0"
+miette = { version = "5.10.0", features = ["fancy"] }
 
 
 [dev-dependencies]
