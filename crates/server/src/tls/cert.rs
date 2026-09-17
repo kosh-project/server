@@ -1,8 +1,13 @@
-use std::path::Path;
+use std::{
+    io::{Cursor, Error},
+    path::Path,
+};
 
 use super::error::Result;
 use rcgen::generate_simple_self_signed;
-use tokio::{fs, task::id};
+use rustls_pemfile::certs;
+use sha2::{Digest, Sha256};
+use tokio::{fs, io, task::id};
 
 pub struct Identity {
     pub cert_pem: String,
@@ -61,5 +66,27 @@ impl Identity {
             cert_pem: certified_key.cert.pem(),
             key_pem: certified_key.signing_key.serialize_pem(),
         })
+    }
+
+    pub fn fingerprint(&self) -> Result<String> {
+        let mut reader = Cursor::new(self.cert_pem.as_bytes());
+        let mut cert_iter = certs(&mut reader);
+
+        let der = cert_iter.next().ok_or_else(|| {
+            Error::new(
+                io::ErrorKind::InvalidData,
+                "No certificate found in PEM",
+            )
+        })??;
+        // dude lets make this a dedicated error instead this doesn't make sense..
+        // also that double ? operator is cursed
+
+        let mut hasher = Sha256::new();
+        hasher.update(der.as_ref());
+        let result = hasher.finalize();
+
+        let hex_array: Vec<String> =
+            result.iter().map(|b| format!("{:02X}", b)).collect();
+        Ok(hex_array.join(":"))
     }
 }
