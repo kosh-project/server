@@ -53,4 +53,5 @@ pub mod error;
 pub use error::{Error, Result};
 pub use logger::SOCKET_ADDR;
 
+pub mod server;
 pub mod tls;

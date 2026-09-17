@@ -1,5 +1,8 @@
 // #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use axum::handler::HandlerWithoutStateExt;
+use axum_server::tls_rustls::RustlsConfig;
+use bincode_next::fingerprint;
 use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr};
 use tokio::io;
@@ -9,6 +12,8 @@ use tokio::{
     sync::watch,
     time::{Duration, timeout},
 };
+use webdav_server::server::Launcher;
+use webdav_server::tls;
 use webdav_server::{
     api::route::route_main,
     app::AppStateBuilder,
@@ -76,50 +81,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .vault_path(std::path::PathBuf::from("./vault"))
         .build();
 
+    let identity =
+        tls::Identity::load_or_create(app_state.vault_path().to_owned())
+            .await?;
+
+    let fingerprint = identity.fingerprint()?;
+
+    info!(Module::Server, "TLS Fingerprint : {}", fingerprint);
+
     let ledger_sender = app_state.ledger.sender().clone();
 
     let app = route_main(app_state);
+    // // // // // //
+    //
+    //
+    //
 
-    let addr = Ipv4Addr::from_octets([0, 0, 0, 0]);
-    let listener = TcpListener::bind((addr, PORT)).await?;
+    let handle = axum_server::Handle::new();
+    let shutdown_handle = handle.clone();
+    let (shutdown_tx, _rx) = watch::channel(false);
 
-    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let launcher = Launcher::new(PORT, app, identity, shutdown_tx);
 
-    let server = axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(async move {
-        let mut rx = shutdown_rx.clone();
-        let _ = rx.changed().await;
-
-        info!(Module::Server, "Graceful shutdown initiated...");
-    })
-    .into_future();
-
-    pin!(server);
-    info!(Module::Server, "Listening on port {PORT}");
-
-    tokio::select! {
-        res = &mut server => {
-            if let Err(e) = res {
-                fatal!(Module::Server, "Server error {e}");
-            }
-        },
-        res = shutdown_signal() => {
-            res?;
-
-            info!(Module::Server, "Shutdown signal recieved. Ignoring any new connections...");
-
-            let _ = shutdown_tx.send(true);
-
-            match timeout(Duration::from_secs(10), &mut server).await {
-                Ok(_) => info!(Module::Server, "All active connections closed successfully."),
-                Err(_) => error!(Module::Server, "Grace period expired. Forcefully killing lingering connections."),
-            }
-        }
-
-    };
+    launcher.run(shutdown_signal()).await?;
 
     info!(
         Module::Database,
