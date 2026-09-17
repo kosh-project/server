@@ -1,10 +1,10 @@
-use std::{env, error::Error, net::SocketAddr, time::Duration};
+use std::{env, net::SocketAddr, time::Duration};
 
 use axum::Router;
 use axum_server::{Handle, tls_rustls::RustlsConfig};
 use tokio::{io, sync::watch};
 
-use crate::{info, logger::Module, tls};
+use crate::{error::boot, info, logger::Module, tls};
 
 pub struct Launcher {
     port: u16,
@@ -28,7 +28,7 @@ impl Launcher {
         }
     }
 
-    pub async fn run<F>(self, shutdown_signal: F) -> Result<(), Box<dyn Error>>
+    pub async fn run<F>(self, shutdown_signal: F) -> Result<(), boot::Error>
     where
         F: Future<Output = io::Result<()>> + Send + 'static,
     {
