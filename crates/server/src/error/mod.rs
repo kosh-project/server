@@ -9,6 +9,7 @@ use crate::logger::{Entry, Level, Loggable, logging_enabled};
 use crate::storage;
 use crate::{model, wrap_internal_err};
 
+pub mod boot;
 pub mod internal;
 
 /// The top-level application error.

@@ -1,20 +1,8 @@
 // #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use axum::handler::HandlerWithoutStateExt;
-use axum_server::tls_rustls::RustlsConfig;
-use bincode_next::fingerprint;
-use miette::IntoDiagnostic;
-use miette::miette;
-use std::error::Error;
-use std::net::{Ipv4Addr, SocketAddr};
 use std::path::Path;
 use tokio::io;
-use tokio::{
-    net::TcpListener,
-    pin, signal,
-    sync::watch,
-    time::{Duration, timeout},
-};
+use tokio::{signal, sync::watch};
 use webdav_server::config::config::Config;
 use webdav_server::error::boot;
 use webdav_server::server::Launcher;
@@ -22,7 +10,7 @@ use webdav_server::tls;
 use webdav_server::{
     api::route::route_main,
     app::AppStateBuilder,
-    error, fatal, info,
+    info,
     logger::{self, GLOBAL_LOGGER, Module},
     shutdown,
     storage::ledger,
@@ -59,8 +47,6 @@ async fn shutdown_signal() -> io::Result<()> {
 
     Ok(())
 }
-
-const PORT: u16 = 6969;
 
 #[tokio::main]
 async fn main() -> miette::Result<()> {
