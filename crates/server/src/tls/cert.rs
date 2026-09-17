@@ -7,7 +7,7 @@ use super::error::Result;
 use rcgen::generate_simple_self_signed;
 use rustls_pemfile::certs;
 use sha2::{Digest, Sha256};
-use tokio::{fs, io, task::id};
+use tokio::{fs, io};
 
 pub struct Identity {
     pub cert_pem: String,
