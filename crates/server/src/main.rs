@@ -3,8 +3,11 @@
 use axum::handler::HandlerWithoutStateExt;
 use axum_server::tls_rustls::RustlsConfig;
 use bincode_next::fingerprint;
+use miette::IntoDiagnostic;
+use miette::miette;
 use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::path::Path;
 use tokio::io;
 use tokio::{
     net::TcpListener,
@@ -12,6 +15,8 @@ use tokio::{
     sync::watch,
     time::{Duration, timeout},
 };
+use webdav_server::config::config::Config;
+use webdav_server::error::boot;
 use webdav_server::server::Launcher;
 use webdav_server::tls;
 use webdav_server::{
@@ -58,27 +63,41 @@ async fn shutdown_signal() -> io::Result<()> {
 const PORT: u16 = 6969;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    tokio::fs::create_dir_all("./test/vault").await?;
-    info!(Module::Storage, "Vault initialized");
+async fn main() -> miette::Result<()> {
+    boot().await?;
 
-    #[allow(clippy::expect_used)]
+    Ok(())
+}
+
+async fn boot() -> Result<(), boot::Error> {
+    let config_path = Path::new("test/kosh.kdl");
+    let config = Config::load_or_init(config_path).await?;
+
+    tokio::fs::create_dir_all(&config.vault_path).await?;
+    info!(
+        Module::Storage,
+        "Vault initialized at {}",
+        config.vault_path.display()
+    );
+
+    let db_path =
+        format!("sqlite://{}/metadata.db", config.vault_path.display());
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .connect("sqlite://test/vault/metadata.db")
+        .connect(&db_path)
         .await?;
 
     let (log_sender, logger_handle) = logger::Service::start(1000)
         .await
-        .map_err(|e| format!("Logging engine failed to boot {e}"))?;
+        .map_err(|e| boot::Error::Logger(e.to_string()))?;
 
-    GLOBAL_LOGGER
-        .set(log_sender)
-        .map_err(|e| format!("Failed to initiate global logger {e:?}"))?;
+    GLOBAL_LOGGER.set(log_sender).map_err(|e| {
+        boot::Error::Logger(format!("Failed to initiate global logger {e:?}"))
+    })?;
 
     let app_state = AppStateBuilder::new()
         .db(pool.clone())
-        .vault_path(std::path::PathBuf::from("./vault"))
+        .vault_path(config.vault_path.clone())
         .build();
 
     let identity =
@@ -90,19 +109,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!(Module::Server, "TLS Fingerprint : {}", fingerprint);
 
     let ledger_sender = app_state.ledger.sender().clone();
-
     let app = route_main(app_state);
-    // // // // // //
-    //
-    //
-    //
 
-    let handle = axum_server::Handle::new();
-    let shutdown_handle = handle.clone();
     let (shutdown_tx, _rx) = watch::channel(false);
 
-    let launcher = Launcher::new(PORT, app, identity, shutdown_tx);
-
+    let launcher = Launcher::new(config.port, app, identity, shutdown_tx);
     launcher.run(shutdown_signal()).await?;
 
     info!(
