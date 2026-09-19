@@ -44,15 +44,12 @@
 pub mod api;
 pub mod app;
 pub mod log;
-pub mod logger;
 pub mod model;
 pub mod storage;
 
 pub mod error;
 
 pub use error::{Error, Result};
-pub use logger::SOCKET_ADDR;
 
-pub mod config;
+pub mod logger;
 pub mod server;
-pub mod tls;

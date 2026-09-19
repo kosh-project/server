@@ -86,7 +86,7 @@ impl Identity {
         let result = hasher.finalize();
 
         let hex_array: Vec<String> =
-            result.iter().map(|b| format!("{:02X}", b)).collect();
-        Ok(hex_array.join(":"))
+            result.iter().map(|b| format!("{:02x}", b)).collect();
+        Ok(hex_array.join(""))
     }
 }

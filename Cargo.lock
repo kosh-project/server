@@ -508,6 +508,7 @@ dependencies = [
  "color-eyre",
  "crossterm",
  "futures",
+ "kosh-core",
  "ratatui",
  "textwrap 0.16.2",
  "tokio",
@@ -1923,6 +1924,24 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "kosh-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode-next",
+ "chrono",
+ "dirs",
+ "knuffel",
+ "miette",
+ "rcgen",
+ "rustls-pemfile",
+ "serde",
+ "sha2 0.11.0",
+ "thiserror 2.0.19",
+ "tokio",
 ]
 
 [[package]]
@@ -4531,6 +4550,7 @@ dependencies = [
  "httpc-test",
  "hyper",
  "knuffel",
+ "kosh-core",
  "miette",
  "moka",
  "rand 0.10.2",
