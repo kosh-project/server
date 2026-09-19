@@ -9,6 +9,7 @@ use crossterm::{
     event::{Event, KeyCode, KeyEvent},
     terminal,
 };
+use kosh_core::config::Config;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, HorizontalAlignment, Layout, Rect},
@@ -31,8 +32,8 @@ pub struct App {
 }
 
 impl App {
-    pub fn try_init() -> Option<Self> {
-        let log_path = logger::path()?;
+    pub fn try_init(config: &Config) -> Option<Self> {
+        let log_path = config.vault_path.join("logs");
         let timestamp_millis = Utc::now().timestamp_millis();
 
         let entry_list =

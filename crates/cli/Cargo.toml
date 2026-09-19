@@ -18,3 +18,4 @@ ratatui = { version = "0.30.2", features = ["widget-calendar"] }
 textwrap = "0.16.2"
 tokio = { workspace = true, features = ["time"] }
 webdav-server = { path = "../server" }
+kosh-core = { path = "../core" }
