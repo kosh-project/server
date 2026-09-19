@@ -1,12 +1,13 @@
 // #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use kosh_core::config::Config;
+use kosh_core::tls;
+use rustls::crypto::ring;
 use std::path::Path;
 use tokio::io;
 use tokio::{signal, sync::watch};
-use webdav_server::config::config::Config;
 use webdav_server::error::boot;
 use webdav_server::server::Launcher;
-use webdav_server::tls;
 use webdav_server::{
     api::route::route_main,
     app::AppStateBuilder,
@@ -56,8 +57,11 @@ async fn main() -> miette::Result<()> {
 }
 
 async fn boot() -> Result<(), boot::Error> {
+    let _ = ring::default_provider().install_default();
+    // .expect("Failed to install rustls crypto provider");
+
     let config_path = Path::new("test/kosh.kdl");
-    let config = Config::load_or_init(config_path).await?;
+    let config = Config::load_or_init(&config_path).await?;
 
     tokio::fs::create_dir_all(&config.vault_path).await?;
     info!(
@@ -73,7 +77,7 @@ async fn boot() -> Result<(), boot::Error> {
         .connect(&db_path)
         .await?;
 
-    let (log_sender, logger_handle) = logger::Service::start(1000)
+    let (log_sender, logger_handle) = logger::Service::start(&config)
         .await
         .map_err(|e| boot::Error::Logger(e.to_string()))?;
 
@@ -99,7 +103,13 @@ async fn boot() -> Result<(), boot::Error> {
 
     let (shutdown_tx, _rx) = watch::channel(false);
 
-    let launcher = Launcher::new(config.port, app, identity, shutdown_tx);
+    let launcher = Launcher::new(
+        config.port,
+        app,
+        identity,
+        shutdown_tx,
+        config.enable_tls,
+    );
     launcher.run(shutdown_signal()).await?;
 
     info!(

@@ -1,16 +1,18 @@
-use std::{env, net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, time::Duration};
 
 use axum::Router;
 use axum_server::{Handle, tls_rustls::RustlsConfig};
+use kosh_core::{logger::Module, tls};
 use tokio::{io, sync::watch};
 
-use crate::{error::boot, info, logger::Module, tls};
+use crate::{error::boot, info};
 
 pub struct Launcher {
     port: u16,
     app: Router,
     identity: tls::Identity,
     shutdown_tx: watch::Sender<bool>,
+    enable_tls: bool,
 }
 
 impl Launcher {
@@ -19,12 +21,14 @@ impl Launcher {
         app: Router,
         identity: tls::Identity,
         shutdown_tx: watch::Sender<bool>,
+        enable_tls: bool,
     ) -> Self {
         Self {
             port,
             app,
             identity,
             shutdown_tx,
+            enable_tls,
         }
     }
 
@@ -48,7 +52,7 @@ impl Launcher {
             shutdown_handle.graceful_shutdown(Some(Duration::from_secs(10)));
         });
 
-        if Self::tls_active() {
+        if self.enable_tls {
             info!(
                 Module::Server,
                 "Starting server in SECURE TLS mode on port {}", self.port
@@ -83,19 +87,4 @@ impl Launcher {
 
         Ok(())
     }
-
-    fn tls_active() -> bool {
-        if let Ok(str) = env::var("ENABLE_TLS") {
-            return str == "true";
-        }
-        false
-    }
-
-    // async fn spawn_shutdown_handler(handle: Handle, tx: watch::Sender<bool>) {
-    //     // let _ = shutdown_signal.await;
-
-    //     // tokio::spawn(async move {
-    //     //     let _ =
-    //     // });
-    // }
 }
