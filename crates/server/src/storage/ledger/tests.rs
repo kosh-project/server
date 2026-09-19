@@ -266,6 +266,8 @@ async fn handle_read_enforces_500_byte_floor() -> anyhow::Result<()> {
 
     handle.append(user_id, Bytes::from("PAYLOAD SAUCE")).await?;
 
+    Handle::shutdown(handle.sender()).await;
+
     let mut file = handle
         .read_segment(vault_path, user_id, "delta_0000001", 0)
         .await?;
