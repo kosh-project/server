@@ -125,7 +125,7 @@ impl IntoResponse for Error {
 }
 
 impl Loggable for Error {
-    fn log_level(&self) -> crate::logger::Level {
+    fn log_level(&self) -> kosh_core::logger::Level {
         match self {
             SegmentNotFound | InvalidOffset => Level::Warning,
             CommitterDead | CorruptedSegment(_) => Level::Fatal,

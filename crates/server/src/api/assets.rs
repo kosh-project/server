@@ -3,7 +3,6 @@ use crate::{
     api::Error::{BadRequest, InvalidHeader, NotFound},
     app::State as AppState,
     error, info,
-    logger::Module,
     model::asset::{Asset, AssetMetadataRow, AssetTag},
     storage::Payload,
 };
@@ -14,6 +13,7 @@ use axum::{
     response::IntoResponse,
 };
 use hyper::{HeaderMap, StatusCode};
+use kosh_core::logger::Module;
 use serde::{Deserialize, Serialize};
 use tokio_util::io::ReaderStream;
 

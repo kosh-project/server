@@ -5,9 +5,10 @@ use axum::response::IntoResponse;
 use hyper::StatusCode;
 
 use crate::api;
-use crate::logger::{Entry, Level, Loggable, logging_enabled};
+use crate::logger::{Loggable, logging_enabled};
 use crate::storage;
 use crate::{model, wrap_internal_err};
+use kosh_core::logger::{Entry, Level};
 
 pub mod boot;
 pub mod internal;

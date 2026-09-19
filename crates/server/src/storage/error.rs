@@ -2,11 +2,12 @@ use std::{num::TryFromIntError, path::PathBuf, time::SystemTimeError};
 
 use axum::response::IntoResponse;
 use hyper::StatusCode;
+use kosh_core::logger;
 use tokio::io;
 
 use crate::{
     error::internal,
-    logger::{self, Loggable},
+    logger::Loggable,
     storage::{self, ledger},
     wrap_internal_err,
 };

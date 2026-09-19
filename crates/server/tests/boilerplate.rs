@@ -5,6 +5,7 @@ use tmpdir::TmpDir;
 use tokio::{fs::create_dir_all, net::TcpListener};
 use webdav_server::{api::route::route_main, app::AppStateBuilder};
 
+#[allow(unused)]
 pub struct TestCtx {
     pub db: SqlitePool,
     pub vault_path: PathBuf,
@@ -28,7 +29,7 @@ where
     let listener = TcpListener::bind("127.0.0.1:0").await?;
 
     let addr = listener.local_addr()?;
-    let base_url = format!("http://{}", addr);
+    let _base_url = format!("http://{}", addr);
 
     let sql_pool = SqlitePoolOptions::new()
         .max_connections(5)
