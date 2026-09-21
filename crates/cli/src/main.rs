@@ -1,17 +1,14 @@
-mod app;
-mod entry;
-mod help;
-mod info;
+mod core;
+mod ui;
 
 use std::time::Duration;
 
 use anyhow::anyhow;
 use crossterm::{
     event::{
-        DisableBracketedPaste, DisableFocusChange, DisableMouseCapture,
-        EnableBracketedPaste, EnableFocusChange, EnableMouseCapture,
-        EventStream, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
-        PushKeyboardEnhancementFlags,
+        DisableBracketedPaste, DisableFocusChange, EnableBracketedPaste,
+        EnableFocusChange, EventStream, KeyboardEnhancementFlags,
+        PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
     },
     execute,
 };
@@ -20,7 +17,7 @@ use kosh_core::config::Config;
 use ratatui::{DefaultTerminal, widgets::Widget};
 use tokio::{fs, net::UnixDatagram, time::interval};
 
-use crate::app::App;
+use crate::ui::app::App;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
