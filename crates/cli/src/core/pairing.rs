@@ -1,12 +1,9 @@
-use base64::Engine;
 use anyhow::Result;
+use base64::Engine;
 use bip39::{Language, Mnemonic};
 use local_ip_address::list_afinet_netifas;
 use qrcodegen::{QrCode, QrCodeEcc};
-use ratatui::{
-    style::Stylize,
-    text::Line,
-};
+use ratatui::{style::Stylize, text::Line};
 
 /// Pure data generated once on startup for the Device Pairing UI.
 /// This prevents recalculating hashes and formatting strings in the hot render loop.
@@ -20,11 +17,16 @@ pub struct PairingData {
 }
 
 impl PairingData {
-    pub fn new(tls_enabled: bool, port: u16, cert_fingerprint: &[u8]) -> Result<Self> {
+    pub fn new(
+        tls_enabled: bool,
+        port: u16,
+        cert_fingerprint: &[u8],
+    ) -> Result<Self> {
         let words = words_from(cert_fingerprint)?;
         let qr_lines = qr_from(cert_fingerprint)?;
         let server_address = resolve_display_addresses(port);
-        let fingerprint = base64::prelude::BASE64_STANDARD.encode(cert_fingerprint);
+        let fingerprint =
+            base64::prelude::BASE64_STANDARD.encode(cert_fingerprint);
 
         Ok(Self {
             tls_enabled,
