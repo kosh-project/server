@@ -10,7 +10,11 @@ use webdav_server::{
 
 #[tokio::test]
 #[serial_test::serial]
-#[allow(clippy::panic_in_result_fn, clippy::unwrap_used, clippy::indexing_slicing)]
+#[allow(
+    clippy::panic_in_result_fn,
+    clippy::unwrap_used,
+    clippy::indexing_slicing
+)]
 async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
     let tmp = TmpDir::new("webdav").await?;
     let vault_dir = tmp.to_path_buf();

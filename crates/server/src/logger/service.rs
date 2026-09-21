@@ -259,7 +259,11 @@ impl LoggerHandler {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic_in_result_fn, clippy::unwrap_used, clippy::indexing_slicing)]
+#[allow(
+    clippy::panic_in_result_fn,
+    clippy::unwrap_used,
+    clippy::indexing_slicing
+)]
 mod test {
 
     use super::*;
