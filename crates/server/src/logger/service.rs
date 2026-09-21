@@ -5,7 +5,13 @@ use std::{
 
 use bincode_next::{config, encode_to_vec};
 use chrono::{DateTime, Datelike};
-use kosh_core::config::Config;
+use kosh_core::{
+    config::Config,
+    logger::{
+        Level::Shutdown,
+        Telemetry::{self, Heartbeat, Log},
+    },
+};
 use tokio::{
     fs::{self, File, create_dir_all},
     io::AsyncWriteExt,
@@ -13,7 +19,7 @@ use tokio::{
     spawn,
     sync::mpsc::{Receiver, Sender, channel},
     task::JoinHandle,
-    time::timeout,
+    time::{Interval, MissedTickBehavior, interval, timeout},
 };
 
 use crate::{
@@ -144,13 +150,21 @@ impl Service {
     /// are printed to `stderr` using `eprintln!` rather than being propagated. This
     /// ensures that a transient I/O error does not terminate the logging service.
     async fn run(mut self) {
-        while let Some(entry) = self.receiver.recv().await {
-            if Level::Shutdown == entry.level {
-                let _ = self.commit(entry).await;
-                return;
-            }
-            if let Err(e) = self.commit(entry).await {
-                eprintln!("Failed to commit log : {e}");
+        let mut timer = interval(Duration::from_secs(3));
+        timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        loop {
+            tokio::select! {
+                Some(entry) = self.receiver.recv() => {
+                    let is_shutdown = entry.level == Shutdown;
+
+                    if let Err(e) = self.commit(entry).await {
+                        eprintln!("Failed to commit logs to disk : {e}")
+                    }
+                    if is_shutdown {
+                        break;
+                    }
+                },
+                _ = timer.tick() => { self.send_hearbeat().await; }
             }
         }
     }
@@ -181,12 +195,22 @@ impl Service {
             self.today = entry.timestamp_ms / DAY_MILLIS;
         }
 
-        let bytes = encode_to_vec(&entry, config::standard())?;
+        let disk_bytes = encode_to_vec(&entry, config::standard())?;
+        self.active_file.write_all(&disk_bytes).await?;
 
-        self.active_file.write_all(&bytes).await?;
-        let _ = self.socket.send_to(&bytes, &self.socket_path).await;
+        if let Ok(uds_bytes) = encode_to_vec(Log(entry), config::standard()) {
+            let _ = self.socket.send_to(&uds_bytes, &self.socket_path).await;
+        }
 
         Ok(())
+    }
+
+    async fn send_hearbeat(&self) {
+        let Ok(bytes) = encode_to_vec(Heartbeat, config::standard()) else {
+            return;
+        };
+
+        let _ = self.socket.send_to(bytes.as_ref(), &self.socket_path).await;
     }
 }
 

@@ -34,3 +34,9 @@ pub struct Entry {
     pub timestamp_ms: i64,
     pub message: String,
 }
+
+#[derive(Debug, Encode, Decode, Serialize, Deserialize)]
+pub enum Telemetry {
+    Log(Entry),
+    Heartbeat,
+}
