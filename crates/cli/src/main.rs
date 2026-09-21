@@ -1,6 +1,7 @@
 mod app;
 mod entry;
 mod help;
+mod info;
 
 use std::time::Duration;
 
@@ -30,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
 
     execute!(
         std::io::stdout(),
-        EnableMouseCapture,
+        // EnableMouseCapture,
         EnableBracketedPaste,
         PushKeyboardEnhancementFlags(
             KeyboardEnhancementFlags::REPORT_EVENT_TYPES
@@ -43,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
 
     execute!(
         std::io::stdout(),
-        DisableMouseCapture,
+        // DisableMouseCapture,
         DisableBracketedPaste,
         PopKeyboardEnhancementFlags,
         DisableFocusChange
@@ -60,6 +61,7 @@ async fn app(
     config: Config,
 ) -> anyhow::Result<()> {
     let mut app: App = App::try_init(&config)
+        .await
         .ok_or_else(|| anyhow!("Failed to initiate app"))?;
 
     let mut event_stream = EventStream::new();
@@ -88,9 +90,11 @@ async fn app(
                 app.append(&buffer[..len]);
             },
             _ = ticker.tick() => {
+                if app.last_seen.elapsed().as_secs() >= 5 {
+                    app.pair_info.is_online = false;
+                }
                 needs_render = true;
             }
-
         }
     }
 

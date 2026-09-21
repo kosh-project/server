@@ -177,6 +177,7 @@ const fn lvl_str(lvl: Option<Level>) -> &'static str {
         Some(Level::Fatal) => "Fatal",
         Some(Level::Shutdown) => "",
         None => "ALL",
+        _ => "",
     }
 }
 

@@ -65,7 +65,11 @@ socket-path "/tmp/kosh.sock"
         self.vault_path.join("state").join("logs")
     }
 
-    fn ledger_path(&self) -> PathBuf {
+    fn _ledger_path(&self) -> PathBuf {
         todo!()
+    }
+
+    pub fn tls_identity_path(&self) -> PathBuf {
+        self.vault_path.join("tls")
     }
 }

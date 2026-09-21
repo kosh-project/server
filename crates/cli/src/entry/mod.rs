@@ -36,6 +36,7 @@ fn level_into_span(value: Level) -> Span<'static> {
         Error => Span::styled("ERROR", LIGHT_RED),
         Fatal => Span::styled("FATAL", RED),
         Shutdown => Span::styled("SHUTDOWN", GRAY),
+        _ => Span::default(),
     }
 }
 

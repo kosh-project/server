@@ -9,7 +9,7 @@ use crossterm::{
     event::{Event, KeyCode, KeyEvent},
     terminal,
 };
-use kosh_core::config::Config;
+use kosh_core::{config::Config, logger::Telemetry};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, HorizontalAlignment, Layout, Rect},
@@ -17,23 +17,38 @@ use ratatui::{
     text::Line,
     widgets::{Block, Paragraph, Widget},
 };
+use tokio::time::Instant;
 use webdav_server::logger::{self, format_date_time};
 
 use crate::{
     entry::{self, List},
     help::Help,
+    info::PairInfo,
 };
 
-#[derive(Default)]
 pub struct App {
+    pub last_seen: Instant,
     entries: entry::List,
     show_help: bool,
     pub should_quit: bool,
+    pub pair_info: PairInfo,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            last_seen: Instant::now(),
+            entries: entry::List::default(),
+            show_help: false,
+            should_quit: false,
+            pair_info: PairInfo::default(),
+        }
+    }
 }
 
 impl App {
-    pub fn try_init(config: &Config) -> Option<Self> {
-        let log_path = config.vault_path.join("logs");
+    pub async fn try_init(config: &Config) -> Option<Self> {
+        let log_path = config.log_path();
         let timestamp_millis = Utc::now().timestamp_millis();
 
         let entry_list =
@@ -42,6 +57,7 @@ impl App {
 
         let app = Self {
             entries: entry_list.unwrap_or_default(),
+            pair_info: PairInfo::try_from(config).await.ok()?,
             ..Default::default()
         };
 
@@ -72,6 +88,9 @@ impl App {
                 {
                     self.entries.handle_filter(key_event);
                 }
+                KeyCode::Char('p' | 'P') => {
+                    self.pair_info.is_visible = !self.pair_info.is_visible;
+                }
                 KeyCode::Char('q' | 'Q') => {
                     self.should_quit = true;
                 }
@@ -93,15 +112,20 @@ impl App {
             self.show_help = false;
         } else if self.filter_open() {
             self.entries.filter.is_open = false;
+        } else if self.pair_info.is_visible {
+            self.pair_info.is_visible = false;
         }
     }
 
     pub(crate) fn append(&mut self, bytes: &[u8]) {
-        if let Ok((entry, _)) =
-            decode_from_slice::<logger::Entry, _>(bytes, config::standard())
+        if let Ok((telemetry, _)) =
+            decode_from_slice::<Telemetry, _>(bytes, config::standard())
+            && let Telemetry::Log(entry) = telemetry
         {
             self.entries.add_log(entry);
         }
+        self.pair_info.is_online = true;
+        self.last_seen = Instant::now();
     }
 
     fn help_line(&self) -> Line<'_> {
@@ -109,6 +133,8 @@ impl App {
             Line::from(vec![" <h> -".bold().blue(), " Back to Main ".into()])
         } else if self.filter_open() {
             Line::from(self.entries.filter.help_line())
+        } else if self.pair_info.is_visible {
+            PairInfo::help_line()
         } else {
             Line::from(vec![
                 " <h> -".bold().blue(),
@@ -175,6 +201,18 @@ impl Widget for &mut App {
             };
             Help.render(area, buf);
         }
+
+        if self.pair_info.is_visible {
+            let (width, height) = terminal::size().unwrap();
+            let qr_size = 48;
+            let area = Rect {
+                x: width.saturating_sub(qr_size + 25) / 2,
+                y: height.saturating_sub(qr_size / 2) / 2,
+                width: qr_size + 25,
+                height: qr_size / 2,
+            };
+            self.pair_info.render(area, buf);
+        }
     }
 }
 
@@ -190,9 +228,9 @@ mod tests {
     #[test]
     fn test_app_input_routing() {
         let mut app = App {
-            entries: crate::entry::List::default(),
             show_help: false,
             should_quit: false,
+            ..Default::default()
         };
 
         assert!(!app.should_quit);
