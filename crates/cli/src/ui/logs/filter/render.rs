@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Widget},
 };
 
-use crate::entry::{
+use crate::ui::logs::{
     Filter,
     filter::{lvl_str, module_str, span_style},
 };

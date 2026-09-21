@@ -9,7 +9,7 @@ mod selected;
 use selected::Selected;
 mod render;
 
-use crate::entry::Entry;
+use crate::ui::logs::Entry;
 
 #[derive(Default)]
 pub struct Filter {

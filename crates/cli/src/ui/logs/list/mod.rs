@@ -8,7 +8,7 @@ mod input;
 mod render;
 mod scroll;
 
-use crate::entry::{Entry, Filter};
+use crate::ui::logs::{Entry, Filter};
 
 pub struct EntryList {
     pub logs: VecDeque<Entry>,

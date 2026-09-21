@@ -1,18 +1,17 @@
 // #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::error::Error;
-use std::net::{Ipv4Addr, SocketAddr};
+use kosh_core::config::Config;
+use kosh_core::tls;
+use rustls::crypto::ring;
+use std::path::Path;
 use tokio::io;
-use tokio::{
-    net::TcpListener,
-    pin, signal,
-    sync::watch,
-    time::{Duration, timeout},
-};
+use tokio::{signal, sync::watch};
+use webdav_server::error::boot;
+use webdav_server::server::Launcher;
 use webdav_server::{
     api::route::route_main,
     app::AppStateBuilder,
-    error, fatal, info,
+    info,
     logger::{self, GLOBAL_LOGGER, Module},
     shutdown,
     storage::ledger,
@@ -50,76 +49,68 @@ async fn shutdown_signal() -> io::Result<()> {
     Ok(())
 }
 
-const PORT: u16 = 6969;
-
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    tokio::fs::create_dir_all("./test/vault").await?;
-    info!(Module::Storage, "Vault initialized");
+async fn main() -> miette::Result<()> {
+    boot().await?;
 
-    #[allow(clippy::expect_used)]
+    Ok(())
+}
+
+async fn boot() -> Result<(), boot::Error> {
+    let _ = ring::default_provider().install_default();
+    // .expect("Failed to install rustls crypto provider");
+
+    let config_path = Path::new("test/kosh.kdl");
+    let config = Config::load_or_init(&config_path).await?;
+
+    tokio::fs::create_dir_all(&config.vault_path).await?;
+    info!(
+        Module::Storage,
+        "Vault initialized at {}",
+        config.vault_path.display()
+    );
+
+    let db_path =
+        format!("sqlite://{}/metadata.db", config.vault_path.display());
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .connect("sqlite://test/vault/metadata.db")
+        .connect(&db_path)
         .await?;
 
-    let (log_sender, logger_handle) = logger::Service::start(1000)
+    let (log_sender, logger_handle) = logger::Service::start(&config)
         .await
-        .map_err(|e| format!("Logging engine failed to boot {e}"))?;
+        .map_err(|e| boot::Error::Logger(e.to_string()))?;
 
-    GLOBAL_LOGGER
-        .set(log_sender)
-        .map_err(|e| format!("Failed to initiate global logger {e:?}"))?;
+    GLOBAL_LOGGER.set(log_sender).map_err(|e| {
+        boot::Error::Logger(format!("Failed to initiate global logger {e:?}"))
+    })?;
 
     let app_state = AppStateBuilder::new()
         .db(pool.clone())
-        .vault_path(std::path::PathBuf::from("./vault"))
+        .vault_path(config.vault_path.clone())
         .build();
 
-    let ledger_sender = app_state.ledger.sender().clone();
+    let identity =
+        tls::Identity::load_or_create(app_state.vault_path().to_owned())
+            .await?;
 
+    let fingerprint = identity.fingerprint()?;
+
+    info!(Module::Server, "TLS Fingerprint : {}", fingerprint);
+
+    let ledger_sender = app_state.ledger.sender().clone();
     let app = route_main(app_state);
 
-    let addr = Ipv4Addr::from_octets([0, 0, 0, 0]);
-    let listener = TcpListener::bind((addr, PORT)).await?;
+    let (shutdown_tx, _rx) = watch::channel(false);
 
-    let (shutdown_tx, shutdown_rx) = watch::channel(false);
-
-    let server = axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(async move {
-        let mut rx = shutdown_rx.clone();
-        let _ = rx.changed().await;
-
-        info!(Module::Server, "Graceful shutdown initiated...");
-    })
-    .into_future();
-
-    pin!(server);
-    info!(Module::Server, "Listening on port {PORT}");
-
-    tokio::select! {
-        res = &mut server => {
-            if let Err(e) = res {
-                fatal!(Module::Server, "Server error {e}");
-            }
-        },
-        res = shutdown_signal() => {
-            res?;
-
-            info!(Module::Server, "Shutdown signal recieved. Ignoring any new connections...");
-
-            let _ = shutdown_tx.send(true);
-
-            match timeout(Duration::from_secs(10), &mut server).await {
-                Ok(_) => info!(Module::Server, "All active connections closed successfully."),
-                Err(_) => error!(Module::Server, "Grace period expired. Forcefully killing lingering connections."),
-            }
-        }
-
-    };
+    let launcher = Launcher::new(
+        config.port,
+        app,
+        identity,
+        shutdown_tx,
+        config.enable_tls,
+    );
+    launcher.run(shutdown_signal()).await?;
 
     info!(
         Module::Database,

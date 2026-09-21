@@ -4,7 +4,7 @@ use crossterm::event::{
     KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind,
 };
 
-use crate::entry::List;
+use crate::ui::logs::List;
 
 impl List {
     pub fn handle_filter(&mut self, event: &KeyEvent) {

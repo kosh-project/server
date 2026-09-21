@@ -1,6 +1,6 @@
 use std::cmp;
 
-use crate::entry::List;
+use crate::ui::logs::List;
 
 impl List {
     pub fn scroll_up(&mut self, mut steps: u16) {
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_viewport_scrolling_simulation() {
-        use crate::entry::Entry;
+        use crate::ui::logs::Entry;
         use webdav_server::logger::{Entry as LogEntry, Level, Module};
 
         let mut list = List {

@@ -1,35 +1,34 @@
-mod app;
-mod entry;
-mod help;
+mod core;
+mod ui;
 
 use std::time::Duration;
 
 use anyhow::anyhow;
 use crossterm::{
     event::{
-        DisableBracketedPaste, DisableFocusChange, DisableMouseCapture,
-        EnableBracketedPaste, EnableFocusChange, EnableMouseCapture,
-        EventStream, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
-        PushKeyboardEnhancementFlags,
+        DisableBracketedPaste, DisableFocusChange, EnableBracketedPaste,
+        EnableFocusChange, EventStream, KeyboardEnhancementFlags,
+        PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
     },
     execute,
 };
 use futures::StreamExt;
+use kosh_core::config::Config;
 use ratatui::{DefaultTerminal, widgets::Widget};
 use tokio::{fs, net::UnixDatagram, time::interval};
-use webdav_server::SOCKET_ADDR;
 
-use crate::app::App;
+use crate::ui::app::App;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let config = Config::load_or_init(&"test/kosh.kdl").await?;
     color_eyre::install().map_err(|e| anyhow!("{e}"))?;
 
     let mut term = ratatui::init();
 
     execute!(
         std::io::stdout(),
-        EnableMouseCapture,
+        // EnableMouseCapture,
         EnableBracketedPaste,
         PushKeyboardEnhancementFlags(
             KeyboardEnhancementFlags::REPORT_EVENT_TYPES
@@ -38,11 +37,11 @@ async fn main() -> anyhow::Result<()> {
     )?;
 
     #[allow(clippy::large_futures)]
-    let result = app(&mut term).await;
+    let result = app(&mut term, config).await;
 
     execute!(
         std::io::stdout(),
-        DisableMouseCapture,
+        // DisableMouseCapture,
         DisableBracketedPaste,
         PopKeyboardEnhancementFlags,
         DisableFocusChange
@@ -54,13 +53,17 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
-    let mut app: App =
-        App::try_init().ok_or_else(|| anyhow!("Failed to initiate app"))?;
+async fn app(
+    terminal: &mut DefaultTerminal,
+    config: Config,
+) -> anyhow::Result<()> {
+    let mut app: App = App::try_init(&config)
+        .await
+        .ok_or_else(|| anyhow!("Failed to initiate app"))?;
 
     let mut event_stream = EventStream::new();
-    let _ = fs::remove_file(SOCKET_ADDR).await;
-    let socket = UnixDatagram::bind(SOCKET_ADDR)?;
+    let _ = fs::remove_file(&config.socket_path).await;
+    let socket = UnixDatagram::bind(config.socket_path)?;
 
     #[allow(clippy::large_stack_arrays)]
     let mut buffer = [0u8; 65536];
@@ -84,9 +87,11 @@ async fn app(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
                 app.append(&buffer[..len]);
             },
             _ = ticker.tick() => {
+                if app.last_seen.elapsed().as_secs() >= 5 {
+                    app.pair_info.is_online = false;
+                }
                 needs_render = true;
             }
-
         }
     }
 

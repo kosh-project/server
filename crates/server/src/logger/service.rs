@@ -1,7 +1,17 @@
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use bincode_next::{config, encode_to_vec};
 use chrono::{DateTime, Datelike};
+use kosh_core::{
+    config::Config,
+    logger::{
+        Level::Shutdown,
+        Telemetry::{Heartbeat, Log},
+    },
+};
 use tokio::{
     fs::{self, File, create_dir_all},
     io::AsyncWriteExt,
@@ -9,25 +19,13 @@ use tokio::{
     spawn,
     sync::mpsc::{Receiver, Sender, channel},
     task::JoinHandle,
-    time::timeout,
+    time::{MissedTickBehavior, interval, timeout},
 };
 
 use crate::{
     fatal,
-    logger::{
-        Entry, Level, Module,
-        error::{Error::LogDirectoryInitialization, Result},
-    },
+    logger::{Entry, Module, error::Result},
 };
-
-/// The filesystem path of the Unix Datagram Socket used for real-time log broadcasting.
-///
-/// The server's background logging task sends a copy of each serialized [`Entry`] to this
-/// address after writing it to disk. The admin CLI (`kosh-cli`) binds to this socket to
-/// receive the live stream. If no client is bound, the `send_to` call fails silently — the
-/// server deliberately ignores the error so that the absence of the CLI never affects
-/// request-path performance.
-pub static SOCKET_ADDR: &str = "/tmp/kosh-cli.sock";
 
 /// The number of milliseconds in one calendar day (24 * 60 * 60 * 1000).
 ///
@@ -67,9 +65,17 @@ pub struct Service {
     /// An unbound Unix Datagram Socket used to broadcast entries to the admin CLI.
     ///
     /// Unbound means the socket has no address of its own; it can only send, not receive.
-    /// Each entry is sent to [`SOCKET_ADDR`] after being written to disk. Errors are
+    /// Each entry is sent to `socket_path` after being written to disk. Errors are
     /// silently ignored so that the absence of the admin CLI has no impact on the server.
     socket: UnixDatagram,
+
+    /// The filesystem path of the Unix Datagram Socket that the admin CLI is bound to.
+    ///
+    /// Derived from [`kosh_core::config::Config::socket_path`] at startup. The server
+    /// sends each serialised [`kosh_core::logger::Telemetry`] frame to this address after
+    /// writing the raw [`Entry`] to disk. If no CLI process is bound to the path, the
+    /// `send_to` call fails silently.
+    socket_path: PathBuf,
 }
 
 impl Service {
@@ -93,14 +99,11 @@ impl Service {
     /// cannot be determined. Returns `Error::Io` if the log directory cannot be
     /// created or the initial log file cannot be opened.
     pub async fn start(
-        capacity: usize,
+        config: &Config,
     ) -> Result<(Sender<Entry>, LoggerHandler)> {
-        let (sender, receiver) = channel(capacity);
+        let (sender, receiver) = channel(1000);
 
-        let log_path = dirs::state_dir()
-            .ok_or(LogDirectoryInitialization)?
-            .join("kosh")
-            .join("logs");
+        let log_path = config.log_path();
 
         create_dir_all(&log_path).await?;
 
@@ -120,34 +123,49 @@ impl Service {
             today: time / DAY_MILLIS,
             active_file,
             socket,
+            socket_path: PathBuf::from(&config.socket_path),
         };
 
         let task = spawn(async move { service.run().await });
         Ok((sender, LoggerHandler(task)))
     }
 
+    /// Returns the path to the directory where daily log files are written.
     #[must_use]
-    pub fn path() -> Option<PathBuf> {
-        dirs::state_dir().map(|x| x.join("kosh").join("logs"))
+    pub fn path(&self) -> &Path {
+        &self.log_path
     }
 
     /// The main receive loop of the logging service.
     ///
-    /// Runs until a [`Level::Shutdown`] entry is received, at which point it returns
-    /// and the spawned task completes, allowing `LoggerHandler::shutdown_with_grace`
-    /// to join cleanly.
+    /// Drives a `tokio::select!` loop that handles two events:
+    ///
+    /// - A log [`Entry`] arriving on the MPSC channel is committed to disk and broadcast
+    ///   to the admin CLI as a [`kosh_core::logger::Telemetry::Log`] frame. If the entry
+    ///   carries [`kosh_core::logger::Level::Shutdown`], the loop breaks and the task ends.
+    /// - A 3-second idle tick fires when no entries arrive, triggering a
+    ///   [`kosh_core::logger::Telemetry::Heartbeat`] over the Unix socket so the admin
+    ///   CLI can distinguish an idle server from an offline one.
     ///
     /// Errors from [`Service::commit`] (disk write failures, serialization failures)
     /// are printed to `stderr` using `eprintln!` rather than being propagated. This
     /// ensures that a transient I/O error does not terminate the logging service.
     async fn run(mut self) {
-        while let Some(entry) = self.receiver.recv().await {
-            if Level::Shutdown == entry.level {
-                let _ = self.commit(entry).await;
-                return;
-            }
-            if let Err(e) = self.commit(entry).await {
-                eprintln!("Failed to commit log : {e}");
+        let mut timer = interval(Duration::from_secs(3));
+        timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        loop {
+            tokio::select! {
+                Some(entry) = self.receiver.recv() => {
+                    let is_shutdown = entry.level == Shutdown;
+
+                    if let Err(e) = self.commit(entry).await {
+                        eprintln!("Failed to commit logs to disk : {e}");
+                    }
+                    if is_shutdown {
+                        break;
+                    }
+                },
+                _ = timer.tick() => { self.send_hearbeat().await; }
             }
         }
     }
@@ -178,12 +196,22 @@ impl Service {
             self.today = entry.timestamp_ms / DAY_MILLIS;
         }
 
-        let bytes = encode_to_vec(&entry, config::standard())?;
+        let disk_bytes = encode_to_vec(&entry, config::standard())?;
+        self.active_file.write_all(&disk_bytes).await?;
 
-        self.active_file.write_all(&bytes).await?;
-        let _ = self.socket.send_to(&bytes, SOCKET_ADDR).await;
+        if let Ok(uds_bytes) = encode_to_vec(Log(entry), config::standard()) {
+            let _ = self.socket.send_to(&uds_bytes, &self.socket_path).await;
+        }
 
         Ok(())
+    }
+
+    async fn send_hearbeat(&self) {
+        let Ok(bytes) = encode_to_vec(Heartbeat, config::standard()) else {
+            return;
+        };
+
+        let _ = self.socket.send_to(bytes.as_ref(), &self.socket_path).await;
     }
 }
 
@@ -212,13 +240,13 @@ pub struct LoggerHandler(JoinHandle<()>);
 impl LoggerHandler {
     /// Waits for the logging task to finish, with a timeout.
     ///
-    /// Before calling this method, the caller must send a [`Level::Shutdown`] entry
-    /// through the channel (typically via the [`crate::shutdown!`] macro) to signal the
+    /// Before calling this method, the caller must send a [`kosh_core::logger::Level::Shutdown`]
+    /// entry through the channel (typically via the [`crate::shutdown!`] macro) to signal the
     /// service to exit its receive loop. This method then waits up to `secs` seconds for
     /// the task to join.
     ///
-    /// If the task does not finish within the grace period, a [`Level::Fatal`] log entry
-    /// is emitted (which will itself be silently dropped if the sender is gone) and the
+    /// If the task does not finish within the grace period, a [`kosh_core::logger::Level::Fatal`]
+    /// log entry is emitted (which will itself be silently dropped if the sender is gone) and the
     /// method returns, allowing the OS to clean up the task.
     pub async fn shutdown_with_grace(self, secs: u64) {
         if let Err(e) = timeout(Duration::from_secs(secs), self.0).await {
@@ -231,42 +259,47 @@ impl LoggerHandler {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic_in_result_fn)]
+#[allow(
+    clippy::panic_in_result_fn,
+    clippy::unwrap_used,
+    clippy::indexing_slicing
+)]
 mod test {
-    use std::env::{self, remove_var, set_var, var_os};
 
     use super::*;
     use chrono::Utc;
-    use serial_test::serial;
+    use kosh_core::logger::Level;
     use tmpdir::TmpDir;
 
     async fn with_temp_env<F, Fut, T>(f: F) -> anyhow::Result<T>
     where
-        F: FnOnce(PathBuf, Sender<Entry>, LoggerHandler) -> Fut,
+        F: FnOnce(Config, Sender<Entry>, LoggerHandler) -> Fut,
         Fut: Future<Output = anyhow::Result<T>>,
     {
         let temp_dir = TmpDir::new("kosh-test").await?;
-        let old_state_dir = var_os("XDG_STATE_HOME");
         let result;
 
-        unsafe {
-            env::set_var("XDG_STATE_HOME", temp_dir.to_path_buf());
+        let config = Config {
+            vault_path: temp_dir.to_path_buf(),
+            port: 0,
+            host: "127.0.0.1".to_string(),
+            enable_tls: false,
+            socket_path: temp_dir
+                .to_path_buf()
+                .join("kosh.sock")
+                .to_string_lossy()
+                .into(),
+        };
 
-            let (sender, log_handler) = Service::start(1000).await.unwrap();
-            result = f(temp_dir.to_path_buf(), sender, log_handler).await;
+        let (sender, log_handler) = Service::start(&config).await.unwrap();
+        result = f(config, sender, log_handler).await;
 
-            match old_state_dir {
-                Some(x) => set_var("XDG_STATE_HOME", x),
-                None => remove_var("XDG_STATE_HOME"),
-            }
-        }
         result
     }
 
     #[tokio::test]
-    #[serial]
     async fn logger_commits_multiple_entries_to_disk() -> anyhow::Result<()> {
-        with_temp_env(|tmp_path, sender, handle| async move {
+        with_temp_env(|config, sender, handle| async move {
             let entry = Entry {
                 level: Level::Error,
                 module: Module::Api,
@@ -295,9 +328,8 @@ mod test {
                 })
                 .await?;
 
-            let log_file = tmp_path
-                .join("kosh")
-                .join("logs")
+            let log_file = config
+                .log_path()
                 .join(format_date_time(Utc::now().timestamp_millis()));
 
             timeout(Duration::from_secs(3), handle.shutdown_with_grace(2))
@@ -327,11 +359,10 @@ mod test {
     }
 
     #[tokio::test]
-    #[serial]
     async fn broadcasting_works_via_unix_socket() -> anyhow::Result<()> {
-        with_temp_env(|_, sender, handle| async move {
-            let _ = fs::remove_file(SOCKET_ADDR).await;
-            let recv_socket = UnixDatagram::bind(SOCKET_ADDR)?;
+        with_temp_env(|config, sender, handle| async move {
+            let _ = fs::remove_file(&config.socket_path).await;
+            let recv_socket = UnixDatagram::bind(&config.socket_path)?;
 
             let mut buffer = [0u8; 512];
 
@@ -361,7 +392,7 @@ mod test {
 
             handle.shutdown_with_grace(2).await;
 
-            let _ = fs::remove_file(SOCKET_ADDR).await;
+            let _ = fs::remove_file(&config.socket_path).await;
             Ok(())
         })
         .await?;
@@ -370,9 +401,8 @@ mod test {
     }
 
     #[tokio::test]
-    #[serial_test::serial]
     async fn file_rotation_on_every_new_day() -> anyhow::Result<()> {
-        with_temp_env(|tmp_path, sender, handle| async move {
+        with_temp_env(|config, sender, handle| async move {
             let time = chrono::Utc::now();
             let entry = Entry {
                 level: Level::Error,
@@ -402,7 +432,7 @@ mod test {
 
             handle.shutdown_with_grace(2).await;
 
-            let log_dir = tmp_path.join("kosh").join("logs");
+            let log_dir = config.log_path();
             let mut file_count = 0;
 
             let mut read_dir = fs::read_dir(log_dir).await?;

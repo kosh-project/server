@@ -8,9 +8,9 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Padding, Paragraph, Widget, Wrap},
 };
 
-use crate::entry::{self, Entry};
+use crate::ui::logs::Entry;
 
-impl entry::List {
+impl crate::ui::logs::List {
     fn show_logs(&self, area: Rect, buf: &mut Buffer) {
         let iter = self.logs.iter().skip(self.top_log_idx);
 
@@ -103,7 +103,7 @@ impl entry::List {
     }
 }
 
-impl Widget for &mut entry::List {
+impl Widget for &mut crate::ui::logs::List {
     fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,

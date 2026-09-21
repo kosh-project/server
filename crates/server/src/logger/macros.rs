@@ -10,7 +10,7 @@
 ///
 /// # Parameters
 ///
-/// - `$module` — A [`crate::logger::Module`] variant identifying the subsystem emitting
+/// - `$module` — A [`kosh_core::logger::Module`] variant identifying the subsystem emitting
 ///   the log.
 /// - `$($arg)+` — A format string and its arguments, following the same syntax as
 ///   [`std::format!`].
@@ -102,8 +102,8 @@ macro_rules! error {
 
 /// Emits a shutdown sentinel entry and signals the logging service to stop.
 ///
-/// This macro sends an entry with [`crate::logger::Level::Shutdown`] and the
-/// module hardcoded to [`crate::logger::Module::Server`]. When the background
+/// This macro sends an entry with [`kosh_core::logger::Level::Shutdown`] and the
+/// module hardcoded to [`kosh_core::logger::Module::Server`]. When the background
 /// service receives this entry, it exits its receive loop cleanly.
 ///
 /// This must be called during the server's graceful shutdown sequence, before
