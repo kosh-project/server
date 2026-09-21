@@ -1,7 +1,6 @@
 use std::{
     io::{Cursor, Error},
     path::Path,
-    ptr::read,
 };
 
 use crate::tls::Error::NoCertificatesFound;
@@ -87,7 +86,7 @@ impl Identity {
         let result = hasher.finalize();
 
         let hex_array: Vec<String> =
-            result.iter().map(|b| format!("{:02x}", b)).collect();
+            result.iter().map(|b| format!("{b:02x}")).collect();
         Ok(hex_array.join(""))
     }
 
