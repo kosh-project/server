@@ -10,9 +10,10 @@ use webdav_server::{
 
 #[tokio::test]
 #[serial_test::serial]
+#[allow(clippy::panic_in_result_fn, clippy::unwrap_used, clippy::indexing_slicing)]
 async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
-    let _tmp = TmpDir::new("webdav").await?;
-    let vault_dir = _tmp.to_path_buf();
+    let tmp = TmpDir::new("webdav").await?;
+    let vault_dir = tmp.to_path_buf();
 
     tokio::fs::create_dir_all(&vault_dir).await?;
 
@@ -43,7 +44,7 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
         .build();
 
     tokio::spawn(async move {
-        axum::serve(listener, route_main(state)).await.unwrap()
+        axum::serve(listener, route_main(state)).await.unwrap();
     });
 
     let client = reqwest::Client::new();
@@ -57,7 +58,7 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
         .send()
         .await?;
 
-    assert_eq!(response.status(), StatusCode::OK, "Server Operation failed",);
+    assert_eq!(response.status(), StatusCode::OK, "Server Operation failed");
 
     let response_json: serde_json::Value = response.json().await?;
 

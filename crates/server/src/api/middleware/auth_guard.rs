@@ -66,6 +66,7 @@ pub async fn auth_guard(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
     use crate::app::AppStateBuilder;

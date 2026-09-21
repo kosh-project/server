@@ -65,10 +65,16 @@ pub struct Service {
     /// An unbound Unix Datagram Socket used to broadcast entries to the admin CLI.
     ///
     /// Unbound means the socket has no address of its own; it can only send, not receive.
-    /// Each entry is sent to [`SOCKET_ADDR`] after being written to disk. Errors are
+    /// Each entry is sent to `socket_path` after being written to disk. Errors are
     /// silently ignored so that the absence of the admin CLI has no impact on the server.
     socket: UnixDatagram,
 
+    /// The filesystem path of the Unix Datagram Socket that the admin CLI is bound to.
+    ///
+    /// Derived from [`kosh_core::config::Config::socket_path`] at startup. The server
+    /// sends each serialised [`kosh_core::logger::Telemetry`] frame to this address after
+    /// writing the raw [`Entry`] to disk. If no CLI process is bound to the path, the
+    /// `send_to` call fails silently.
     socket_path: PathBuf,
 }
 
@@ -124,6 +130,7 @@ impl Service {
         Ok((sender, LoggerHandler(task)))
     }
 
+    /// Returns the path to the directory where daily log files are written.
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.log_path
@@ -131,9 +138,14 @@ impl Service {
 
     /// The main receive loop of the logging service.
     ///
-    /// Runs until a [`Level::Shutdown`] entry is received, at which point it returns
-    /// and the spawned task completes, allowing `LoggerHandler::shutdown_with_grace`
-    /// to join cleanly.
+    /// Drives a `tokio::select!` loop that handles two events:
+    ///
+    /// - A log [`Entry`] arriving on the MPSC channel is committed to disk and broadcast
+    ///   to the admin CLI as a [`kosh_core::logger::Telemetry::Log`] frame. If the entry
+    ///   carries [`kosh_core::logger::Level::Shutdown`], the loop breaks and the task ends.
+    /// - A 3-second idle tick fires when no entries arrive, triggering a
+    ///   [`kosh_core::logger::Telemetry::Heartbeat`] over the Unix socket so the admin
+    ///   CLI can distinguish an idle server from an offline one.
     ///
     /// Errors from [`Service::commit`] (disk write failures, serialization failures)
     /// are printed to `stderr` using `eprintln!` rather than being propagated. This
@@ -228,13 +240,13 @@ pub struct LoggerHandler(JoinHandle<()>);
 impl LoggerHandler {
     /// Waits for the logging task to finish, with a timeout.
     ///
-    /// Before calling this method, the caller must send a [`Level::Shutdown`] entry
-    /// through the channel (typically via the [`crate::shutdown!`] macro) to signal the
+    /// Before calling this method, the caller must send a [`kosh_core::logger::Level::Shutdown`]
+    /// entry through the channel (typically via the [`crate::shutdown!`] macro) to signal the
     /// service to exit its receive loop. This method then waits up to `secs` seconds for
     /// the task to join.
     ///
-    /// If the task does not finish within the grace period, a [`Level::Fatal`] log entry
-    /// is emitted (which will itself be silently dropped if the sender is gone) and the
+    /// If the task does not finish within the grace period, a [`kosh_core::logger::Level::Fatal`]
+    /// log entry is emitted (which will itself be silently dropped if the sender is gone) and the
     /// method returns, allowing the OS to clean up the task.
     pub async fn shutdown_with_grace(self, secs: u64) {
         if let Err(e) = timeout(Duration::from_secs(secs), self.0).await {
@@ -247,7 +259,7 @@ impl LoggerHandler {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic_in_result_fn)]
+#[allow(clippy::panic_in_result_fn, clippy::unwrap_used, clippy::indexing_slicing)]
 mod test {
 
     use super::*;

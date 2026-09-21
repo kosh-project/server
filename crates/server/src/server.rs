@@ -7,6 +7,11 @@ use tokio::{io, sync::watch};
 
 use crate::{error::boot, info};
 
+/// Owns the HTTP(S) server lifecycle and orchestrates graceful shutdown.
+///
+/// `Launcher` is constructed once during server startup via [`Launcher::new`] and
+/// consumed by [`Launcher::run`]. It encapsulates all the state needed to bind the
+/// socket, configure TLS if enabled, and coordinate a clean drain on shutdown.
 pub struct Launcher {
     port: u16,
     app: Router,
@@ -16,6 +21,10 @@ pub struct Launcher {
 }
 
 impl Launcher {
+    /// Creates a new `Launcher` without binding any socket.
+    ///
+    /// No I/O is performed at this stage. The server does not start until
+    /// [`Launcher::run`] is called.
     #[must_use]
     pub const fn new(
         port: u16,
@@ -33,6 +42,20 @@ impl Launcher {
         }
     }
 
+    /// Binds the TCP socket and serves requests until `shutdown_signal` resolves.
+    ///
+    /// Spawns a background task that listens for the shutdown signal. When the signal
+    /// fires, new connections are refused and in-flight requests are given a 10-second
+    /// grace period to complete before the server returns.
+    ///
+    /// If `enable_tls` is `true`, the server uses `axum_server` with a `rustls` config
+    /// built from the PEM strings in the provided [`tls::Identity`]. If `false`, a plain
+    /// HTTP listener is used instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`boot::Error`] if the `rustls` config cannot be built from the provided
+    /// PEM data, or if the underlying `axum_server` listener fails to bind or serve.
     pub async fn run<F>(self, shutdown_signal: F) -> Result<(), boot::Error>
     where
         F: Future<Output = io::Result<()>> + Send + 'static,

@@ -8,7 +8,7 @@ use webdav_server::model::{session::Session, user::User};
 #[tokio::test]
 #[serial_test::serial]
 #[allow(clippy::panic_in_result_fn)]
-#[allow(clippy::clippy::indexing_slicing)]
+#[allow(clippy::indexing_slicing, clippy::unwrap_used)]
 async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
     with_sandbox_env("webdav_list_test", async move |ctx| {
         User::create(&ctx.db, &vec![0u8; 32], "fake_verifier".into()).await?;
@@ -16,7 +16,7 @@ async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
 
         let token = Session::create(&ctx.db, user_id).await?;
 
-        let endpoint = format!("{}/api/v1/assets", &ctx.base_url);
+        let endpoint = format!("{}/api/v1/assets", ctx.base_url);
 
         // Test: Unauthenticated Request
         let fail_resp = ctx.client.get(&endpoint).send().await?;
@@ -49,7 +49,7 @@ async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
             "#,
             Uuid::new_v4().as_bytes().to_vec(),
             user_id,
-            b"very real hash" as &[u8],
+            b"very real hash".as_slice(),
             1024,
             99_999,
             "0"
