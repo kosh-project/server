@@ -1,7 +1,10 @@
 use std::{
     io::{Cursor, Error},
     path::Path,
+    ptr::read,
 };
+
+use crate::tls::Error::NoCertificatesFound;
 
 use super::error::Result;
 use rcgen::generate_simple_self_signed;
@@ -31,7 +34,7 @@ impl Identity {
         }
     }
 
-    async fn load<P>(cert_path: P, key_path: P) -> Result<Self>
+    pub async fn load<P>(cert_path: P, key_path: P) -> Result<Self>
     where
         P: AsRef<Path>,
     {
@@ -78,8 +81,6 @@ impl Identity {
                 "No certificate found in PEM",
             )
         })??;
-        // dude lets make this a dedicated error instead this doesn't make sense..
-        // also that double ? operator is cursed
 
         let mut hasher = Sha256::new();
         hasher.update(der.as_ref());
@@ -88,5 +89,17 @@ impl Identity {
         let hex_array: Vec<String> =
             result.iter().map(|b| format!("{:02x}", b)).collect();
         Ok(hex_array.join(""))
+    }
+
+    pub fn fingerprint_raw(&self) -> Result<[u8; 32]> {
+        let mut reader = Cursor::new(self.cert_pem.as_bytes());
+        let mut cert_iter = rustls_pemfile::certs(&mut reader);
+
+        let der = cert_iter.next().ok_or(NoCertificatesFound)??;
+
+        let mut hasher = Sha256::new();
+        hasher.update(der.as_ref());
+
+        Ok(hasher.finalize().into())
     }
 }
