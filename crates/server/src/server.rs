@@ -16,6 +16,7 @@ pub struct Launcher {
 }
 
 impl Launcher {
+    #[must_use]
     pub const fn new(
         port: u16,
         app: Router,
@@ -83,7 +84,7 @@ impl Launcher {
                         .into_make_service_with_connect_info::<SocketAddr>(),
                 )
                 .await?;
-        };
+        }
 
         Ok(())
     }

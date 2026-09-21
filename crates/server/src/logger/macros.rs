@@ -21,8 +21,6 @@
 /// info!(Module::Api, "request received from user {}", user_id);
 /// info!(Module::Storage, "blob committed: {}", hash);
 /// ```
-///
-
 #[macro_export]
 macro_rules! info {
     ($module:expr, $($arg:tt)+) => {

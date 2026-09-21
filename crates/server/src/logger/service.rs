@@ -9,7 +9,7 @@ use kosh_core::{
     config::Config,
     logger::{
         Level::Shutdown,
-        Telemetry::{self, Heartbeat, Log},
+        Telemetry::{Heartbeat, Log},
     },
 };
 use tokio::{
@@ -19,24 +19,13 @@ use tokio::{
     spawn,
     sync::mpsc::{Receiver, Sender, channel},
     task::JoinHandle,
-    time::{Interval, MissedTickBehavior, interval, timeout},
+    time::{MissedTickBehavior, interval, timeout},
 };
 
 use crate::{
     fatal,
-    logger::{
-        Entry, Level, Module,
-        error::{Error::LogDirectoryInitialization, Result},
-    },
+    logger::{Entry, Module, error::Result},
 };
-
-/// The filesystem path of the Unix Datagram Socket used for real-time log broadcasting.
-///
-/// The server's background logging task sends a copy of each serialized [`Entry`] to this
-/// address after writing it to disk. The admin CLI (`kosh-cli`) binds to this socket to
-/// receive the live stream. If no client is bound, the `send_to` call fails silently — the
-/// server deliberately ignores the error so that the absence of the CLI never affects
-/// request-path performance.
 
 /// The number of milliseconds in one calendar day (24 * 60 * 60 * 1000).
 ///
@@ -158,7 +147,7 @@ impl Service {
                     let is_shutdown = entry.level == Shutdown;
 
                     if let Err(e) = self.commit(entry).await {
-                        eprintln!("Failed to commit logs to disk : {e}")
+                        eprintln!("Failed to commit logs to disk : {e}");
                     }
                     if is_shutdown {
                         break;
@@ -260,12 +249,10 @@ impl LoggerHandler {
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod test {
-    use std::env::{self, remove_var, set_var, var_os};
 
     use super::*;
     use chrono::Utc;
-    use dirs::config_dir;
-    use serial_test::serial;
+    use kosh_core::logger::Level;
     use tmpdir::TmpDir;
 
     async fn with_temp_env<F, Fut, T>(f: F) -> anyhow::Result<T>
