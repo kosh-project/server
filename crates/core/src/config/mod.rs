@@ -20,7 +20,7 @@ mod error;
 
 pub use error::{Error, Result};
 
-use std::path::{Path, PathBuf};
+use std::{env, path::PathBuf};
 use tokio::fs;
 
 /// The runtime configuration for the Kosh server.
@@ -84,11 +84,8 @@ impl Config {
     /// Returns [`Error::Io`] if the config file or its parent directories cannot be created
     /// or read. Returns [`Error::Parse`] if the KDL content cannot be decoded into a
     /// valid `Config` struct.
-    pub async fn load_or_init<P>(path: &P) -> error::Result<Self>
-    where
-        P: AsRef<Path> + Send + Sync,
-    {
-        let path = path.as_ref();
+    pub async fn load_or_init() -> error::Result<Self> {
+        let path = Self::path();
         if !path.exists() {
             let default_kdl = r#"// Kosh Server Configuration
 
@@ -112,10 +109,12 @@ socket-path "/tmp/kosh.sock"
                 fs::create_dir_all(parent).await?;
             }
 
-            fs::write(path, default_kdl).await?;
+            fs::write(&path, default_kdl).await?;
+            eprintln!("Creating fresh config at {}", path.display())
+        } else {
+            eprintln!("Loading fresh config from {}", path.display())
         }
-
-        let config_txt = fs::read_to_string(path).await?;
+        let config_txt = fs::read_to_string(&path).await?;
         let config = knuffel::parse(&path.to_string_lossy(), &config_txt)?;
         Ok(config)
     }
@@ -129,4 +128,24 @@ socket-path "/tmp/kosh.sock"
     pub fn tls_identity_path(&self) -> PathBuf {
         self.vault_path.join("tls")
     }
+
+    pub fn path() -> PathBuf {
+        if let Ok(path) = env::var("KOSH_CONFIG") {
+            return PathBuf::from(path);
+        }
+
+        #[cfg(unix)]
+        if is_root() {
+            return PathBuf::from("/etc/kosh/config.kdl");
+        }
+
+        dirs::config_dir()
+            .map(|p| p.join("kosh").join("config.kdl"))
+            .unwrap_or_else(|| PathBuf::from("kosh.kdl"))
+    }
+}
+
+#[cfg(unix)]
+fn is_root() -> bool {
+    unsafe { libc::geteuid() == 0 }
 }

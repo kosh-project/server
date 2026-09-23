@@ -13,8 +13,7 @@ use crate::{
         middleware::{auth_guard, log_middleware},
     },
     app::State as AppState,
-    info,
-    logger::{Module, logging_enabled},
+    logger::logging_enabled,
 };
 
 /// Constructs the top-level Axum router for the server.

@@ -1,9 +1,10 @@
 // #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use boot::Error;
 use kosh_core::config::Config;
 use kosh_core::tls;
 use rustls::crypto::ring;
-use std::path::Path;
+use std::str::FromStr;
 use tokio::io;
 use tokio::{signal, sync::watch};
 use webdav_server::error::boot;
@@ -17,7 +18,10 @@ use webdav_server::{
     storage::ledger,
 };
 
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::sqlite::{
+    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
+    SqliteSynchronous,
+};
 
 async fn shutdown_signal() -> io::Result<()> {
     type Err = io::Error;
@@ -58,10 +62,8 @@ async fn main() -> miette::Result<()> {
 
 async fn boot() -> Result<(), boot::Error> {
     let _ = ring::default_provider().install_default();
-    // .expect("Failed to install rustls crypto provider");
 
-    let config_path = Path::new("test/kosh.kdl");
-    let config = Config::load_or_init(&config_path).await?;
+    let config = Config::load_or_init().await?;
 
     tokio::fs::create_dir_all(&config.vault_path).await?;
     info!(
@@ -72,9 +74,16 @@ async fn boot() -> Result<(), boot::Error> {
 
     let db_path =
         format!("sqlite://{}/metadata.db", config.vault_path.display());
+
+    let options = SqliteConnectOptions::from_str(&db_path)?
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .pragma("mmap_size", "30000000000")
+        .pragma("temp_store", "MEMORY");
+
     let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(&db_path)
+        .max_connections(50)
+        .connect_with(options)
         .await?;
 
     let (log_sender, logger_handle) = logger::Service::start(&config)
@@ -82,8 +91,11 @@ async fn boot() -> Result<(), boot::Error> {
         .map_err(|e| boot::Error::Logger(e.to_string()))?;
 
     GLOBAL_LOGGER.set(log_sender).map_err(|e| {
-        boot::Error::Logger(format!("Failed to initiate global logger {e:?}"))
+        Error::Logger(format!("Failed to initiate global logger {e:?}"))
     })?;
+
+    sqlx::migrate!("./migrations").run(&pool).await?;
+    info!(Module::Database, "Applied all pending SQLite migrations");
 
     let app_state = AppStateBuilder::new()
         .db(pool.clone())
@@ -93,10 +105,6 @@ async fn boot() -> Result<(), boot::Error> {
     let identity =
         tls::Identity::load_or_create(app_state.vault_path().to_owned())
             .await?;
-
-    let fingerprint = identity.fingerprint()?;
-
-    info!(Module::Server, "TLS Fingerprint : {}", fingerprint);
 
     let ledger_sender = app_state.ledger.sender().clone();
     let app = route_main(app_state);

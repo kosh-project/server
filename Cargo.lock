@@ -2045,6 +2045,7 @@ dependencies = [
  "chrono",
  "dirs",
  "knuffel",
+ "libc",
  "miette",
  "rcgen",
  "rustls-pemfile",

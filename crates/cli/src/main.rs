@@ -21,7 +21,7 @@ use crate::ui::app::App;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let config = Config::load_or_init(&"test/kosh.kdl").await?;
+    let config = Config::load_or_init().await?;
     color_eyre::install().map_err(|e| anyhow!("{e}"))?;
 
     let mut term = ratatui::init();
