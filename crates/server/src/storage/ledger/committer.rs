@@ -245,7 +245,7 @@ impl Committer {
             info!(
                 Module::Ledger,
                 "Rotated ledger for user {user_id} to new segment"
-            )
+            );
         }
 
         active.file.write_all(&payload).await?;

@@ -110,9 +110,7 @@ socket-path "/tmp/kosh.sock"
             }
 
             fs::write(&path, default_kdl).await?;
-            eprintln!("Creating fresh config at {}", path.display())
-        } else {
-            eprintln!("Loading fresh config from {}", path.display())
+            eprintln!("Creating fresh config at {}", path.display());
         }
         let config_txt = fs::read_to_string(&path).await?;
         let config = knuffel::parse(&path.to_string_lossy(), &config_txt)?;
@@ -129,6 +127,7 @@ socket-path "/tmp/kosh.sock"
         self.vault_path.join("tls")
     }
 
+    #[must_use]
     pub fn path() -> PathBuf {
         if let Ok(path) = env::var("KOSH_CONFIG") {
             return PathBuf::from(path);
@@ -139,9 +138,10 @@ socket-path "/tmp/kosh.sock"
             return PathBuf::from("/etc/kosh/config.kdl");
         }
 
-        dirs::config_dir()
-            .map(|p| p.join("kosh").join("config.kdl"))
-            .unwrap_or_else(|| PathBuf::from("kosh.kdl"))
+        dirs::config_dir().map_or_else(
+            || PathBuf::from("kosh.kdl"),
+            |p| p.join("kosh").join("config.kdl"),
+        )
     }
 }
 
