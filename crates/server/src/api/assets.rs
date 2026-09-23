@@ -172,7 +172,7 @@ pub async fn upload(
                     )
                 }
                 Err(e) => {
-                    info!(
+                    error!(
                         Module::Asset,
                         "user {user_id} failed to register asset ownership to database '{file_name}': {e}"
                     );
@@ -182,9 +182,9 @@ pub async fn upload(
         }
 
         Err(e) => {
-            info!(
+            error!(
                 Module::Asset,
-                "user {user_id} failed to uplaod '{file_name}'. Failed to write this blob to disk with error {e}"
+                "user {user_id} failed to upload '{file_name}'. Failed to write this blob to disk with error {e}"
             );
             FileStatus::failure(file_name.into(), &e)
         }

@@ -1,12 +1,16 @@
-use crate::storage::{
-    Error::{CreateTempFile, InvalidPath, RenameError, WriteChunkFailure},
-    Payload, Result,
-    file::Metadata,
+use crate::{
+    storage::{
+        Error::{CreateTempFile, InvalidPath, RenameError, WriteChunkFailure},
+        Payload, Result,
+        file::Metadata,
+    },
+    warn,
 };
 use blake3::Hasher;
 use bytes::Bytes;
 use fs4::AsyncFileExt;
 use futures::{Stream, StreamExt};
+use kosh_core::logger::Module;
 use std::{
     error::Error as StdErr,
     io::{Error as IoErr, ErrorKind::UnexpectedEof},
@@ -92,6 +96,11 @@ impl Transaction {
                 // Future: instead of deleting, queue for GC so interrupted
                 // uploads can be resumed (tus-style resumable uploads).
                 let _ = remove_file(self.temp).await;
+
+                warn!(
+                    Module::Storage,
+                    "Transaction rolled back and temp file deleted due to error: {e}"
+                );
 
                 Err(e)
             }

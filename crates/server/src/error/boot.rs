@@ -21,4 +21,7 @@ pub enum Error {
     // Server(#[from] Box<dyn StdErr>),
     #[error("Logger failed to boot: {}", .0)]
     Logger(String),
+
+    #[error("Migration failure: {}", .0)]
+    Migration(#[from] sqlx::migrate::MigrateError),
 }

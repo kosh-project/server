@@ -109,7 +109,13 @@ impl Service {
         let file_path = self.vault_path.join(hash_str);
 
         match fs::remove_file(file_path).await {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                info!(
+                    Module::Storage,
+                    "Blob '{hash_str}' physically deleted from vault"
+                );
+                Ok(())
+            }
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
             Err(x) => {
                 Err(Internal(Message(format!("Failed to delete file : {x}"))))

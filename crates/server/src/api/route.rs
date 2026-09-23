@@ -87,7 +87,6 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
 /// This endpoint is unauthenticated and does not hit the database or filesystem.
 /// It is suitable for use as a liveness probe in container orchestration.
 async fn health() -> Json<Value> {
-    info!(Module::Api, "get_health");
     Json(json!({
         "health" : "ok"
     }))

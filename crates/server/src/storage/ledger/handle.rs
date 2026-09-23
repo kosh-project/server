@@ -1,7 +1,10 @@
-use crate::storage::ledger::{
-    AppendReciept,
-    Error::{self, CommitterDead},
-    Result,
+use crate::{
+    info,
+    storage::ledger::{
+        AppendReciept,
+        Error::{self, CommitterDead},
+        Result,
+    },
 };
 use std::{
     cmp,
@@ -10,6 +13,7 @@ use std::{
 };
 
 use bytes::Bytes;
+use kosh_core::logger::Module;
 use tokio::{
     fs::File,
     io::AsyncSeekExt,
@@ -63,6 +67,8 @@ impl Handle {
         let (tx, rx) = mpsc::channel(100);
         let committer = Committer::new(vault_dir, rx);
         tokio::spawn(committer.run());
+
+        info!(Module::Ledger, "Ledger committer actor spawned");
         Self { tx }
     }
 

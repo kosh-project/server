@@ -50,11 +50,7 @@ pub async fn login(
     let user_id = User::verify(&state.db, identity_hash, request.auth_verifier)
         .await?
         .ok_or_else(|| {
-            warn!(
-                Module::Api,
-                "Failed login attempt with id : ''",
-                // hex::encode(identity_hash)
-            );
+            warn!(Module::Api, "Failed login attempt with unknown identity");
             Unauthorized("Invalid Credentials".into())
         })?;
 

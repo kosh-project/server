@@ -5,16 +5,20 @@ use std::{
 };
 
 use bytes::Bytes;
+use kosh_core::logger::Module;
 use tokio::{
     fs::{self},
     io::AsyncWriteExt,
     sync::{mpsc::Receiver, oneshot::Sender},
 };
 
-use crate::storage::ledger::{
-    AppendReciept, Error, Result,
-    action::Action::{self, Append, Prune, Shutdown},
-    segment::Segment,
+use crate::{
+    info,
+    storage::ledger::{
+        AppendReciept, Error, Result,
+        action::Action::{self, Append, Prune, Shutdown},
+        segment::Segment,
+    },
 };
 
 /// The single-writer actor that owns all open segment file handles.
@@ -169,6 +173,11 @@ impl Committer {
             }
         }
 
+        info!(
+            Module::Ledger,
+            "Pruned stale ledger segment for user {user_id} before segment ID: {before}"
+        );
+
         Ok(())
     }
 
@@ -232,6 +241,11 @@ impl Committer {
         if active.current_size >= 5_000_000 {
             let new_segment = active.rotate(&self.vault_path, user_id).await?;
             *active = new_segment;
+
+            info!(
+                Module::Ledger,
+                "Rotated ledger for user {user_id} to new segment"
+            )
         }
 
         active.file.write_all(&payload).await?;
