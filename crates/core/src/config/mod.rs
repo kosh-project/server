@@ -113,7 +113,15 @@ socket-path "/tmp/kosh.sock"
             eprintln!("Creating fresh config at {}", path.display());
         }
         let config_txt = fs::read_to_string(&path).await?;
-        let config = knuffel::parse(&path.to_string_lossy(), &config_txt)?;
+        let mut config: Self =
+            knuffel::parse(&path.to_string_lossy(), &config_txt)?;
+
+        if !config.vault_path.is_absolute()
+            && let Some(parent) = path.parent()
+        {
+            config.vault_path = parent.join(config.vault_path);
+        }
+
         Ok(config)
     }
 

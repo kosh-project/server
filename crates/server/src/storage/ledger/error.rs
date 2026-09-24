@@ -23,7 +23,7 @@ pub enum Error {
     /// The request that triggered it will receive a `500 Internal Server Error`.
     ///
     /// [`Handle`]: crate::storage::ledger::handle::Handle
-    #[error("Comitter died before an active sender")]
+    #[error("Committer died before an active sender")]
     CommitterDead,
 
     /// A segment file exists but its contents are invalid.

@@ -1,5 +1,3 @@
-// #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
 use boot::Error;
 use kosh_core::config::Config;
 use kosh_core::tls;
@@ -79,7 +77,8 @@ async fn boot() -> Result<(), boot::Error> {
         .journal_mode(SqliteJournalMode::Wal)
         .synchronous(SqliteSynchronous::Normal)
         .pragma("mmap_size", "30000000000")
-        .pragma("temp_store", "MEMORY");
+        .pragma("temp_store", "MEMORY")
+        .create_if_missing(true);
 
     let pool = SqlitePoolOptions::new()
         .max_connections(50)
@@ -131,6 +130,5 @@ async fn boot() -> Result<(), boot::Error> {
     shutdown!("Waiting to flush remaining entries...");
     logger_handle.shutdown_with_grace(10).await;
 
-    eprintln!("Bye bye");
     Ok(())
 }

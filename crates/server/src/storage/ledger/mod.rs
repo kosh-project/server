@@ -70,7 +70,7 @@ mod segment;
 pub use error::Error;
 pub type Result<T> = core::result::Result<T, Error>;
 
-pub(crate) use action::AppendReciept;
+pub(crate) use action::AppendReceipt;
 
 pub use handle::Handle;
 

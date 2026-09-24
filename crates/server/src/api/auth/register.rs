@@ -46,7 +46,7 @@ pub async fn register(
         Ok(()) => {
             info!(
                 Module::Api,
-                "New user reggistered with id: {:?}",
+                "New user registered with id: {:?}",
                 hex::encode(identity_hash)
             );
             Ok(StatusCode::CREATED)

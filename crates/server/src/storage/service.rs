@@ -70,7 +70,10 @@ impl Service {
 
         let file_metadata = transaction.commit(payload).await?;
 
-        info!(Module::Storage, "Comitted CAS blob for {file_name} to disk");
+        info!(
+            Module::Storage,
+            "Committed CAS blob for {file_name} to disk"
+        );
         Ok(file_metadata)
     }
 

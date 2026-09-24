@@ -20,7 +20,7 @@ pub enum Action {
     /// The `Committer` prepends nothing to the bytes — framing (e.g. the
     /// 4-byte little-endian length prefix) must be applied by the caller
     /// before constructing this action. On success, the reply carries an
-    /// [`AppendReciept`] containing the segment name and the new high-water
+    /// [`AppendReceipt`] containing the segment name and the new high-water
     /// mark offset.
     Append {
         /// The database primary key of the user whose ledger receives this payload.
@@ -28,7 +28,7 @@ pub enum Action {
         /// The raw bytes to append to the active segment file.
         payload: Bytes,
         /// Channel used to return the result to the caller.
-        reply: Sender<Result<AppendReciept>>,
+        reply: Sender<Result<AppendReceipt>>,
     },
 
     /// Delete all delta segments strictly older than `before` for a user.
@@ -69,7 +69,7 @@ pub enum Action {
 /// `GET /api/v1/sync/delta` endpoint to resume streaming from exactly where it
 /// left off.
 #[derive(Debug, Clone)]
-pub struct AppendReciept {
+pub struct AppendReceipt {
     /// The name of the segment file the payload was written to, e.g. `"delta_0000003"`.
     pub file_name: String,
     /// The byte offset immediately after the last written byte in that segment.
