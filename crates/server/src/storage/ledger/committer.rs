@@ -15,7 +15,7 @@ use tokio::{
 use crate::{
     info,
     storage::ledger::{
-        AppendReciept, Error, Result,
+        AppendReceipt, Error, Result,
         action::Action::{self, Append, Prune, Shutdown},
         segment::Segment,
     },
@@ -220,7 +220,7 @@ impl Committer {
     ///
     /// ## Return value
     ///
-    /// Returns an [`AppendReciept`] containing the segment name and the
+    /// Returns an [`AppendReceipt`] containing the segment name and the
     /// **high-water mark offset** — the byte position immediately after the
     /// last written byte. The client stores this value and uses it as the
     /// `offset` parameter on its next streaming read.
@@ -228,7 +228,7 @@ impl Committer {
         &mut self,
         user_id: i64,
         payload: Bytes,
-    ) -> Result<AppendReciept> {
+    ) -> Result<AppendReceipt> {
         let active = match self.active_users.entry(user_id) {
             Entry::Occupied(segment) => segment.into_mut(),
             Entry::Vacant(entry) => {
@@ -254,7 +254,7 @@ impl Committer {
 
         let offset = active.current_size;
 
-        Ok(AppendReciept {
+        Ok(AppendReceipt {
             file_name: active.file_name.clone(),
             offset,
         })

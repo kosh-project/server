@@ -1,7 +1,7 @@
 use crate::{
     info,
     storage::ledger::{
-        AppendReciept,
+        AppendReceipt,
         Error::{self, CommitterDead},
         Result,
     },
@@ -102,7 +102,7 @@ impl Handle {
         &self,
         user_id: i64,
         payload: Bytes,
-    ) -> Result<AppendReciept> {
+    ) -> Result<AppendReceipt> {
         let (reply, recv) = oneshot::channel();
 
         let action = Action::Append {

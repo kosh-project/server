@@ -4,6 +4,7 @@
 # temporary test files
 /test
 /vault
-
+.idea/
+.idea/*
 # Ah yes
 .env

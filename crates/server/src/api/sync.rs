@@ -39,7 +39,7 @@ use serde::{Deserialize, Serialize};
 use tokio_util::io::ReaderStream;
 
 use crate::api::{Error, Result};
-use crate::{app, storage::ledger::AppendReciept};
+use crate::{app, storage::ledger::AppendReceipt};
 
 /// The JSON response body returned by [`append_delta`].
 ///
@@ -59,8 +59,8 @@ pub struct AppendResponse {
     pub offset: u64,
 }
 
-impl From<AppendReciept> for AppendResponse {
-    fn from(reciept: AppendReciept) -> Self {
+impl From<AppendReceipt> for AppendResponse {
+    fn from(reciept: AppendReceipt) -> Self {
         Self {
             file_name: reciept.file_name,
             offset: reciept.offset,
