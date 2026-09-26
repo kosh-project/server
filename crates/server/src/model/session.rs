@@ -1,7 +1,7 @@
-use crate::model::Result;
+use crate::{auth::Secret, model::Result};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use blake3::Hasher;
+use blake3::{Hasher, keyed_hash};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -29,8 +29,15 @@ impl Session {
     /// # Errors
     /// - Fails with [`sqlx::sqlite::SqliteQueryResult`] if an error occurs interacting with sqlite database.
     /// - Returns an error if system time is set earlier than [`UNIX_EPOCH`].
-    pub async fn create(pool: &SqlitePool, user_id: i64) -> Result<String> {
-        let token = Uuid::new_v4().to_string();
+    pub async fn create(
+        pool: &SqlitePool,
+        user_id: i64,
+        secret: &Secret,
+    ) -> Result<String> {
+        let session_id = Uuid::new_v4().to_string();
+
+        let mac = keyed_hash(&secret.key(), session_id.as_bytes());
+        let token = format!("{session_id}.{}", mac.to_hex());
 
         #[allow(clippy::as_conversions)]
         // Happens only when you mess up with your system time

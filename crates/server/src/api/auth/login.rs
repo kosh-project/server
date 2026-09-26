@@ -54,7 +54,7 @@ pub async fn login(
             Unauthorized("Invalid Credentials".into())
         })?;
 
-    let token = Session::create(&state.db, user_id).await?;
+    let token = Session::create(&state.db, user_id, &state.secret).await?;
 
     info!(Module::Api, "User {user_id} successfully logged in");
     Ok(Json(LoginResponse { token }))

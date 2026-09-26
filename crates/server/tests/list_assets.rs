@@ -14,7 +14,7 @@ async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
         User::create(&ctx.db, &vec![0u8; 32], "fake_verifier".into()).await?;
         let user_id = 1;
 
-        let token = Session::create(&ctx.db, user_id).await?;
+        let token = Session::create(&ctx.db, user_id, &ctx.secret).await?;
 
         let endpoint = format!("{}/api/v1/assets", ctx.base_url);
 

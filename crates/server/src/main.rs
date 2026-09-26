@@ -5,6 +5,7 @@ use rustls::crypto::ring;
 use std::str::FromStr;
 use tokio::io;
 use tokio::{signal, sync::watch};
+use webdav_server::auth::Secret;
 use webdav_server::error::boot;
 use webdav_server::server::Launcher;
 use webdav_server::{
@@ -73,6 +74,8 @@ async fn boot() -> Result<(), boot::Error> {
     let db_path =
         format!("sqlite://{}/metadata.db", config.vault_path.display());
 
+    let secret = Secret::load_or_create(&config).await?;
+
     let options = SqliteConnectOptions::from_str(&db_path)?
         .journal_mode(SqliteJournalMode::Wal)
         .synchronous(SqliteSynchronous::Normal)
@@ -99,6 +102,7 @@ async fn boot() -> Result<(), boot::Error> {
     let app_state = AppStateBuilder::new()
         .db(pool.clone())
         .vault_path(config.vault_path.clone())
+        .secret(secret)
         .build();
 
     let identity =

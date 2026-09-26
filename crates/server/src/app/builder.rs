@@ -5,6 +5,7 @@ use sqlx::SqlitePool;
 
 use crate::{
     app::{State as AppState, state::UserId},
+    auth::Secret,
     model::session::TokenHash,
     storage::{self, ledger},
 };
@@ -32,6 +33,7 @@ pub struct AppStateBuilder {
     vault_path: Option<PathBuf>,
     db: Option<SqlitePool>,
     session_cache: Option<Cache<TokenHash, UserId>>,
+    secret: Option<Secret>,
 }
 
 impl AppStateBuilder {
@@ -42,6 +44,7 @@ impl AppStateBuilder {
             vault_path: None,
             db: None,
             session_cache: None,
+            secret: None,
         }
     }
 
@@ -63,6 +66,12 @@ impl AppStateBuilder {
     #[must_use]
     pub fn db(mut self, pool: SqlitePool) -> Self {
         self.db = Some(pool);
+        self
+    }
+
+    #[must_use]
+    pub const fn secret(mut self, secret: Secret) -> Self {
+        self.secret = Some(secret);
         self
     }
 
@@ -102,6 +111,7 @@ impl AppStateBuilder {
                     .build()
             }),
             ledger: ledger::Handle::spawn(vault_path),
+            secret: self.secret.expect("FATAL: no secret provided??"),
         }
     }
 }

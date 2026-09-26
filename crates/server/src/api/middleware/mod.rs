@@ -8,6 +8,8 @@
 //!   from the response extensions for dispatch to the logging service.
 mod auth_guard;
 mod log;
+mod mac_guard;
 
 pub use auth_guard::auth_guard;
 pub use log::log_middleware;
+pub use mac_guard::mac_guard;

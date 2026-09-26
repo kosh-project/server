@@ -1,7 +1,9 @@
 use sqlx::sqlite::SqlitePoolOptions;
 use tmpdir::TmpDir;
 use tokio::net::TcpListener;
-use webdav_server::{api::route::route_main, app::AppStateBuilder};
+use webdav_server::{
+    api::route::route_main, app::AppStateBuilder, auth::Secret,
+};
 
 #[tokio::test]
 #[serial_test::serial]
@@ -17,6 +19,7 @@ async fn quick_dev() -> anyhow::Result<()> {
     let state = AppStateBuilder::new()
         .vault_path(TmpDir::new("web-dav_vault").await?.to_path_buf())
         .db(sql_pool)
+        .secret(Secret::random())
         .build();
 
     tokio::spawn(async move {

@@ -24,4 +24,9 @@ pub enum Error {
 
     #[error("Migration failure: {}", .0)]
     Migration(#[from] sqlx::migrate::MigrateError),
+
+    #[error("Server secret corrupted: {}", .0)]
+    Secret(String),
 }
+
+pub type Result<T> = core::result::Result<T, Error>;

@@ -4,6 +4,7 @@ use moka::future::Cache;
 use sqlx::SqlitePool;
 
 use crate::{
+    auth::Secret,
     model::session::TokenHash,
     storage::{self, ledger},
 };
@@ -30,6 +31,7 @@ pub struct State {
     /// In-memory session cache. Checked before every database lookup in `auth_guard`
     /// to avoid hitting the disk on every authenticated request.
     pub session_cache: Cache<TokenHash, UserId>,
+    pub secret: Secret,
 }
 
 impl State {

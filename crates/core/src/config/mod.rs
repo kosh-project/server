@@ -151,6 +151,11 @@ socket-path "/tmp/kosh.sock"
             |p| p.join("kosh").join("config.kdl"),
         )
     }
+
+    #[must_use]
+    pub fn secret_path(&self) -> PathBuf {
+        self.vault_path.join("server.secret")
+    }
 }
 
 #[cfg(unix)]
