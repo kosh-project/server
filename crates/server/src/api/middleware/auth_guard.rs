@@ -1,6 +1,7 @@
 use crate::{
-    api::Error::{BadRequest, Unauthorized},
+    api::Error::Unauthorized,
     app::State as AppState,
+    auth::Secret,
     model::session::{Session, TokenHash},
 };
 use axum::{
@@ -8,7 +9,6 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use blake3::Hasher;
 
 use crate::Result;
 
@@ -27,26 +27,12 @@ pub async fn auth_guard(
     mut request: Request,
     next: Next,
 ) -> Result<Response> {
-    let header = request
-        .headers()
-        .get("Authorization")
-        .ok_or_else(|| Unauthorized("Missing Header".into()))?;
+    let token_hash = request
+        .extensions()
+        .get::<TokenHash>()
+        .ok_or_else(|| Unauthorized("Unverified token".into()))?;
 
-    let token = header
-        .to_str()
-        .map_err(|_| BadRequest("Auth failed to serialize".into()))?
-        .strip_prefix("Bearer ")
-        .ok_or_else(|| {
-            Unauthorized("Tokens must start with 'Bearer'".into())
-        })?;
-
-    let token_hash: TokenHash = Hasher::new()
-        .update(token.as_bytes())
-        .finalize()
-        .as_bytes()
-        .into();
-
-    if let Some(user_id) = state.session_cache.get(&token_hash).await {
+    if let Some(user_id) = state.session_cache.get(token_hash).await {
         request.extensions_mut().insert(user_id);
         return Ok(next.run(request).await);
     }
@@ -57,7 +43,7 @@ pub async fn auth_guard(
 
     state
         .session_cache
-        .insert(token_hash, session.user_id)
+        .insert(token_hash.to_owned(), session.user_id)
         .await;
 
     request.extensions_mut().insert(session.user_id);
@@ -69,7 +55,7 @@ pub async fn auth_guard(
 #[allow(clippy::unwrap_used)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use crate::app::AppStateBuilder;
+    use crate::{app::AppStateBuilder, auth::Secret};
     use anyhow::Result;
     use axum::{Router, body::Body, http::Request, routing::get};
     use blake3::hash;
@@ -88,7 +74,13 @@ mod tests {
         // returns the user_id, which is exactly what we want to know.
         let pool = SqlitePoolOptions::new().connect("sqlite::memory:").await?;
 
-        let state = AppStateBuilder::new().vault_path("/tmp").db(pool).build();
+        let secret = Secret::random();
+
+        let state = AppStateBuilder::new()
+            .vault_path("/tmp")
+            .db(pool)
+            .secret(secret)
+            .build();
 
         let token = "top_secret";
         let token_hash = TokenHash::from(hash(token.as_bytes()).as_bytes());
@@ -103,15 +95,17 @@ mod tests {
             ))
             .with_state(state);
 
-        let req = Request::builder()
+        let mut req = Request::builder()
             .header("Authorization", format!("Bearer {token}"))
             .body(Body::empty())
             .unwrap();
 
+        req.extensions_mut().insert(token_hash);
+
         let response = app.oneshot(req).await.unwrap();
 
         // Test: We bypassed db querry for token check?
-        assert_eq!(response.status(), 200);
+        assert_eq!(response.status(), 200, "dude failed {:?}", response);
 
         Ok(())
     }

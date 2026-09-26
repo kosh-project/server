@@ -10,7 +10,7 @@ use crate::{
     api::{
         self,
         assets::{self, list},
-        middleware::{auth_guard, log_middleware},
+        middleware::{auth_guard, log_middleware, mac_guard},
     },
     app::State as AppState,
     logger::logging_enabled,
@@ -78,6 +78,7 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .route("/sync/delta", get(api::sync::stream_delta))
         .route("/sync/prune", delete(api::sync::prune_ledger))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
+        .route_layer(middleware::from_fn_with_state(state.clone(), mac_guard))
 }
 
 /// `GET /health`

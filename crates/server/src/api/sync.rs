@@ -251,6 +251,7 @@ mod tests {
             },
         },
         app::{self, AppStateBuilder},
+        auth::Secret,
     };
 
     async fn setup_env() -> Result<(TmpDir, app::State)> {
@@ -258,9 +259,12 @@ mod tests {
 
         let pool = SqlitePool::connect("sqlite::memory:").await?;
 
+        let secret = Secret::new(rand::random());
+
         let state = AppStateBuilder::new()
             .vault_path(tmp.to_path_buf())
             .db(pool)
+            .secret(secret)
             .build();
 
         Ok((tmp, state))
