@@ -10,6 +10,10 @@ use tokio::fs;
 pub struct Secret([u8; 32]);
 
 impl Secret {
+    pub const fn new(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
     async fn load<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
@@ -45,6 +49,10 @@ impl Secret {
             }
             Err(e) => Err(e),
         }
+    }
+
+    pub fn random() -> Self {
+        Self(rand::random())
     }
 
     #[must_use]

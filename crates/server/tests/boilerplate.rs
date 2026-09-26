@@ -3,13 +3,16 @@ use std::path::PathBuf;
 use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
 use tmpdir::TmpDir;
 use tokio::{fs::create_dir_all, net::TcpListener};
-use webdav_server::{api::route::route_main, app::AppStateBuilder};
+use webdav_server::{
+    api::route::route_main, app::AppStateBuilder, auth::Secret,
+};
 
 #[allow(unused)]
 pub struct TestCtx {
     pub db: SqlitePool,
     pub vault_path: PathBuf,
     pub base_url: String,
+    pub secret: Secret,
     pub client: reqwest::Client,
 }
 
@@ -47,11 +50,14 @@ where
         .connect("sqlite::memory:")
         .await?;
 
+    let secret = Secret::random();
+
     sqlx::migrate!("./migrations").run(&sql_pool).await?;
 
     let state = AppStateBuilder::new()
         .vault_path(vault_dir.clone())
         .db(sql_pool.clone())
+        .secret(secret)
         .build();
 
     let listener = TcpListener::bind("127.0.0.1:0").await?;
@@ -68,6 +74,7 @@ where
         vault_path: vault_dir.clone(),
         base_url,
         client: reqwest::Client::new(),
+        secret,
     };
 
     f(ctx).await?;

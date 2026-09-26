@@ -5,6 +5,7 @@ use tokio::{fs, net::TcpListener};
 use webdav_server::{
     api::route::route_main,
     app::AppStateBuilder,
+    auth::Secret,
     model::{session::Session, user::User},
 };
 
@@ -37,14 +38,17 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
 
     sqlx::migrate!("./migrations").run(&sql_pool).await?;
 
+    let secret = Secret::new(rand::random());
+
     User::create(&sql_pool, &vec![0; 32], "fake_verifier".into()).await?;
 
     let user_id = 1;
-    let token = Session::create(&sql_pool, user_id).await?;
+    let token = Session::create(&sql_pool, user_id, &secret).await?;
 
     let state = AppStateBuilder::new()
         .vault_path(&vault_dir)
         .db(sql_pool)
+        .secret(secret)
         .build();
 
     tokio::spawn(async move {
