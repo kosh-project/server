@@ -1,6 +1,6 @@
 [package]
 name = "webdav-server"
-version = "0.1.3"
+version = "0.1.31"
 edition = "2024"
 rust-version = "1.97.1"
 
@@ -36,6 +36,8 @@ axum-server = { version = "0.8.0", features = ["tls-rustls"] }
 knuffel = "3.2.0"
 kosh-core = { path = "../core" }
 miette = { version = "5.10.0", features = ["fancy"] }
+tower_governor = "0.8.0"
+rand = "0.10.1"
 
 
 [dev-dependencies]
@@ -43,7 +45,6 @@ futures = "0.3.32"
 anyhow = { workspace = true }
 http-body-util = "0.1.5"
 httpc-test = { version = "0.1.10", features = ["color-output", "colored"] }
-rand = "0.10.1"
 reqwest = { version = "0.13.4", features = ["multipart"] }
 serial_test = "3.5.0"
 tmpdir = "1.0.0"
