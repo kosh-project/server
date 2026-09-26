@@ -51,6 +51,6 @@ pub mod error;
 
 pub use error::{Error, Result};
 
-mod auth;
+pub mod auth;
 pub mod logger;
 pub mod server;
