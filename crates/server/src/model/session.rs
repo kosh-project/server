@@ -49,7 +49,7 @@ impl Session {
 
         let expires_at = created_at + (30 * 24 * 60 * 60);
 
-        let payload = format!("{session_id}.{:016x}", expires_at);
+        let payload = format!("{session_id}.{expires_at :016x}");
         let mac = keyed_hash(&secret.key(), payload.as_bytes());
         let token = format!("{payload}.{}", mac.to_hex());
 
@@ -75,6 +75,7 @@ impl Session {
         Ok(token)
     }
 
+    #[allow(clippy::string_slice)]
     pub fn verify_stateless(token: &str, secret: &Secret) -> api::Result<()> {
         if token.len() != TOKEN_LEN {
             return Err(api::Error::Unauthorized(
