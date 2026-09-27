@@ -1,7 +1,12 @@
-use crate::{auth::Secret, model::Result};
+use crate::{
+    api::{self, Error::Unauthorized},
+    auth::{Secret, TOKEN_LEN},
+    error::internal,
+    model::Result,
+};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use blake3::{Hasher, keyed_hash};
+use blake3::{Hash, Hasher, keyed_hash};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -36,17 +41,17 @@ impl Session {
     ) -> Result<String> {
         let session_id = Uuid::new_v4().to_string();
 
-        let mac = keyed_hash(&secret.key(), session_id.as_bytes());
-        let token = format!("{session_id}.{}", mac.to_hex());
-
-        #[allow(clippy::as_conversions)]
-        // Happens only when you mess up with your system time
+        // #[allow(clippy::as_conversions)]
         let created_at: i64 = SystemTime::now()
             .duration_since(UNIX_EPOCH)?
             .as_secs()
             .try_into()?;
 
         let expires_at = created_at + (30 * 24 * 60 * 60);
+
+        let payload = format!("{session_id}.{:016x}", expires_at);
+        let mac = keyed_hash(&secret.key(), payload.as_bytes());
+        let token = format!("{payload}.{}", mac.to_hex());
 
         let token_hash = Hasher::new()
             .update(token.as_bytes())
@@ -68,6 +73,48 @@ impl Session {
         .await?;
 
         Ok(token)
+    }
+
+    pub fn verify_stateless(token: &str, secret: &Secret) -> api::Result<()> {
+        if token.len() != TOKEN_LEN {
+            return Err(api::Error::Unauthorized(
+                "Invalid token format".into(),
+            ));
+        }
+
+        let payload = &token[..53];
+        let mac_hex = &token[54..];
+
+        let received_mac = Hash::from_hex(mac_hex).map_err(|_| {
+            api::Error::Unauthorized("Forged or invalid token".into())
+        })?;
+
+        let expected_mac =
+            blake3::keyed_hash(&secret.key(), payload.as_bytes());
+
+        if received_mac != expected_mac {
+            return Err(api::Error::Unauthorized(
+                "Forged or invalid token".into(),
+            ));
+        }
+
+        let expires_hex = &token[37..53];
+        let expires_at =
+            i64::from_str_radix(expires_hex, 16).map_err(|_| {
+                api::Error::Unauthorized("Invalid timestamp".into())
+            })?;
+
+        let now: i64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(internal::Error::from)?
+            .as_secs()
+            .try_into()?;
+
+        if expires_at < now {
+            return Err(Unauthorized("Token expired".into()));
+        }
+
+        Ok(())
     }
 
     /// Querries the database and returns [`Option<Session>`] wrapped in [`Result`].
@@ -142,6 +189,12 @@ pub struct TokenHash(pub [u8; 32]);
 impl From<blake3::Hasher> for TokenHash {
     fn from(hasher: blake3::Hasher) -> Self {
         Self(hasher.finalize().into())
+    }
+}
+
+impl From<blake3::Hash> for TokenHash {
+    fn from(hash: blake3::Hash) -> Self {
+        Self(hash.into())
     }
 }
 

@@ -1,7 +1,6 @@
 use crate::{
     api::Error::Unauthorized,
     app::State as AppState,
-    auth::Secret,
     model::session::{Session, TokenHash},
 };
 use axum::{
