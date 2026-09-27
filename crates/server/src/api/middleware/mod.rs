@@ -13,3 +13,7 @@ mod mac_guard;
 pub use auth_guard::auth_guard;
 pub use log::log_middleware;
 pub use mac_guard::mac_guard;
+
+mod rate_limit;
+// pub use rate_limit::{auth_ip_limiter, device_limiter, global_ip_limiter};
+pub use rate_limit::RateLimitExt;
