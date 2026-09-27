@@ -10,6 +10,7 @@ use tokio::fs;
 pub struct Secret([u8; 32]);
 
 impl Secret {
+    #[must_use]
     pub const fn new(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
@@ -51,6 +52,7 @@ impl Secret {
         }
     }
 
+    #[must_use]
     pub fn random() -> Self {
         Self(rand::random())
     }

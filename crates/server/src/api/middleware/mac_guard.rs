@@ -3,7 +3,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use blake3::{Hash, Hasher, keyed_hash};
+use blake3::Hasher;
 
 use crate::{
     api::{
@@ -11,11 +11,8 @@ use crate::{
         Result,
     },
     app,
-    model::session::TokenHash,
+    model::session::{Session, TokenHash},
 };
-
-// Expected token length : 101 bytes
-const TOKEN_LEN: usize = 36 + 1 + 64;
 
 pub async fn mac_guard(
     State(state): State<app::State>,
@@ -35,28 +32,10 @@ pub async fn mac_guard(
             Unauthorized("Tokens must start with 'Bearer'".into())
         })?;
 
-    if token.len() != TOKEN_LEN {
-        return Err(Unauthorized("Invalid token format".into()));
-    }
+    Session::verify_stateless(token, &state.secret)?;
 
-    let (session_id, mac_hex) = token
-        .split_once('.')
-        .ok_or_else(|| Unauthorized("Invalid token MAC".into()))?;
-
-    let recieved_mac = Hash::from_hex(mac_hex)
-        .map_err(|_| Unauthorized("Invalid token MAC".into()))?;
-
-    let expected_mac = keyed_hash(&state.secret.key(), session_id.as_bytes());
-
-    if expected_mac != recieved_mac {
-        return Err(Unauthorized("Forged or invalid token".into()));
-    }
-
-    let token_hash: TokenHash = Hasher::new()
-        .update(token.as_bytes())
-        .finalize()
-        .as_bytes()
-        .into();
+    let token_hash: TokenHash =
+        Hasher::new().update(token.as_bytes()).finalize().into();
 
     request.extensions_mut().insert(token_hash);
 
