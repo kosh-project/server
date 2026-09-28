@@ -112,6 +112,7 @@ impl AppStateBuilder {
             }),
             ledger: ledger::Handle::spawn(vault_path),
             secret: self.secret.expect("FATAL: no secret provided??"),
+            pow_secret: Secret::random(),
         }
     }
 }

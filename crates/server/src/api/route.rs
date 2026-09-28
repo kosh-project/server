@@ -10,7 +10,14 @@ use crate::{
     api::{
         self,
         assets::{self, list},
-        middleware::{auth_guard, log_middleware, mac_guard},
+        auth::challenge,
+        middleware::{
+            // auth_ip_limiter, device_limiter, global_ip_limiter,
+            RateLimitExt,
+            auth_guard,
+            log_middleware,
+            mac_guard,
+        },
     },
     app::State as AppState,
     logger::logging_enabled,
@@ -29,6 +36,7 @@ pub fn route_main(state: AppState) -> Router {
         .route("/health", get(health))
         .nest("/api/auth", auth_route())
         .nest("/api/v1", protected_routes(&state))
+        .with_global_ip_limit()
         .with_state(state);
 
     if logging_enabled() {
@@ -51,6 +59,8 @@ fn auth_route() -> Router<AppState> {
     Router::new()
         .route("/register", post(api::auth::register))
         .route("/login", post(api::auth::login))
+        .route("/challenge", get(challenge::generate))
+        .with_auth_ip_limit()
 }
 
 /// Constructs the authenticated sub-router for all protected endpoints.
@@ -78,6 +88,7 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .route("/sync/delta", get(api::sync::stream_delta))
         .route("/sync/prune", delete(api::sync::prune_ledger))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
+        .with_device_limit()
         .route_layer(middleware::from_fn_with_state(state.clone(), mac_guard))
 }
 

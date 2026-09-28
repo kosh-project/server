@@ -6,6 +6,8 @@
 //!
 //! [`User`]: crate::model::user::User
 //! [`Session`]: crate::model::session::Session
+pub mod challenge;
+mod hashcash;
 mod login;
 mod register;
 

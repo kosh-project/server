@@ -17,7 +17,7 @@ as_conversions = "deny"
 
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/cli", "crates/server"]
+members = ["crates/core", "crates/cli", "crates/server", "oreo"]
 
 [workspace.dependencies]
 rcgen = "0.14.10"

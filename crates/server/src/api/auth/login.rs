@@ -1,3 +1,4 @@
+use crate::api::auth::hashcash::HashCash;
 use crate::error::Result;
 use crate::logger::Module;
 use crate::model::session::Session;
@@ -24,8 +25,6 @@ pub struct LoginResponse {
 /// The JSON body expected by the login endpoint.
 #[derive(Deserialize)]
 pub struct LoginRequest {
-    /// A hex-encoded BLAKE3 hash of the user's public identity.
-    identity_hash: String,
     /// The authentication verifier derived from the user's credentials on the client side.
     auth_verifier: String,
 }
@@ -41,9 +40,10 @@ pub struct LoginRequest {
 /// - Returns an internal error if a database query fails.
 pub async fn login(
     State(state): State<AppState>,
+    hashcash: HashCash,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>> {
-    let Ok(identity_hash) = hex::decode(&request.identity_hash) else {
+    let Ok(identity_hash) = hex::decode(&hashcash.identity_hash) else {
         Err(BadRequest("identity_hash failed to decode".into()))?
     };
 

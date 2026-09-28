@@ -32,6 +32,7 @@ pub struct State {
     /// to avoid hitting the disk on every authenticated request.
     pub session_cache: Cache<TokenHash, UserId>,
     pub secret: Secret,
+    pub pow_secret: Secret,
 }
 
 impl State {
