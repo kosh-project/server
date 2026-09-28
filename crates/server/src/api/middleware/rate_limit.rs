@@ -24,11 +24,15 @@ impl KeyExtractor for TokenExtractor {
 }
 
 pub trait RateLimitExt {
+    #[must_use]
     fn with_global_ip_limit(self) -> Self;
+    #[must_use]
     fn with_auth_ip_limit(self) -> Self;
+    #[must_use]
     fn with_device_limit(self) -> Self;
 }
 
+#[allow(clippy::expect_used)]
 impl RateLimitExt for Router<app::State> {
     fn with_auth_ip_limit(self) -> Self {
         let config = Arc::new(

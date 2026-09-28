@@ -26,6 +26,9 @@ pub enum Error {
     #[error("Time conversion failed : {}", .0)]
     TimerError(#[from] SystemTimeError),
 
+    #[error("Missing connect info")]
+    MissingConnectInfo,
+
     /// A freeform error message for cases not covered by the other variants.
     ///
     /// Used when a custom string description is the most practical way to surface
