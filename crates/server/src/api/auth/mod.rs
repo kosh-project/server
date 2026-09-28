@@ -1,13 +1,26 @@
-//! Authentication handlers: user registration and session creation.
+//! Authentication handlers: challenge generation, user registration, and session creation.
 //!
-//! Both endpoints are unauthenticated (they sit outside the `auth_guard` middleware)
-//! and are mounted under `/api/auth`. They operate on the [`User`] and [`Session`]
-//! model types to manage identities and opaque session tokens.
+//! All endpoints in this module are unauthenticated — they sit outside the
+//! `mac_guard` and `auth_guard` middleware layers and are mounted under `/api/auth`.
+//!
+//! ## Endpoint Overview
+//!
+//! | Method | Path | Handler | `PoW` Required |
+//! |--------|------|---------|--------------|
+//! | `GET`  | `/api/auth/challenge` | [`challenge::generate`] | No  |
+//! | `POST` | `/api/auth/login`    | [`login`]               | Yes |
+//! | `POST` | `/api/auth/register` | [`register`]            | Yes |
+//!
+//! The `pow_guard` middleware enforces the Hashcash Proof-of-Work protocol on
+//! the `login` and `register` routes. The `challenge` endpoint is intentionally
+//! excluded — it generates the puzzle the client must solve.
+//!
+//! This module operates on the [`User`] and [`Session`] domain models.
 //!
 //! [`User`]: crate::model::user::User
 //! [`Session`]: crate::model::session::Session
 pub mod challenge;
-mod hashcash;
+pub(crate) mod hashcash;
 mod login;
 mod pow_guard;
 mod register;
