@@ -14,6 +14,28 @@ use crate::{
     model::session::{Session, TokenHash},
 };
 
+/// Middleware that performs a stateless BLAKE3 pre-filter on every Bearer token.
+///
+/// This is Layer 2 of the authenticated ingress funnel, sitting immediately after
+/// the global IP rate limiter and before the session cache / database lookup.
+///
+/// It extracts the `Authorization: Bearer <token>` header, verifies the token's
+/// BLAKE3 MAC and expiry timestamp against `K_server` without touching the
+/// database, then computes a [`TokenHash`] and injects it into the request
+/// extensions. Downstream middleware (the device governor and `auth_guard`) use
+/// this hash as an opaque, stack-allocated cache key.
+///
+/// Because forged or sprayed tokens are rejected here in under 1 microsecond,
+/// the session cache and SQLite database are never queried for tokens that were
+/// never issued by this server. This prevents cache-miss floods from turning into
+/// random disk seeks on the mechanical storage.
+///
+/// # Errors
+///
+/// - `401 Unauthorized` — The `Authorization` header is missing, the value does
+///   not begin with `"Bearer "`, the token fails the BLAKE3 MAC check, or the
+///   token's embedded expiry timestamp has passed.
+/// - `400 Bad Request` — The header value contains bytes that are not valid UTF-8.
 pub async fn mac_guard(
     State(state): State<app::State>,
     mut request: Request,
@@ -22,14 +44,14 @@ pub async fn mac_guard(
     let header = request
         .headers()
         .get("Authorization")
-        .ok_or_else(|| Unauthorized("Missing Header".into()))?;
+        .ok_or_else(|| Unauthorized("Missing Authorization header".into()))?;
 
     let token = header
         .to_str()
-        .map_err(|_| BadRequest("Auth failed to serialize".to_owned()))?
+        .map_err(|_| BadRequest("Authorization header is not valid UTF-8".to_owned()))?
         .strip_prefix("Bearer ")
         .ok_or_else(|| {
-            Unauthorized("Tokens must start with 'Bearer'".into())
+            Unauthorized("Authorization header must start with 'Bearer '".into())
         })?;
 
     Session::verify_stateless(token, &state.secret)?;
