@@ -2606,10 +2606,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "oreo"
-version = "0.1.0"
-
-[[package]]
 name = "owo-colors"
 version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
