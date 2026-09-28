@@ -29,11 +29,19 @@ pub struct Session {
 }
 
 impl Session {
-    /// Creates a new entry in `Sessions` entity then returns a hashed token as String
+    /// Issues a new session for the given user and writes a record to the database.
+    ///
+    /// Generates a UUID v4 session ID, computes a 30-day expiry timestamp, and
+    /// produces a bearer token in the format `session_id.expires_at.blake3_mac`.
+    /// Only the BLAKE3 hash of the full token string is stored in the database;
+    /// the raw token is returned to the caller exactly once and never persisted.
     ///
     /// # Errors
-    /// - Fails with [`sqlx::sqlite::SqliteQueryResult`] if an error occurs interacting with sqlite database.
-    /// - Returns an error if system time is set earlier than [`UNIX_EPOCH`].
+    ///
+    /// - Returns a [`crate::model::error::Error`] wrapping [`sqlx::Error`] if the
+    ///   database insert fails.
+    /// - Returns an error if the system clock is set before the Unix epoch.
+    /// - Returns an error if the current timestamp overflows an `i64` (year ~2262).
     pub async fn create(
         pool: &SqlitePool,
         user_id: i64,
@@ -75,9 +83,27 @@ impl Session {
         Ok(token)
     }
 
+    /// Validates a bearer token's MAC and expiry without touching the database.
+    ///
+    /// This is the stateless pre-filter step (Layer 2 of the ingress funnel). It
+    /// verifies the token format, recomputes the BLAKE3 MAC over the payload, and
+    /// checks the embedded expiry timestamp — all in RAM. Any token that fails
+    /// here was either never issued by this server or has expired, and no database
+    /// lookup is needed to reject it.
+    ///
+    /// The token format is: `session_id(36).expires_at_hex(16).blake3_mac(64)`,
+    /// for a total length of exactly [`TOKEN_LEN`] bytes.
+    ///
+    /// # Errors
+    ///
+    /// - `401 Unauthorized` — The token length is not [`TOKEN_LEN`], the BLAKE3
+    ///   MAC does not match, or the token's expiry timestamp has passed.
+    /// - `500 Internal Server Error` — The system clock is set before the Unix
+    ///   epoch, or the timestamp overflows an `i64`.
     #[allow(clippy::string_slice)]
     pub fn verify_stateless(token: &str, secret: &Secret) -> api::Result<()> {
         if token.len() != TOKEN_LEN {
+
             return Err(api::Error::Unauthorized(
                 "Invalid token format".into(),
             ));
