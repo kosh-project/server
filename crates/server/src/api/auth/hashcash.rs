@@ -135,7 +135,9 @@ impl HashCash {
             return Err(Unauthorized("Challenge expired".into()));
         }
         if timestamp > now + 5 {
-            return Err(Unauthorized("Challenge timestamp is in the future".into()));
+            return Err(Unauthorized(
+                "Challenge timestamp is in the future".into(),
+            ));
         }
 
         Ok(())

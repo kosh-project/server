@@ -7,9 +7,9 @@
 //!
 //! | Method | Path | Handler | `PoW` Required |
 //! |--------|------|---------|--------------|
-//! | `GET`  | `/api/auth/challenge` | [`challenge::generate`] | No  |
-//! | `POST` | `/api/auth/login`    | [`login`]               | Yes |
-//! | `POST` | `/api/auth/register` | [`register`]            | Yes |
+//! | `GET`  | `/api/auth/challenge` | [`challenge::generate()`] | No  |
+//! | `POST` | `/api/auth/login`    | [`login()`]               | Yes |
+//! | `POST` | `/api/auth/register` | [`register()`]            | Yes |
 //!
 //! The `pow_guard` middleware enforces the Hashcash Proof-of-Work protocol on
 //! the `login` and `register` routes. The `challenge` endpoint is intentionally

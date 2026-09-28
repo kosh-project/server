@@ -17,7 +17,7 @@ use crate::{app, model::session::TokenHash};
 /// request before this extractor runs. If the extension is absent for any
 /// reason, the extractor returns an error and the governor rejects the request.
 ///
-/// [`mac_guard`]: crate::api::middleware::mac_guard
+/// [`mac_guard`]: crate::api::middleware::mac_guard()
 #[derive(Clone, Copy)]
 pub struct TokenExtractor;
 
@@ -79,7 +79,7 @@ pub trait RateLimitExt {
     ///
     /// Quota: 15 requests per second per device, with a burst allowance of 5.
     ///
-    /// [`mac_guard`]: crate::api::middleware::mac_guard
+    /// [`mac_guard`]: crate::api::middleware::mac_guard()
     #[must_use]
     fn with_device_limit(self) -> Self;
 }

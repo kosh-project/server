@@ -47,7 +47,6 @@ pub struct State {
     /// Because it is never persisted, all pending challenges are automatically
     /// invalidated when the server restarts.
     pub pow_secret: Secret,
-
 }
 
 impl State {

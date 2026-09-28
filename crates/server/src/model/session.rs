@@ -103,7 +103,6 @@ impl Session {
     #[allow(clippy::string_slice)]
     pub fn verify_stateless(token: &str, secret: &Secret) -> api::Result<()> {
         if token.len() != TOKEN_LEN {
-
             return Err(api::Error::Unauthorized(
                 "Invalid token format".into(),
             ));

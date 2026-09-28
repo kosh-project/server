@@ -20,8 +20,8 @@ use crate::{
 ///
 /// This guard runs on `POST /api/auth/login` and `POST /api/auth/register`.
 /// It extracts the `X-Hashcash` header, delegates full cryptographic validation
-/// to [`HashCash::verify_stateless`], and — on success — inserts the resulting
-/// [`HashCash`] struct into the request extensions for the route handler to consume.
+/// to `HashCash::verify_stateless`, and — on success — inserts the resulting
+/// `HashCash` struct into the request extensions for the route handler to consume.
 ///
 /// Placing this guard before the Argon2id-based handlers ensures that a client
 /// must spend meaningful CPU time solving a SHA-256 puzzle before the server
