@@ -9,7 +9,9 @@
 pub mod challenge;
 mod hashcash;
 mod login;
+mod pow_guard;
 mod register;
 
 pub use login::login;
+pub use pow_guard::pow_guard;
 pub use register::register;

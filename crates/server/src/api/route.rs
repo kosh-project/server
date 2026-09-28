@@ -10,7 +10,7 @@ use crate::{
     api::{
         self,
         assets::{self, list},
-        auth::challenge,
+        auth::{challenge, pow_guard},
         middleware::{
             // auth_ip_limiter, device_limiter, global_ip_limiter,
             RateLimitExt,
@@ -34,7 +34,7 @@ use crate::{
 pub fn route_main(state: AppState) -> Router {
     let routes = Router::new()
         .route("/health", get(health))
-        .nest("/api/auth", auth_route())
+        .nest("/api/auth", auth_route(&state))
         .nest("/api/v1", protected_routes(&state))
         .with_global_ip_limit()
         .with_state(state);
@@ -55,10 +55,11 @@ pub fn route_main(state: AppState) -> Router {
 /// |--------|------|---------|
 /// | `POST` | `/api/auth/register` | [`api::auth::register`] |
 /// | `POST` | `/api/auth/login` | [`api::auth::login`] |
-fn auth_route() -> Router<AppState> {
+fn auth_route(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/register", post(api::auth::register))
         .route("/login", post(api::auth::login))
+        .route_layer(middleware::from_fn_with_state(state.clone(), pow_guard))
         .route("/challenge", get(challenge::generate))
         .with_auth_ip_limit()
 }
