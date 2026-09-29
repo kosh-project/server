@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use hyper::StatusCode;
 use sqlx::sqlite::SqlitePoolOptions;
 use tmpdir::TmpDir;
@@ -52,7 +54,13 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
         .build();
 
     tokio::spawn(async move {
-        axum::serve(listener, route_main(state)).await.unwrap();
+        axum::serve(
+            listener,
+            route_main(state)
+                .into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap();
     });
 
     let client = reqwest::Client::new();

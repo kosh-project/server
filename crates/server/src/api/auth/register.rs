@@ -1,8 +1,10 @@
 use crate::api::Error::BadRequest;
+use crate::api::auth::hashcash::HashCash;
 use crate::app::State as AppState;
 use crate::logger::Module;
 use crate::model::{error::Error as ModelErr, user::User};
 use crate::{Error as AppErr, Result, info};
+use axum::Extension;
 use axum::{Json, extract::State};
 use hyper::StatusCode;
 use serde::Deserialize;
@@ -10,12 +12,7 @@ use sqlx::Error as SqlErr;
 
 /// The JSON body expected by the registration endpoint.
 #[derive(Deserialize)]
-pub struct RegisterRequest {
-    /// A hex-encoded BLAKE3 hash of the user's public identity.
-    ///
-    /// The server stores this as the user's identifier. It must be unique across
-    /// all registered users; a duplicate triggers a `409 Conflict` response.
-    pub identity_hash: String,
+pub struct Request {
     /// The authentication verifier derived from the user's credentials on the client side.
     ///
     /// The server stores this string verbatim and compares it on login. It is the
@@ -32,15 +29,15 @@ pub struct RegisterRequest {
 /// - Returns an internal error if a database query fails.
 pub async fn register(
     State(state): State<AppState>,
-    Json(register_request): Json<RegisterRequest>,
+    Extension(hashcash): Extension<HashCash>,
+    Json(request): Json<Request>,
 ) -> Result<StatusCode> {
-    let Ok(identity_hash) = hex::decode(&register_request.identity_hash) else {
+    let Ok(identity_hash) = hex::decode(&hashcash.identity_hash) else {
         Err(BadRequest("identity_hash failed to decode".into()))?
     };
 
     let result =
-        User::create(&state.db, &identity_hash, register_request.auth_verifier)
-            .await;
+        User::create(&state.db, &identity_hash, request.auth_verifier).await;
 
     match result {
         Ok(()) => {

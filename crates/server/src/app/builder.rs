@@ -69,6 +69,12 @@ impl AppStateBuilder {
         self
     }
 
+    /// Sets the persistent session signing key (`K_server`).
+    ///
+    /// This field is required. Calling `build()` without setting it will panic.
+    /// In production, obtain this value via [`Secret::load_or_create`].
+    ///
+    /// [`Secret::load_or_create`]: crate::auth::Secret::load_or_create
     #[must_use]
     pub const fn secret(mut self, secret: Secret) -> Self {
         self.secret = Some(secret);
@@ -112,6 +118,7 @@ impl AppStateBuilder {
             }),
             ledger: ledger::Handle::spawn(vault_path),
             secret: self.secret.expect("FATAL: no secret provided??"),
+            pow_secret: Secret::random(),
         }
     }
 }

@@ -31,7 +31,22 @@ pub struct State {
     /// In-memory session cache. Checked before every database lookup in `auth_guard`
     /// to avoid hitting the disk on every authenticated request.
     pub session_cache: Cache<TokenHash, UserId>,
+    /// The persistent session signing key (`K_server`).
+    ///
+    /// Loaded from or generated into `vault/server.secret` at startup. Survives
+    /// reboots so that active client sessions remain valid across power cycles.
+    /// Used exclusively by [`mac_guard`] and [`Session::create`].
+    ///
+    /// [`mac_guard`]: crate::api::middleware::mac_guard
+    /// [`Session::create`]: crate::model::session::Session::create
     pub secret: Secret,
+    /// The ephemeral Hashcash signing key (`K_ephemeral`).
+    ///
+    /// Generated fresh in RAM on every server boot via [`Secret::random`].
+    /// Used exclusively to sign and verify 15-second Hashcash `PoW` challenges.
+    /// Because it is never persisted, all pending challenges are automatically
+    /// invalidated when the server restarts.
+    pub pow_secret: Secret,
 }
 
 impl State {

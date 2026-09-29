@@ -1,5 +1,6 @@
-use std::path::PathBuf;
+use std::{net::SocketAddr, path::PathBuf};
 
+use sha2::{Digest, Sha256};
 use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
 use tmpdir::TmpDir;
 use tokio::{fs::create_dir_all, net::TcpListener};
@@ -66,7 +67,13 @@ where
 
     tokio::spawn(async move {
         #[allow(clippy::unwrap_used)]
-        axum::serve(listener, route_main(state)).await.unwrap();
+        axum::serve(
+            listener,
+            route_main(state)
+                .into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap();
     });
 
     let ctx = TestCtx {
@@ -79,4 +86,17 @@ where
 
     f(ctx).await?;
     Ok(())
+}
+
+pub fn solve(challenge: &str, identity_hash: &str) -> String {
+    for nonce in 0..u64::MAX {
+        let candidate = format!("{identity_hash}{nonce :016x}{challenge}");
+
+        let hash = Sha256::digest(candidate.as_bytes());
+
+        if hash[0] == 0 && hash[1] == 0 {
+            return candidate;
+        }
+    }
+    unreachable!("Failed to find nonce within u64 range")
 }
