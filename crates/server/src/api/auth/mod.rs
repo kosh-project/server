@@ -21,6 +21,7 @@
 //! [`Session`]: crate::model::session::Session
 pub mod challenge;
 pub(crate) mod hashcash;
+pub use hashcash::HashCash;
 mod login;
 mod pow_guard;
 mod register;
