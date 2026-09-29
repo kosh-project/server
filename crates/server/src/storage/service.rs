@@ -7,7 +7,7 @@ use tokio::fs::{self, File};
 
 use crate::error::internal::Error::Message;
 use crate::info;
-use crate::storage::file::Metadata;
+use crate::storage::file::{self, Metadata};
 use crate::storage::transaction::Transaction;
 use crate::storage::{
     Error::{Internal, InvalidFileName, NotFound},
@@ -111,7 +111,7 @@ impl Service {
     pub async fn delete_blob(&self, hash_str: &str) -> Result<()> {
         let file_path = self.vault_path.join(hash_str);
 
-        match fs::remove_file(file_path).await {
+        match fs::remove_file(&file_path).await {
             Ok(()) => {
                 info!(
                     Module::Storage,
@@ -120,9 +120,10 @@ impl Service {
                 Ok(())
             }
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-            Err(x) => {
-                Err(Internal(Message(format!("Failed to delete file : {x}"))))
-            }
+            Err(source) => Err(super::Error::DeleteBlob {
+                path: file_path,
+                source,
+            }),
         }
     }
 

@@ -44,18 +44,14 @@ pub async fn mac_guard(
     let header = request
         .headers()
         .get("Authorization")
-        .ok_or_else(|| Unauthorized("Missing Authorization header".into()))?;
+        .ok_or_else(|| Unauthorized("Missing Authorization header"))?;
 
     let token = header
         .to_str()
-        .map_err(|_| {
-            BadRequest("Authorization header is not valid UTF-8".to_owned())
-        })?
+        .map_err(|_| BadRequest("Authorization header is not valid UTF-8"))?
         .strip_prefix("Bearer ")
         .ok_or_else(|| {
-            Unauthorized(
-                "Authorization header must start with 'Bearer '".into(),
-            )
+            Unauthorized("Authorization header must start with 'Bearer '")
         })?;
 
     Session::verify_stateless(token, &state.secret)?;
