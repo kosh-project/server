@@ -34,7 +34,7 @@ pub async fn delete(
     Path(hash_str): Path<String>,
 ) -> Result<impl IntoResponse> {
     let hash_bytes = hex::decode(&hash_str)
-        .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
+        .map_err(|_| BadRequest("Invalid Hash Format"))?;
 
     Asset::delete(&state.db, user_id, &hash_bytes).await?;
 
@@ -65,7 +65,7 @@ pub async fn get(
     Path(hash_str): Path<String>,
 ) -> Result<impl IntoResponse> {
     let hash_bytes = hex::decode(&hash_str)
-        .map_err(|_| BadRequest("Invalid Hash Format".into()))?;
+        .map_err(|_| BadRequest("Invalid Hash Format"))?;
 
     let owns_file = Asset::owned_by(&state.db, user_id, &hash_bytes).await?;
 
@@ -74,16 +74,14 @@ pub async fn get(
             Module::Asset,
             "Attempt to access unauthorized blob '{hash_str}' by user {user_id}"
         );
-        return Err(ApiError(NotFound(
-            "Asset not found or Unauthorized".into(),
-        )));
+        return Err(ApiError(NotFound("Asset not found or Unauthorized")));
     }
 
     let file = state
         .storage
         .get_blob(&hash_str)
         .await
-        .map_err(|_| NotFound("File Missing".into()))?;
+        .map_err(|_| NotFound("File Missing"))?;
 
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
@@ -139,16 +137,16 @@ pub async fn upload(
     let file_name = headers
         .get("X-File-Name")
         .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| BadRequest("Missing X-File-Name header".into()))?;
+        .ok_or(BadRequest("Missing X-File-Name header"))?;
 
     let expected_size: u64 = headers
         .get("Content-Length")
         .and_then(|x| x.to_str().ok())
         .and_then(|x| x.parse().ok())
-        .ok_or_else(|| BadRequest("Missing content length in header".into()))?;
+        .ok_or(BadRequest("Missing content length in header"))?;
 
     if expected_size > 10_000_000_000 {
-        return Err(BadRequest("Payload too Large".into()).into());
+        return Err(BadRequest("Payload too Large").into());
     }
 
     let f_stream = body.into_data_stream();

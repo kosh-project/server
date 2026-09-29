@@ -64,7 +64,7 @@ pub async fn generate(
     Query(query): Query<ChallengeQuery>,
 ) -> Result<Json<Response>> {
     if query.action != "login" && query.action != "register" {
-        return Err(Error::BadRequest("Invalid action".into()));
+        return Err(Error::BadRequest("Invalid action"));
     }
 
     let now = SystemTime::now()

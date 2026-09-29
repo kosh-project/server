@@ -29,7 +29,7 @@ pub async fn auth_guard(
     let token_hash = request
         .extensions()
         .get::<TokenHash>()
-        .ok_or_else(|| Unauthorized("Unverified token".into()))?;
+        .ok_or(Unauthorized("Unverified token"))?;
 
     if let Some(user_id) = state.session_cache.get(token_hash).await {
         request.extensions_mut().insert(user_id);
@@ -38,7 +38,7 @@ pub async fn auth_guard(
 
     let session = Session::verify(&state.db, token_hash.as_ref())
         .await?
-        .ok_or_else(|| Unauthorized("Invalid or expired session".into()))?;
+        .ok_or(Unauthorized("Invalid or expired session"))?;
 
     state
         .session_cache

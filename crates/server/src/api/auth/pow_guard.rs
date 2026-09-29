@@ -53,14 +53,14 @@ pub async fn pow_guard(
     let header = request
         .headers()
         .get("X-Hashcash")
-        .ok_or_else(|| Unauthorized("Missing X-Hashcash header".into()))?
+        .ok_or(Unauthorized("Missing X-Hashcash header"))?
         .to_str()
-        .map_err(|_| BadRequest("Invalid X-Hashcash header encoding".into()))?;
+        .map_err(|_| BadRequest("Invalid X-Hashcash header encoding"))?;
 
     // Reject oversized headers immediately before any further processing.
     // The maximum valid header length is 168 bytes (for "register").
     if header.len() > 168 {
-        return Err(BadRequest("X-Hashcash header too large".into()));
+        return Err(BadRequest("X-Hashcash header too large"));
     }
 
     let ConnectInfo(addr) = request

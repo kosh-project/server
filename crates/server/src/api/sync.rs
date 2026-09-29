@@ -161,7 +161,7 @@ pub async fn stream_delta(
         || query.file.contains('/')
         || !query.file.starts_with("delta_")
     {
-        return Err(Error::BadRequest("Invalid file name".into()));
+        return Err(Error::BadRequest("Invalid file name"));
     }
 
     let file = state

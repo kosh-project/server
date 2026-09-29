@@ -288,9 +288,7 @@ async fn verify_header(file: &mut File) -> Result<()> {
     let metadata = file.metadata().await?;
 
     if metadata.len() < 500 {
-        return Err(Error::CorruptedSegment(
-            "Smaller than 500-bytes header".into(),
-        ));
+        return Err(Error::CorruptedSegment("Smaller than 500-bytes header"));
     }
 
     let mut header = [0u8; 10];
@@ -298,7 +296,7 @@ async fn verify_header(file: &mut File) -> Result<()> {
     file.read_exact(&mut header).await?;
 
     if header[0..4] != *b"KOSH" {
-        return Err(Error::CorruptedSegment("Invalid KOSH Signature".into()));
+        return Err(Error::CorruptedSegment("Invalid KOSH Signature"));
     }
 
     // In future, the prev_id field (bytes 6..10) could be used to confirm

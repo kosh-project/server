@@ -34,7 +34,7 @@ pub enum Error {
     /// Used when a custom string description is the most practical way to surface
     /// an internal condition without defining a new strongly-typed variant.
     #[error("{}", .0)]
-    Message(String),
+    Message(&'static str),
 }
 
 /// Wires up low-level standard library errors directly into your domain-specific error enums.

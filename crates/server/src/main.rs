@@ -1,4 +1,3 @@
-use boot::Error;
 use kosh_core::config::Config;
 use kosh_core::tls;
 use rustls::crypto::ring;
@@ -7,6 +6,7 @@ use tokio::io;
 use tokio::{signal, sync::watch};
 use webdav_server::auth::Secret;
 use webdav_server::error::boot;
+use webdav_server::error::boot::Error::AlreadyInitiated;
 use webdav_server::server::Launcher;
 use webdav_server::{
     api::route::route_main,
@@ -60,7 +60,9 @@ async fn main() -> miette::Result<()> {
 }
 
 async fn boot() -> Result<(), boot::Error> {
-    let _ = ring::default_provider().install_default();
+    ring::default_provider()
+        .install_default()
+        .map_err(|_| AlreadyInitiated("Crypto Ring Provider"))?;
 
     let config = Config::load_or_init().await?;
 
@@ -88,13 +90,11 @@ async fn boot() -> Result<(), boot::Error> {
         .connect_with(options)
         .await?;
 
-    let (log_sender, logger_handle) = logger::Service::start(&config)
-        .await
-        .map_err(|e| boot::Error::Logger(e.to_string()))?;
+    let (log_sender, logger_handle) = logger::Service::start(&config).await?;
 
-    GLOBAL_LOGGER.set(log_sender).map_err(|e| {
-        Error::Logger(format!("Failed to initiate global logger {e:?}"))
-    })?;
+    GLOBAL_LOGGER
+        .set(log_sender)
+        .map_err(|_| AlreadyInitiated("Global Logger"))?;
 
     sqlx::migrate!("./migrations").run(&pool).await?;
     info!(Module::Database, "Applied all pending SQLite migrations");
