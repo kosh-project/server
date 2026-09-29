@@ -46,7 +46,7 @@ pub enum Error {
     /// This is distinct from a database uniqueness error — it is raised intentionally
     /// by business logic in route handlers.
     #[error("User Conflict")]
-    Conflict(String),
+    Conflict(&'static str),
 
     /// A raw database error that was not caught and converted by the model layer.
     /// In practice this should be rare, as most DB queries go through `model::Error`.

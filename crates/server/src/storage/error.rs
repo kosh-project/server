@@ -8,7 +8,7 @@ use tokio::io;
 use crate::{
     error::internal,
     logger::Loggable,
-    storage::{self, ledger},
+    storage::{self, Error::DeleteBlob, ledger},
     wrap_internal_err,
 };
 
@@ -33,7 +33,7 @@ pub enum Error {
     /// A file with this name already exists at the target path.
     /// This is returned when a duplicate upload is attempted for the exact same filename.
     #[error("File Already Exists : {}", .0)]
-    FileAlreadyExists(String),
+    FileAlreadyExists(&'static str),
 
     /// The server failed to create the temporary staging file before streaming begins.
     #[error("Couldn't create temporary file at {path}")]
@@ -77,6 +77,13 @@ pub enum Error {
 
     #[error(transparent)]
     Ledger(#[from] ledger::Error),
+
+    #[error("Failed to delete blob : {path}")]
+    DeleteBlob {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
 }
 
 pub type Result<T> = core::result::Result<T, storage::Error>;
@@ -112,7 +119,8 @@ impl IntoResponse for Error {
             | WriteChunkFailure { .. }
             | StreamReadError(_)
             | RenameError { .. }
-            | Internal(_) => {
+            | Internal(_)
+            | DeleteBlob { .. } => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
                     .into_response()
             }

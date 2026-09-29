@@ -2,6 +2,8 @@ use kosh_core::config;
 use kosh_core::tls;
 use tokio::io;
 
+use crate::logger;
+
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -17,10 +19,11 @@ pub enum Error {
     #[error("TLS Error: {}", .0)]
     Tls(#[from] tls::Error),
 
-    // #[error("Server Failure: {}", .0)]
-    // Server(#[from] Box<dyn StdErr>),
     #[error("Logger failed to boot: {}", .0)]
-    Logger(String),
+    GlobalLogger(#[from] logger::Error),
+
+    #[error("{} already initiated", .0)]
+    AlreadyInitiated(&'static str),
 
     #[error("Migration failure: {}", .0)]
     Migration(#[from] sqlx::migrate::MigrateError),

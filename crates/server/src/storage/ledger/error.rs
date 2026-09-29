@@ -37,7 +37,7 @@ pub enum Error {
     /// A human operator must inspect the file and decide whether to delete it
     /// and start a new ledger chain.
     #[error("Corrupted segment: {}",.0)]
-    CorruptedSegment(String),
+    CorruptedSegment(&'static str),
 
     /// The segment filename could not be parsed to extract its numeric ID.
     ///

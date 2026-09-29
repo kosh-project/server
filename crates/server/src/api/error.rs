@@ -24,7 +24,7 @@ pub enum Error {
     /// The client sent a request that violates the API contract.
     /// The inner `String` contains a human-readable explanation safe to send back.
     #[error("Bad Request")]
-    BadRequest(String),
+    BadRequest(&'static str),
 
     /// Reading the request body stream failed mid-transfer.
     /// This is typically a network issue on the client side.
@@ -43,7 +43,7 @@ pub enum Error {
     /// The request could not be authenticated. The inner `String` contains
     /// a message safe to return (e.g., "Missing Header", "Invalid token").
     #[error("Unauthorized : {}", .0)]
-    Unauthorized(String),
+    Unauthorized(&'static str),
 
     /// A low-level internal error, typically from integer or time conversions.
     #[error("Internal Server Error : {}", .0)]
@@ -51,8 +51,8 @@ pub enum Error {
 
     /// The requested resource does not exist or is not accessible to the caller.
     /// The inner `String` contains a message safe to return to the client.
-    #[error("Not Found")]
-    NotFound(String),
+    #[error("Not Found : {}", .0)]
+    NotFound(&'static str),
 
     /// A header value provided in the response could not be parsed.
     /// This is almost always a bug in the server code, not the client.
@@ -90,23 +90,19 @@ impl IntoResponse for Error {
             NotFound(msg) => (StatusCode::NOT_FOUND, msg),
 
             Ledger(e) => return e.into_response(),
-            MalformedMultipart => (
-                StatusCode::BAD_REQUEST,
-                "Malformed Multipart Payload".into(),
-            ),
-            MissingField => {
-                (StatusCode::BAD_REQUEST, "Missing required field".into())
+            MalformedMultipart => {
+                (StatusCode::BAD_REQUEST, "Malformed Multipart Payload")
             }
+            MissingField => (StatusCode::BAD_REQUEST, "Missing required field"),
             InvalidHeader(_) => {
-                (StatusCode::BAD_REQUEST, "Invalid Header Value".into())
+                (StatusCode::BAD_REQUEST, "Invalid Header Value")
             }
 
             // Internal errors: strip all details before sending.
             StreamReadError | IoError(_) | Internal(_)
-            | IntegerConversion(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal Server Error".into(),
-            ),
+            | IntegerConversion(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+            }
         }
         .into_response()
     }
