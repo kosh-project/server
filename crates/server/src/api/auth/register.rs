@@ -33,7 +33,7 @@ pub async fn register(
     Json(request): Json<Request>,
 ) -> Result<StatusCode> {
     let Ok(identity_hash) = hex::decode(&hashcash.identity_hash) else {
-        Err(BadRequest("identity_hash failed to decode".into()))?
+        Err(BadRequest("identity_hash failed to decode"))?
     };
 
     let result =
@@ -51,7 +51,7 @@ pub async fn register(
         Err(ModelErr::Database(SqlErr::Database(err)))
             if err.is_unique_violation() =>
         {
-            Err(AppErr::Conflict("User already exists".into()))
+            Err(AppErr::Conflict("User already exists"))
         }
         Err(e) => Err(e.into()),
     }

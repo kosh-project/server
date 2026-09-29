@@ -103,32 +103,25 @@ impl Session {
     #[allow(clippy::string_slice)]
     pub fn verify_stateless(token: &str, secret: &Secret) -> api::Result<()> {
         if token.len() != TOKEN_LEN {
-            return Err(api::Error::Unauthorized(
-                "Invalid token format".into(),
-            ));
+            return Err(api::Error::Unauthorized("Invalid token format"));
         }
 
         let payload = &token[..53];
         let mac_hex = &token[54..];
 
-        let received_mac = Hash::from_hex(mac_hex).map_err(|_| {
-            api::Error::Unauthorized("Forged or invalid token".into())
-        })?;
+        let received_mac = Hash::from_hex(mac_hex)
+            .map_err(|_| api::Error::Unauthorized("Forged or invalid token"))?;
 
         let expected_mac =
             blake3::keyed_hash(&secret.key(), payload.as_bytes());
 
         if received_mac != expected_mac {
-            return Err(api::Error::Unauthorized(
-                "Forged or invalid token".into(),
-            ));
+            return Err(api::Error::Unauthorized("Forged or invalid token"));
         }
 
         let expires_hex = &token[37..53];
-        let expires_at =
-            i64::from_str_radix(expires_hex, 16).map_err(|_| {
-                api::Error::Unauthorized("Invalid timestamp".into())
-            })?;
+        let expires_at = i64::from_str_radix(expires_hex, 16)
+            .map_err(|_| api::Error::Unauthorized("Invalid timestamp"))?;
 
         let now: i64 = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -137,7 +130,7 @@ impl Session {
             .try_into()?;
 
         if expires_at < now {
-            return Err(Unauthorized("Token expired".into()));
+            return Err(Unauthorized("Token expired"));
         }
 
         Ok(())

@@ -44,14 +44,14 @@ pub async fn login(
     Json(request): Json<Request>,
 ) -> Result<Json<Response>> {
     let Ok(identity_hash) = hex::decode(&hashcash.identity_hash) else {
-        Err(BadRequest("identity_hash failed to decode".into()))?
+        Err(BadRequest("identity_hash failed to decode"))?
     };
 
     let user_id = User::verify(&state.db, identity_hash, request.auth_verifier)
         .await?
         .ok_or_else(|| {
             warn!(Module::Api, "Failed login attempt with unknown identity");
-            Unauthorized("Invalid Credentials".into())
+            Unauthorized("Invalid Credentials")
         })?;
 
     let token = Session::create(&state.db, user_id, &state.secret).await?;

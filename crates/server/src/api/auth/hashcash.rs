@@ -83,7 +83,7 @@ impl HashCash {
 
         // Validate action before the more expensive timestamp and MAC checks.
         if action != "login" && action != "register" {
-            return Err(BadRequest("Invalid action in challenge".into()));
+            return Err(BadRequest("Invalid action in challenge"));
         }
 
         Self::verify_timestamp(timestamp_hex)?;
@@ -96,9 +96,9 @@ impl HashCash {
 
     /// Rejects the header if its total byte length is not 165 (`login`) or 168 (`register`).
     #[inline]
-    fn verify_len(len: usize) -> Result<()> {
+    const fn verify_len(len: usize) -> Result<()> {
         if len != 165 && len != 168 {
-            Err(BadRequest("Invalid X-Hashcash header length".into()))
+            Err(BadRequest("Invalid X-Hashcash header length"))
         } else {
             Ok(())
         }
@@ -112,7 +112,7 @@ impl HashCash {
         let hash = Sha256::digest(header.as_bytes());
 
         if hash[0] != 0 || hash[1] != 0 {
-            Err(Unauthorized("Insufficient Proof of Work".into()))
+            Err(Unauthorized("Insufficient Proof of Work"))
         } else {
             Ok(())
         }
@@ -124,7 +124,7 @@ impl HashCash {
     #[inline]
     fn verify_timestamp(timestamp_hex: &str) -> Result<()> {
         let timestamp = u64::from_str_radix(timestamp_hex, 16)
-            .map_err(|_| BadRequest("Invalid timestamp format".into()))?;
+            .map_err(|_| BadRequest("Invalid timestamp format"))?;
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -132,12 +132,10 @@ impl HashCash {
             .as_secs();
 
         if now > timestamp + 15 {
-            return Err(Unauthorized("Challenge expired".into()));
+            return Err(Unauthorized("Challenge expired"));
         }
         if timestamp > now + 5 {
-            return Err(Unauthorized(
-                "Challenge timestamp is in the future".into(),
-            ));
+            return Err(Unauthorized("Challenge timestamp is in the future"));
         }
 
         Ok(())
@@ -167,10 +165,10 @@ impl HashCash {
         let expected_mac = hasher.finalize();
 
         let received_mac = Hash::from_hex(mac_hex)
-            .map_err(|_| Unauthorized("Invalid MAC format".into()))?;
+            .map_err(|_| Unauthorized("Invalid MAC format"))?;
 
         if expected_mac != received_mac {
-            return Err(Unauthorized("Forged or stolen challenge".into()));
+            return Err(Unauthorized("Forged or stolen challenge"));
         }
 
         Ok(())

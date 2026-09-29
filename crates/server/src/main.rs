@@ -1,4 +1,3 @@
-use boot::Error;
 use kosh_core::config::Config;
 use kosh_core::tls;
 use rustls::crypto::ring;
@@ -7,7 +6,7 @@ use tokio::io;
 use tokio::{signal, sync::watch};
 use webdav_server::auth::Secret;
 use webdav_server::error::boot;
-use webdav_server::error::boot::Error::{AlreadyInitiated, GlobalLogger};
+use webdav_server::error::boot::Error::AlreadyInitiated;
 use webdav_server::server::Launcher;
 use webdav_server::{
     api::route::route_main,

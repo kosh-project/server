@@ -45,9 +45,7 @@ impl Secret {
         let bytes = fs::read(path.as_ref()).await?;
 
         let key = bytes.try_into().map_err(|_| {
-            Error::Secret(
-                "Corrupted secret file: expected exactly 32 bytes".to_owned(),
-            )
+            Error::Secret("Corrupted secret file: expected exactly 32 bytes")
         })?;
 
         Ok(Self(key))

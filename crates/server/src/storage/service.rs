@@ -5,12 +5,11 @@ use std::error::Error as StdErr;
 use std::io::ErrorKind::{self};
 use tokio::fs::{self, File};
 
-use crate::error::internal::Error::Message;
 use crate::info;
-use crate::storage::file::{self, Metadata};
+use crate::storage::file::Metadata;
 use crate::storage::transaction::Transaction;
 use crate::storage::{
-    Error::{Internal, InvalidFileName, NotFound},
+    Error::{InvalidFileName, NotFound},
     Payload, Result,
 };
 use std::path::PathBuf;

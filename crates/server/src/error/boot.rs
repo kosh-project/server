@@ -29,7 +29,7 @@ pub enum Error {
     Migration(#[from] sqlx::migrate::MigrateError),
 
     #[error("Server secret corrupted: {}", .0)]
-    Secret(String),
+    Secret(&'static str),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
