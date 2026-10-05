@@ -3,7 +3,7 @@ use crate::{
     api::Error::{BadRequest, InvalidHeader, NotFound},
     app::State as AppState,
     error, info,
-    model::asset::{Asset, AssetMetadataRow, AssetTag},
+    model::asset::{self, Asset, AssetCursor},
     storage::Payload,
 };
 use axum::{
@@ -129,7 +129,7 @@ impl FileStatus {
 /// - Returns an internal error if the storage transaction or database insertion fails.
 pub async fn upload(
     State(state): State<AppState>,
-    Path(tag): Path<AssetTag>,
+    Path(tag): Path<asset::Tag>,
     headers: HeaderMap,
     Extension(user_id): Extension<i64>,
     body: Body,
@@ -193,12 +193,10 @@ pub async fn upload(
 
 #[derive(Deserialize)]
 pub struct ListQuery {
-    pub tag: Option<AssetTag>,
-}
-
-#[derive(Serialize)]
-pub struct ListResponse {
-    pub assets: Vec<AssetMetadataRow>,
+    pub tag: asset::Tag,
+    pub limit: Option<u32>,
+    pub before_time: Option<i64>,
+    pub before_id: Option<String>,
 }
 
 /// `GET /api/v1/assets`
@@ -215,7 +213,31 @@ pub async fn list(
     Extension(user_id): Extension<i64>,
     Query(query): Query<ListQuery>,
 ) -> Result<impl IntoResponse> {
-    let assets = Asset::list(&state.db, user_id, query.tag).await?;
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
 
-    Ok(Json(ListResponse { assets }))
+    let cursor = match (query.before_time, query.before_id) {
+        (Some(time), Some(id)) => {
+            if id.len() != 32 || hex::decode(&id).is_err() {
+                return Err(ApiError(BadRequest(
+                    "Invalid before_id cursor format",
+                )));
+            }
+            Some(AssetCursor {
+                before_time: time,
+                before_id: id,
+            })
+        }
+        (None, None) => None,
+        _ => {
+            return Err(ApiError(BadRequest(
+                "Both before_time and before_id must be provided for cursor pagination",
+            )));
+        }
+    };
+
+    let page =
+        Asset::list(&state.db, user_id, query.tag, limit, cursor.as_ref())
+            .await?;
+
+    Ok(Json(page))
 }
