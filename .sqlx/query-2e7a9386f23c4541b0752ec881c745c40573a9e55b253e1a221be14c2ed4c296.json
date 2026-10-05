@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                    id as \"id!\",\n                    hash,\n                    size_bytes,\n                    last_modified,\n                    tag as \"tag: Tag\"\n                FROM assets\n                WHERE user_id = ?1\n                    AND tag = ?2\n                    AND (\n                        ?3 IS NULL\n                        OR last_modified < ?3\n                        OR (last_modified = ?3 AND id < ?4)\n                    )\n                ORDER BY last_modified DESC, id DESC\n                LIMIT ?5\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "assets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "hash",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "assets",
+            "name": "hash"
+          }
+        }
+      },
+      {
+        "name": "size_bytes",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "assets",
+            "name": "size_bytes"
+          }
+        }
+      },
+      {
+        "name": "last_modified",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "assets",
+            "name": "last_modified"
+          }
+        }
+      },
+      {
+        "name": "tag: Tag",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "assets",
+            "name": "tag"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2e7a9386f23c4541b0752ec881c745c40573a9e55b253e1a221be14c2ed4c296"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                DELETE FROM assets WHERE user_id = ? AND hash = ?\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e14065ad8b31977dcb6da69a6520573486b3a24e8ff29fc62222d1911d558c40"
+}
