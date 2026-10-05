@@ -9,6 +9,7 @@ use crate::{
     storage::{self, ledger},
 };
 
+/// Primary key identifier representing a registered user in SQLite (`users.id`).
 pub type UserId = i64;
 
 /// The shared application state, injected into every route handler by Axum.

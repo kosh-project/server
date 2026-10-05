@@ -23,7 +23,7 @@
 //!   → Handler
 //! ```
 //!
-//! The [`log_middleware`] is layered above the entire router and only
+//! The [`log_middleware`](crate::api::middleware::log_middleware) is layered above the entire router and only
 //! attached when the background logger is active.
 mod auth_guard;
 mod log;

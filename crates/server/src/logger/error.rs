@@ -31,4 +31,5 @@ pub enum Error {
     LogDirectoryInitialization,
 }
 
+/// Convenience alias for results returned by logger operations.
 pub type Result<T> = std::result::Result<T, Error>;

@@ -22,9 +22,13 @@ use uuid::Uuid;
 /// [`auth_guard`]: crate::api::middleware::auth_guard
 #[derive(sqlx::FromRow)]
 pub struct Session {
+    /// 32-byte BLAKE3 hash of the bearer token string. The raw token is never persisted.
     pub token_hash: Vec<u8>,
+    /// Foreign key referencing the authenticated user (`users.id`).
     pub user_id: i64,
+    /// Unix timestamp (seconds) when the session was created.
     pub created_at: i64,
+    /// Unix timestamp (seconds) when the session expires (default: 30 days).
     pub expires_at: i64,
 }
 

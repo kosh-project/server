@@ -25,6 +25,10 @@ pub struct Asset {
 
 impl Asset {
     /// Returns whether asset exists with given hash
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::model::Error::Database`] if the SQLite query fails.
     pub async fn exists(pool: &SqlitePool, hash: Vec<u8>) -> Result<bool> {
         let result =
             query!("SELECT 1 AS matched FROM assets WHERE hash = ?", hash)
@@ -35,6 +39,10 @@ impl Asset {
     }
 
     /// Registers an asset entry to the assets entity
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::model::Error::Database`] if inserting the record into SQLite fails.
     pub async fn create(
         pool: &SqlitePool,
         user: i64,
@@ -60,6 +68,10 @@ impl Asset {
     }
 
     /// Deletes user's ownership over an asset
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::model::Error::Database`] if executing the delete query fails.
     pub async fn delete(
         pool: &SqlitePool,
         user: i64,
@@ -79,6 +91,10 @@ impl Asset {
     }
 
     /// Checks if any [`Asset`] with provided `hash` exists, and is owned by the specified `user`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::model::Error::Database`] if querying SQLite fails.
     pub async fn owned_by(
         pool: &SqlitePool,
         user: i64,
@@ -101,6 +117,11 @@ impl Asset {
     ///
     /// Fetches up to `limit` rows. Queries for `limit + 1` rows to determine whether
     /// a next page exists without issuing a secondary `COUNT(*)` query.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::model::Error::Internal`] if the cursor identifier is invalid hex,
+    /// or [`crate::model::Error::Database`] if querying SQLite fails.
     pub async fn list(
         pool: &SqlitePool,
         user_id: i64,

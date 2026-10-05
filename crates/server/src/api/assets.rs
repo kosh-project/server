@@ -191,23 +191,33 @@ pub async fn upload(
     Ok(Json(status))
 }
 
+/// Query parameters accepted by `GET /api/v1/assets`.
 #[derive(Deserialize)]
 pub struct ListQuery {
+    /// The mandatory asset tag category filter (`0` = `GalleryMeta`, `1` = `GalleryItem`, `2` = `DriveMeta`, `3` = `DriveItem`).
     pub tag: asset::Tag,
+    /// Maximum number of items to return (clamped to `1..=100`, defaults to 50).
     pub limit: Option<u32>,
+    /// Keyset pagination cursor timestamp: returns items with `last_modified` before this timestamp.
     pub before_time: Option<i64>,
+    /// Keyset pagination cursor tie-breaker: 32-character hex UUID to break timestamp collisions.
     pub before_id: Option<String>,
 }
 
-/// `GET /api/v1/assets`
+/// `GET /api/v1/assets?tag=<0..3>&limit=<1..100>&before_time=<ts>&before_id=<hex>`
 ///
-/// Returns a JSON list of asset metadata rows for the authenticated user.
-/// An optional `tag` query parameter filters the results to a specific
-/// [`AssetTag`] category. If omitted, assets from all categories are returned.
+/// Returns a paginated JSON [`asset::Page`] of asset metadata rows for the authenticated user,
+/// ordered newest first (`last_modified DESC, id DESC`).
 ///
-/// ## Errors
+/// The `tag` query parameter is strictly mandatory and must match one of the [`asset::Tag`] categories.
+/// Pagination uses keyset cursor seeking in $O(\log N)$ time via the composite index
+/// `(user_id, tag, last_modified DESC, id DESC)`.
 ///
-/// Returns `500 Internal Server Error` if the database query fails.
+/// # Errors
+///
+/// - `400 Bad Request` if `before_id` is not a valid 32-character hex UUID.
+/// - `400 Bad Request` if only one of `before_time` and `before_id` is provided.
+/// - `500 Internal Server Error` if the underlying SQLite database query fails.
 pub async fn list(
     State(state): State<AppState>,
     Extension(user_id): Extension<i64>,

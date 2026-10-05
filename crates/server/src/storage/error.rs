@@ -38,7 +38,9 @@ pub enum Error {
     /// The server failed to create the temporary staging file before streaming begins.
     #[error("Couldn't create temporary file at {path}")]
     CreateTempFile {
+        /// Target path where temporary staging file creation was attempted.
         path: PathBuf,
+        /// Underlying filesystem I/O error.
         #[source]
         source: io::Error,
     },
@@ -46,7 +48,9 @@ pub enum Error {
     /// A write to disk failed mid-stream while appending a chunk to the temporary file.
     #[error("Writing chunk to disk failed, file : {path}")]
     WriteChunkFailure {
+        /// Path to the temporary staging file being appended to.
         path: PathBuf,
+        /// Underlying filesystem I/O error.
         #[source]
         source: io::Error,
     },
@@ -58,14 +62,19 @@ pub enum Error {
     /// The atomic rename from the temporary staging file to the final CAS path failed.
     #[error("Failed to rename file : {path}")]
     RenameError {
+        /// Destination path in the CAS vault.
         path: PathBuf,
+        /// Underlying filesystem rename error.
         #[source]
         source: io::Error,
     },
 
     /// The constructed path pointed outside the vault directory.
     #[error("Invalid Path : {path}")]
-    InvalidPath { path: PathBuf },
+    InvalidPath {
+        /// The invalid path rejected by security checks.
+        path: PathBuf,
+    },
 
     /// A low-level internal error, typically from integer or time conversions.
     #[error("Internal Error : {}", .0)]
@@ -75,17 +84,22 @@ pub enum Error {
     #[error("Blob Not found")]
     NotFound,
 
+    /// Error propagated from the WAL delta ledger subsystem.
     #[error(transparent)]
     Ledger(#[from] ledger::Error),
 
+    /// Failed to unlink an orphaned or deleted blob from disk.
     #[error("Failed to delete blob : {path}")]
     DeleteBlob {
+        /// Path to the blob file that could not be unlinked.
         path: PathBuf,
+        /// Underlying filesystem I/O error.
         #[source]
         source: io::Error,
     },
 }
 
+/// Convenience alias for results returned by storage operations.
 pub type Result<T> = core::result::Result<T, storage::Error>;
 
 wrap_internal_err! { TryFromIntError, SystemTimeError => Error::Internal }

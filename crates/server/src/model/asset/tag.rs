@@ -1,5 +1,10 @@
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
+/// Identifies the category and intended storage partition of an asset.
+///
+/// Tags separate client-side media and files into discrete domains (Gallery vs Drive)
+/// as well as separating lightweight encrypted metadata descriptors from heavyweight
+/// encrypted binary blobs.
 #[derive(
     sqlx::Type,
     Copy,
@@ -12,9 +17,13 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 )]
 #[repr(i32)]
 pub enum Tag {
+    /// Encrypted metadata or thumbnail record for a gallery photo or video.
     GalleryMeta = 0,
+    /// Encrypted full-resolution binary payload for a gallery photo or video.
     GalleryItem = 1,
+    /// Encrypted metadata or directory hierarchy descriptor for drive files.
     DriveMeta = 2,
+    /// Encrypted binary payload for a generic drive file.
     DriveItem = 3,
 }
 

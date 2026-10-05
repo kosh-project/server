@@ -18,9 +18,12 @@
 /// `rename(2)` into the vault. If anything fails mid-stream, the temp file
 /// is cleaned up and the vault is left untouched.
 pub mod error;
+/// File metadata and descriptor types for vault CAS blobs.
 pub mod file;
 pub mod ledger;
+/// Storage service engine managing blob streaming, writing, and deletion.
 pub mod service;
+/// Atomic staging transaction engine for incoming file streams.
 pub mod transaction;
 
 use std::error::Error as StdErr;

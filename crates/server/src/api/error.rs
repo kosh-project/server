@@ -59,6 +59,7 @@ pub enum Error {
     #[error("Invalid header value : {}", .0)]
     InvalidHeader(#[from] InvalidHeaderValue),
 
+    /// An integer type conversion overflowed or underflowed.
     #[error(transparent)]
     IntegerConversion(#[from] TryFromIntError),
 
@@ -73,6 +74,7 @@ pub enum Error {
     Ledger(#[from] ledger::Error),
 }
 
+/// Convenience alias for results returned by API route handlers and middleware.
 pub type Result<T> = core::result::Result<T, Error>;
 
 impl IntoResponse for Error {
