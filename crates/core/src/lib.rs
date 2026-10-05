@@ -14,5 +14,6 @@
 //!   fingerprinting for TOFU device pairing.
 
 pub mod config;
+/// Structured telemetry primitives, log entries, levels, and socket wire messages.
 pub mod logger;
 pub mod tls;

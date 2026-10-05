@@ -125,16 +125,29 @@ socket-path "/tmp/kosh.sock"
         Ok(config)
     }
 
+    /// Returns the directory where daily bincode structured log files are written.
+    ///
+    /// Resolves to `<vault_path>/state/logs`.
     #[must_use]
     pub fn log_path(&self) -> PathBuf {
         self.vault_path.join("state").join("logs")
     }
 
+    /// Returns the directory where TLS certificates and private keys reside.
+    ///
+    /// Resolves to `<vault_path>/tls`.
     #[must_use]
     pub fn tls_identity_path(&self) -> PathBuf {
         self.vault_path.join("tls")
     }
 
+    /// Resolves the filesystem path to the `kosh.kdl` configuration file.
+    ///
+    /// Resolution order:
+    /// 1. `KOSH_CONFIG` environment variable if present.
+    /// 2. `/etc/kosh/config.kdl` if running as root on Unix.
+    /// 3. `$XDG_CONFIG_HOME/kosh/config.kdl` (or platform equivalent).
+    /// 4. `./kosh.kdl` in current working directory as fallback.
     #[must_use]
     pub fn path() -> PathBuf {
         if let Ok(path) = env::var("KOSH_CONFIG") {
@@ -152,6 +165,9 @@ socket-path "/tmp/kosh.sock"
         )
     }
 
+    /// Returns the path to the persistent server secret key (`server.secret`).
+    ///
+    /// Resolves to `<vault_path>/server.secret`.
     #[must_use]
     pub fn secret_path(&self) -> PathBuf {
         self.vault_path.join("server.secret")
