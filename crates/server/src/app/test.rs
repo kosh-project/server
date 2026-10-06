@@ -35,10 +35,7 @@ async fn app_state_builder_panics_on_missing_vault_path() {
         .expect("db connect");
     let secret = Secret::random();
 
-    let _ = AppStateBuilder::new()
-        .db(pool)
-        .secret(secret)
-        .build();
+    let _ = AppStateBuilder::new().db(pool).secret(secret).build();
 }
 
 #[test]
@@ -59,8 +56,5 @@ async fn app_state_builder_panics_on_missing_secret() {
         .await
         .expect("db connect");
 
-    let _ = AppStateBuilder::new()
-        .vault_path("/tmp")
-        .db(pool)
-        .build();
+    let _ = AppStateBuilder::new().vault_path("/tmp").db(pool).build();
 }

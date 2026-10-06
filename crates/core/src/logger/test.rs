@@ -36,19 +36,25 @@ fn entry_bincode_roundtrip() {
         message: "Storage subsystem warning: disk near capacity".to_string(),
     };
 
-    let encoded = bincode_next::encode_to_vec(&entry, bincode_next::config::standard())
-        .expect("bincode encoding should succeed");
+    let encoded =
+        bincode_next::encode_to_vec(&entry, bincode_next::config::standard())
+            .expect("bincode encoding should succeed");
     assert!(!encoded.is_empty());
 
-    let (decoded, read_len): (Entry, usize) =
-        bincode_next::decode_from_slice(&encoded, bincode_next::config::standard())
-            .expect("bincode decoding should succeed");
+    let (decoded, read_len): (Entry, usize) = bincode_next::decode_from_slice(
+        &encoded,
+        bincode_next::config::standard(),
+    )
+    .expect("bincode decoding should succeed");
 
     assert_eq!(read_len, encoded.len());
     assert_eq!(decoded.module, Module::Storage);
     assert_eq!(decoded.level, Level::Warning);
     assert_eq!(decoded.timestamp_ms, 1_725_000_123_456);
-    assert_eq!(decoded.message, "Storage subsystem warning: disk near capacity");
+    assert_eq!(
+        decoded.message,
+        "Storage subsystem warning: disk near capacity"
+    );
 }
 
 #[test]
@@ -61,12 +67,17 @@ fn telemetry_log_variant_roundtrip() {
     };
     let telemetry = Telemetry::Log(entry);
 
-    let encoded = bincode_next::encode_to_vec(&telemetry, bincode_next::config::standard())
-        .expect("bincode encoding should succeed");
+    let encoded = bincode_next::encode_to_vec(
+        &telemetry,
+        bincode_next::config::standard(),
+    )
+    .expect("bincode encoding should succeed");
 
-    let (decoded, len): (Telemetry, usize) =
-        bincode_next::decode_from_slice(&encoded, bincode_next::config::standard())
-            .expect("bincode decoding should succeed");
+    let (decoded, len): (Telemetry, usize) = bincode_next::decode_from_slice(
+        &encoded,
+        bincode_next::config::standard(),
+    )
+    .expect("bincode decoding should succeed");
 
     assert_eq!(len, encoded.len());
     match decoded {
@@ -75,7 +86,9 @@ fn telemetry_log_variant_roundtrip() {
             assert_eq!(e.level, Level::Info);
             assert_eq!(e.message, "HTTP request processed successfully");
         }
-        Telemetry::Heartbeat => panic!("Expected Telemetry::Log, found Heartbeat"),
+        Telemetry::Heartbeat => {
+            panic!("Expected Telemetry::Log, found Heartbeat")
+        }
     }
 }
 
@@ -83,12 +96,17 @@ fn telemetry_log_variant_roundtrip() {
 fn telemetry_heartbeat_variant_roundtrip() {
     let telemetry = Telemetry::Heartbeat;
 
-    let encoded = bincode_next::encode_to_vec(&telemetry, bincode_next::config::standard())
-        .expect("bincode encoding should succeed");
+    let encoded = bincode_next::encode_to_vec(
+        &telemetry,
+        bincode_next::config::standard(),
+    )
+    .expect("bincode encoding should succeed");
 
-    let (decoded, len): (Telemetry, usize) =
-        bincode_next::decode_from_slice(&encoded, bincode_next::config::standard())
-            .expect("bincode decoding should succeed");
+    let (decoded, len): (Telemetry, usize) = bincode_next::decode_from_slice(
+        &encoded,
+        bincode_next::config::standard(),
+    )
+    .expect("bincode decoding should succeed");
 
     assert_eq!(len, encoded.len());
     match decoded {

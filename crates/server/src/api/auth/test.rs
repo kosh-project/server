@@ -150,7 +150,10 @@ fn hashcash_verify_stateless_insufficient_pow() {
     if hash[0] != 0 || hash[1] != 0 {
         let res = HashCash::verify_stateless(&candidate, ip, &secret);
         assert!(res.is_err());
-        assert!(matches!(res, Err(Unauthorized("Insufficient Proof of Work"))));
+        assert!(matches!(
+            res,
+            Err(Unauthorized("Insufficient Proof of Work"))
+        ));
     }
 }
 
@@ -172,7 +175,10 @@ fn hashcash_verify_stateless_mismatched_ip() {
 
     let res = HashCash::verify_stateless(&header, client_ip, &secret);
     assert!(res.is_err());
-    assert!(matches!(res, Err(Unauthorized("Forged or stolen challenge"))));
+    assert!(matches!(
+        res,
+        Err(Unauthorized("Forged or stolen challenge"))
+    ));
 }
 
 #[test]

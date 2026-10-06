@@ -6,7 +6,11 @@
 
 use super::*;
 use kosh_core::config::Config;
-use std::{os::unix::fs::PermissionsExt, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    os::unix::fs::PermissionsExt,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 fn unique_temp_dir() -> PathBuf {
     let nonce = SystemTime::now()
@@ -66,7 +70,10 @@ async fn secret_load_or_create_fresh_and_permissions() {
     let metadata = std::fs::metadata(&secret_file).expect("file metadata");
     let permissions = metadata.permissions();
     let mode = permissions.mode() & 0o777;
-    assert_eq!(mode, 0o600, "Secret file must have strict 0o600 permissions");
+    assert_eq!(
+        mode, 0o600,
+        "Secret file must have strict 0o600 permissions"
+    );
 
     let bytes = std::fs::read(&secret_file).expect("read secret file");
     assert_eq!(bytes.len(), 32);

@@ -5,11 +5,7 @@
 #![allow(clippy::panic)]
 
 use super::*;
-use crate::{
-    api::Error::BadRequest,
-    app::AppStateBuilder,
-    auth::Secret,
-};
+use crate::{api::Error::BadRequest, app::AppStateBuilder, auth::Secret};
 use axum::{
     Extension,
     body::Body,

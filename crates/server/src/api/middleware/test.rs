@@ -14,10 +14,7 @@ use crate::{
 };
 use anyhow::Result;
 use axum::{
-    Extension, Router,
-    body::Body,
-    extract::Request,
-    http::StatusCode,
+    Extension, Router, body::Body, extract::Request, http::StatusCode,
     routing::get,
 };
 use blake3::hash;
@@ -26,9 +23,7 @@ use tower::ServiceExt;
 use tower_governor::key_extractor::KeyExtractor;
 
 async fn setup_state() -> Result<(crate::app::State, Secret)> {
-    let pool = SqlitePoolOptions::new()
-        .connect("sqlite::memory:")
-        .await?;
+    let pool = SqlitePoolOptions::new().connect("sqlite::memory:").await?;
     sqlx::migrate!().run(&pool).await?;
 
     let secret = Secret::random();
@@ -43,9 +38,7 @@ async fn setup_state() -> Result<(crate::app::State, Secret)> {
 
 #[tokio::test]
 async fn auth_guard_bypasses_db_on_cache_hit() -> Result<()> {
-    let pool = SqlitePoolOptions::new()
-        .connect("sqlite::memory:")
-        .await?;
+    let pool = SqlitePoolOptions::new().connect("sqlite::memory:").await?;
     let secret = Secret::random();
 
     let state = AppStateBuilder::new()

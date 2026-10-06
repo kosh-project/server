@@ -29,7 +29,7 @@ fn default_vault_path_is_relative() {
 async fn config_path_precedence_env() {
     let temp_dir = unique_temp_dir();
     let custom_path = temp_dir.join("custom_config.kdl");
-    
+
     // Safety: Test executed serially with exclusive environment access.
     unsafe {
         std::env::set_var("KOSH_CONFIG", &custom_path);
@@ -98,7 +98,9 @@ socket-path "/run/kosh/custom.sock"
         std::env::set_var("KOSH_CONFIG", &config_path);
     }
 
-    let config = Config::load_or_init().await.expect("Failed to load existing");
+    let config = Config::load_or_init()
+        .await
+        .expect("Failed to load existing");
 
     assert_eq!(config.vault_path, PathBuf::from("/var/kosh/custom_vault"));
     assert_eq!(config.port, 8080);
@@ -125,7 +127,10 @@ fn helper_path_accessors() {
 
     assert_eq!(config.log_path(), PathBuf::from("/srv/kosh/state/logs"));
     assert_eq!(config.tls_identity_path(), PathBuf::from("/srv/kosh/tls"));
-    assert_eq!(config.secret_path(), PathBuf::from("/srv/kosh/server.secret"));
+    assert_eq!(
+        config.secret_path(),
+        PathBuf::from("/srv/kosh/server.secret")
+    );
 }
 
 #[tokio::test]

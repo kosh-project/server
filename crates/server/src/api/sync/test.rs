@@ -77,9 +77,10 @@ async fn api_stream_success() -> anyhow::Result<()> {
         offset: 0,
     });
 
-    let response = stream_delta(State(state.clone()), Extension(user_id), query)
-        .await?
-        .into_response();
+    let response =
+        stream_delta(State(state.clone()), Extension(user_id), query)
+            .await?
+            .into_response();
 
     assert_eq!(response.status(), 200);
 

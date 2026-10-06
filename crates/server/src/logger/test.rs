@@ -70,16 +70,17 @@ async fn logger_commits_multiple_entries_to_disk() -> anyhow::Result<()> {
             .log_path()
             .join(format_date_time(Utc::now().timestamp_millis()));
 
-        timeout(Duration::from_secs(3), handle.shutdown_with_grace(2))
-            .await?;
+        timeout(Duration::from_secs(3), handle.shutdown_with_grace(2)).await?;
 
         let file_bytes = std::fs::read(&log_file)?;
 
         let (entry1, len1): (Entry, usize) =
             bincode_next::decode_from_slice(&file_bytes, config::standard())?;
 
-        let (entry2, _): (Entry, usize) =
-            bincode_next::decode_from_slice(&file_bytes[len1..], config::standard())?;
+        let (entry2, _): (Entry, usize) = bincode_next::decode_from_slice(
+            &file_bytes[len1..],
+            config::standard(),
+        )?;
 
         assert_eq!(entry1.message, "First Entry");
         assert_eq!(entry2.message, "Second Entry");
@@ -110,8 +111,11 @@ async fn broadcasting_works_via_unix_socket() -> anyhow::Result<()> {
 
         let (len, _) = recv_socket.recv_from(&mut buffer).await?;
 
-        let entry: Entry =
-            bincode_next::decode_from_slice(&buffer[..len], config::standard())?.0;
+        let entry: Entry = bincode_next::decode_from_slice(
+            &buffer[..len],
+            config::standard(),
+        )?
+        .0;
 
         sender
             .send(Entry {

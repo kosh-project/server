@@ -107,7 +107,9 @@ async fn orphan_cert_recovery() {
 
     // Remove cert only
     let cert_path = temp_dir.join("tls").join("cert.pem");
-    tokio::fs::remove_file(cert_path).await.expect("remove cert");
+    tokio::fs::remove_file(cert_path)
+        .await
+        .expect("remove cert");
 
     // load_or_create should detect missing cert and regenerate
     let id2 = Identity::load_or_create(&temp_dir)

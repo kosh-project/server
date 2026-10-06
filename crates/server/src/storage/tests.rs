@@ -108,10 +108,7 @@ async fn concurrent_write_collisions_dont_panic() -> Result<()> {
         let metadata_a = result_a?.expect("task_a failed");
         let metadata_b = result_b?.expect("task_b failed");
 
-        assert_eq!(
-            metadata_a.hash.to_string(),
-            metadata_b.hash.to_string()
-        );
+        assert_eq!(metadata_a.hash.to_string(), metadata_b.hash.to_string());
 
         let expected_path =
             service.vault_path.join(metadata_a.hash.to_string());
@@ -126,7 +123,8 @@ async fn concurrent_write_collisions_dont_panic() -> Result<()> {
 async fn service_get_blob_success() -> Result<()> {
     with_temp_service(|service| async move {
         let content = b"cas_blob_test_content";
-        let chunks: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from_static(content))];
+        let chunks: Vec<Result<Bytes, IoErr>> =
+            vec![Ok(Bytes::from_static(content))];
         let stream = futures::stream::iter(chunks);
 
         let metadata = service
@@ -160,11 +158,15 @@ async fn service_get_blob_not_found() -> Result<()> {
 async fn service_delete_blob_success() -> Result<()> {
     with_temp_service(|service| async move {
         let content = b"delete_me_soon";
-        let chunks: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from_static(content))];
+        let chunks: Vec<Result<Bytes, IoErr>> =
+            vec![Ok(Bytes::from_static(content))];
         let stream = futures::stream::iter(chunks);
 
         let metadata = service
-            .try_save("ephemeral.bin", Payload::new(content.len() as u64, stream))
+            .try_save(
+                "ephemeral.bin",
+                Payload::new(content.len() as u64, stream),
+            )
             .await?;
 
         let hash_str = metadata.hash.to_string();
@@ -277,8 +279,7 @@ async fn transaction_fails_if_vault_missing() -> anyhow::Result<()> {
     let vault = PathBuf::from("/tmp/path/that/possibly/doesnt/exist/lol");
     let transaction = Transaction::new(vault);
 
-    let chunks: Vec<Result<Bytes, IoErr>> =
-        vec![Ok(Bytes::from("data_data"))];
+    let chunks: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("data_data"))];
     let f_stream = futures::stream::iter(chunks);
 
     let payload = Payload::new(9u64, f_stream);
@@ -298,7 +299,8 @@ async fn transaction_fails_if_vault_missing() -> anyhow::Result<()> {
 #[tokio::test]
 async fn hardcoded_hash_correctness() -> anyhow::Result<()> {
     with_temp_transaction(async move |transaction, _vault_path| {
-        let payload: Vec<Result<Bytes, IoErr>> = vec![Ok(Bytes::from("hello world"))];
+        let payload: Vec<Result<Bytes, IoErr>> =
+            vec![Ok(Bytes::from("hello world"))];
         let f_stream = futures::stream::iter(payload);
 
         let payload = Payload::new(11_u64, f_stream);
@@ -306,7 +308,8 @@ async fn hardcoded_hash_correctness() -> anyhow::Result<()> {
         let metadata = transaction.commit(payload).await?;
 
         // Pre-calculated Blake3 hash of "hello world"
-        let expected_hash = "d74981efa70a0c880b8d8c1985d075dbcbf679b99a5f9914e5aaf96b831a9e24";
+        let expected_hash =
+            "d74981efa70a0c880b8d8c1985d075dbcbf679b99a5f9914e5aaf96b831a9e24";
 
         assert_eq!(metadata.hash.to_string(), expected_hash);
 

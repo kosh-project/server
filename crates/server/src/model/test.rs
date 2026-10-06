@@ -175,7 +175,10 @@ fn session_verify_stateless_expired() -> Result<()> {
 
     let res = Session::verify_stateless(&token, &secret);
     assert!(res.is_err());
-    assert!(matches!(res, Err(crate::api::Error::Unauthorized("Token expired"))));
+    assert!(matches!(
+        res,
+        Err(crate::api::Error::Unauthorized("Token expired"))
+    ));
 
     Ok(())
 }
