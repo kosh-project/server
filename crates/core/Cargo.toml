@@ -22,3 +22,7 @@ miette = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = '0.2', default-features = false }
+
+[dev-dependencies]
+serial_test = "3.5.0"
+tmpdir = "1.0.0"

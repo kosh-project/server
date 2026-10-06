@@ -11,7 +11,7 @@ use webdav_server::model::{session::Session, user::User};
 #[allow(clippy::indexing_slicing, clippy::unwrap_used)]
 async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
     with_sandbox_env("webdav_list_test", async move |ctx| {
-        User::create(&ctx.db, &vec![0u8; 32], "fake_verifier".into()).await?;
+        User::create(&ctx.db, &[0u8; 32], "fake_verifier".into()).await?;
         let user_id = 1;
 
         let token = Session::create(&ctx.db, user_id, &ctx.secret).await?;

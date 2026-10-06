@@ -1,3 +1,8 @@
+#![allow(clippy::indexing_slicing)]
+#![allow(clippy::unreachable)]
+#![allow(clippy::must_use_candidate)]
+#![allow(dead_code)]
+
 use std::{net::SocketAddr, path::PathBuf};
 
 use sha2::{Digest, Sha256};

@@ -18,6 +18,9 @@
 
 mod error;
 
+#[cfg(test)]
+mod test;
+
 pub use error::{Error, Result};
 
 use std::{env, path::PathBuf};

@@ -26,3 +26,6 @@ pub static GLOBAL_LOGGER: OnceLock<Sender<Entry>> = OnceLock::new();
 pub fn logging_enabled() -> bool {
     GLOBAL_LOGGER.get().is_some()
 }
+
+#[cfg(test)]
+mod test;
