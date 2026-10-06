@@ -251,3 +251,6 @@ pub async fn list(
 
     Ok(Json(page))
 }
+
+#[cfg(test)]
+mod test;

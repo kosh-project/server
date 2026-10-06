@@ -30,3 +30,6 @@ mod register;
 pub use login::login;
 pub use pow_guard::pow_guard;
 pub use register::register;
+
+#[cfg(test)]
+mod test;

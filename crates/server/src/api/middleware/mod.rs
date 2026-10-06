@@ -34,3 +34,6 @@ pub use auth_guard::auth_guard;
 pub use log::log_middleware;
 pub use mac_guard::mac_guard;
 pub use rate_limit::RateLimitExt;
+
+#[cfg(test)]
+mod test;
