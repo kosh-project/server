@@ -23,3 +23,6 @@ pub mod session;
 pub mod user;
 
 pub use error::{Error, Result};
+
+#[cfg(test)]
+mod test;

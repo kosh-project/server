@@ -10,3 +10,6 @@ pub use secret::Secret;
 /// - 1 byte: `.` delimiter
 /// - 64 bytes: Lowercase hexadecimal keyed BLAKE3 MAC over `"session_id.expires_at_hex"`
 pub const TOKEN_LEN: usize = 36 + 16 + 64 + 2;
+
+#[cfg(test)]
+mod test;
