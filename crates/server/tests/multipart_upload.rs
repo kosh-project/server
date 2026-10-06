@@ -42,7 +42,7 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
 
     let secret = Secret::new(rand::random());
 
-    User::create(&sql_pool, &vec![0; 32], "fake_verifier".into()).await?;
+    User::create(&sql_pool, &[0; 32], "fake_verifier".into()).await?;
 
     let user_id = 1;
     let token = Session::create(&sql_pool, user_id, &secret).await?;
