@@ -22,3 +22,6 @@ mod error;
 pub use cert::Identity;
 
 pub use error::{Error, Result};
+
+#[cfg(test)]
+mod test;

@@ -105,3 +105,6 @@ pub enum Telemetry {
     /// and the socket connection is healthy, even when no activity is occurring.
     Heartbeat,
 }
+
+#[cfg(test)]
+mod test;
