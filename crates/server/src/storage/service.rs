@@ -81,7 +81,7 @@ impl Service {
     /// This is an internal helper used by [`Service::try_save`]. It enforces the
     /// filename rules (no path separators, no empty names) before any disk I/O
     /// is attempted.
-    fn begin_transaction<T>(&self, file: &T) -> Result<Transaction>
+    pub(crate) fn begin_transaction<T>(&self, file: &T) -> Result<Transaction>
     where
         T: AsRef<str>,
     {
@@ -139,97 +139,5 @@ impl Service {
         let file_path = self.vault_path.join(hash_str);
 
         File::open(file_path).await.map_err(|_| NotFound)
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::panic_in_result_fn)]
-mod tests {
-    use anyhow::Result;
-    use std::io::Error as IoErr;
-
-    use super::*;
-
-    use crate::storage::tests::with_temp_service;
-
-    #[tokio::test]
-    async fn reject_invalid_filename() -> Result<()> {
-        with_temp_service(|service| async move {
-            // Reject for any occurrence of forward slash
-            let result = service.begin_transaction(&"o///reo/hiuh//i");
-            assert!(result.is_err());
-            assert!(matches!(result, Err(InvalidFileName)));
-
-            let result = service.begin_transaction(&"");
-            assert!(result.is_err());
-
-            assert!(matches!(result, Err(InvalidFileName)));
-            let result = service.begin_transaction(&"../../../../etc/passwd");
-            assert!(result.is_err());
-            assert!(matches!(result, Err(InvalidFileName)));
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    #[allow(clippy::expect_used)]
-    async fn concurrent_write_collisions_dont_panic() -> Result<()> {
-        with_temp_service(|service| async move {
-            let service_a = service.clone();
-            let service_b = service.clone();
-
-            let task_a = tokio::spawn(async move {
-                let chunks: Vec<Result<Bytes, IoErr>> =
-                    vec![Ok(Bytes::from("some_data"))];
-                let stream = futures::stream::iter(chunks);
-
-                service_a
-                    .try_save("dev1_upload.rs", Payload::new(9u64, stream))
-                    .await
-            });
-
-            let task_b = tokio::spawn(async move {
-                let payload: Vec<Result<Bytes, IoErr>> =
-                    vec![Ok(Bytes::from("some_data"))];
-                let stream = futures::stream::iter(payload);
-
-                service_b
-                    .try_save("some_other_file.rs", Payload::new(9u64, stream))
-                    .await
-            });
-
-            let (result_a, result_b) = tokio::join!(task_a, task_b);
-
-            // Test : Writing to same file doesn't fail
-            let metadata_a = result_a?.expect("task_a failed");
-            let metadata_b = result_b?.expect("task_b failed");
-
-            // Test: Both files wrote exact same data
-            assert_eq!(
-                metadata_a.hash.to_string(),
-                metadata_b.hash.to_string()
-            );
-
-            let expected_path =
-                service.vault_path.join(metadata_a.hash.to_string());
-            // Test: Expected path exists
-            assert!(expected_path.exists());
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn validation_success() -> Result<()> {
-        with_temp_service(async move |service| {
-            // Valid name rules
-            service.begin_transaction(&"oreo.tmp.jks")?;
-
-            Ok(())
-        })
-        .await
     }
 }
