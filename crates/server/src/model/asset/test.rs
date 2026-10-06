@@ -1,8 +1,7 @@
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::panic_in_result_fn)]
-#![allow(clippy::unwrap_used)]
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -12,8 +11,13 @@ use super::{
 };
 
 async fn setup_db() -> Result<SqlitePool> {
-    let pool = SqlitePool::connect("sqlite::memory:").await?;
-    sqlx::migrate!().run(&pool).await?;
+    let pool = SqlitePool::connect("sqlite::memory:")
+        .await
+        .context("failed to connect to in-memory database")?;
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .context("failed to run database migrations")?;
     Ok(pool)
 }
 
@@ -33,7 +37,8 @@ async fn insert_asset(
         "dummy_verifier"
     )
     .execute(pool)
-    .await?;
+    .await
+    .context("failed to insert user")?;
 
     sqlx::query!(
         r#"
@@ -47,7 +52,8 @@ async fn insert_asset(
         0
     )
     .execute(pool)
-    .await?;
+    .await
+    .context("failed to insert asset")?;
     Ok(())
 }
 
@@ -57,7 +63,8 @@ async fn count_owners(pool: &SqlitePool, hash: &[u8]) -> Result<i64> {
         &hash[..]
     )
     .fetch_one(pool)
-    .await?;
+    .await
+    .context("failed to count asset owners")?;
 
     Ok(count)
 }
@@ -67,10 +74,17 @@ async fn delete_asset_with_single_owner() -> Result<()> {
     let pool = setup_db().await?;
     let hash = b"hello_fellas_i_m_deleting_a_file";
 
-    insert_asset(&pool, 10, hash).await?;
-    Asset::delete(&pool, 10, hash).await?;
-    let count = count_owners(&pool, hash).await?;
+    insert_asset(&pool, 10, hash)
+        .await
+        .context("failed to insert asset")?;
+    Asset::delete(&pool, 10, hash)
+        .await
+        .context("failed to delete asset")?;
+    let count = count_owners(&pool, hash)
+        .await
+        .context("failed to count asset owners")?;
 
+    // Test: verify asset count drops to zero after deleting single-owner asset
     assert_eq!(count, 0);
     Ok(())
 }
@@ -80,10 +94,17 @@ async fn attempt_to_delete_unowned_asset() -> Result<()> {
     let pool = setup_db().await?;
     let hash = b"a_dude_uploads_a_file_with_cache";
 
-    insert_asset(&pool, 10, hash).await?;
-    Asset::delete(&pool, 12, hash).await?;
-    let count = count_owners(&pool, hash).await?;
+    insert_asset(&pool, 10, hash)
+        .await
+        .context("failed to insert asset")?;
+    Asset::delete(&pool, 12, hash)
+        .await
+        .context("failed to delete asset")?;
+    let count = count_owners(&pool, hash)
+        .await
+        .context("failed to count asset owners")?;
 
+    // Test: verify unowned asset is not deleted by non-owner user
     assert_eq!(count, 1);
     Ok(())
 }
@@ -100,7 +121,8 @@ async fn list_assets_filters_by_tag_and_orders_newest_first() -> Result<()> {
         "dummy_verifier"
     )
     .execute(&pool)
-    .await?;
+    .await
+    .context("failed to insert user")?;
 
     let insert = async move |pool: &SqlitePool,
                              hash: &[u8],
@@ -120,13 +142,17 @@ async fn list_assets_filters_by_tag_and_orders_newest_first() -> Result<()> {
         )
         .execute(&pool.clone())
         .await
+        .context("failed to insert asset")
     };
 
     insert(&pool, b"hash_a", 100, "0").await?;
     insert(&pool, b"hash_b", 200, "1").await?;
     insert(&pool, b"hash_c", 300, "0").await?;
 
-    let meta_page = Asset::list(&pool, user_id, GalleryMeta, 50, None).await?;
+    let meta_page = Asset::list(&pool, user_id, GalleryMeta, 50, None)
+        .await
+        .context("failed to list meta assets")?;
+    // Test: verify assets filtered by GalleryMeta tag and sorted newest first
     assert_eq!(meta_page.assets.len(), 2);
     assert!(meta_page.next_cursor.is_none());
     assert_eq!(meta_page.assets[0].tag, GalleryMeta);
@@ -134,7 +160,10 @@ async fn list_assets_filters_by_tag_and_orders_newest_first() -> Result<()> {
     assert_eq!(meta_page.assets[0].last_modified, 300);
     assert_eq!(meta_page.assets[1].last_modified, 100);
 
-    let item_page = Asset::list(&pool, user_id, GalleryItem, 50, None).await?;
+    let item_page = Asset::list(&pool, user_id, GalleryItem, 50, None)
+        .await
+        .context("failed to list item assets")?;
+    // Test: verify assets filtered by GalleryItem tag
     assert_eq!(item_page.assets.len(), 1);
     assert_eq!(item_page.assets[0].tag, GalleryItem);
     assert_eq!(item_page.assets[0].last_modified, 200);
@@ -154,7 +183,8 @@ async fn list_assets_pagination_with_cursor_and_tie_breaking() -> Result<()> {
         "dummy_verifier"
     )
     .execute(&pool)
-    .await?;
+    .await
+    .context("failed to insert user")?;
 
     // Insert 3 assets with identical timestamp (1000)
     for i in 1u8..=3u8 {
@@ -173,22 +203,28 @@ async fn list_assets_pagination_with_cursor_and_tie_breaking() -> Result<()> {
             "0"
         )
         .execute(&pool)
-        .await?;
+        .await
+        .context("failed to insert asset batch")?;
     }
 
     // Page 1: limit 2
-    let page1 = Asset::list(&pool, user_id, GalleryMeta, 2, None).await?;
+    let page1 = Asset::list(&pool, user_id, GalleryMeta, 2, None)
+        .await
+        .context("failed to list page 1")?;
+    // Test: verify page 1 returns 2 assets with next cursor
     assert_eq!(page1.assets.len(), 2);
     assert!(page1.next_cursor.is_some());
 
     // Page 2: pass cursor from page 1
     let page2 =
         Asset::list(&pool, user_id, GalleryMeta, 2, page1.next_cursor.as_ref())
-            .await?;
+            .await
+            .context("failed to list page 2")?;
+    // Test: verify page 2 returns 1 asset and no further cursor
     assert_eq!(page2.assets.len(), 1);
     assert!(page2.next_cursor.is_none());
 
-    // Verify tie-breaking: disjoint rows across pages
+    // Test: verify tie-breaking: disjoint rows across pages
     assert_ne!(page1.assets[0].hash, page2.assets[0].hash);
     assert_ne!(page1.assets[1].hash, page2.assets[0].hash);
 

@@ -1,35 +1,35 @@
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::panic_in_result_fn)]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
+#![allow(clippy::unnecessary_wraps)]
 
 use super::*;
 use crate::{api::Error::BadRequest, app::AppStateBuilder, auth::Secret};
+use anyhow::{Context, Result};
 use axum::{
     Extension,
     body::Body,
     extract::{Path, Query, State},
+    http::HeaderValue,
 };
 use hyper::HeaderMap;
 use sqlx::SqlitePool;
 
-async fn setup_state() -> AppState {
+async fn setup_state() -> Result<AppState> {
     let pool = SqlitePool::connect("sqlite::memory:")
         .await
-        .expect("db connect");
-    sqlx::migrate!().run(&pool).await.expect("migrate");
+        .context("db connect")?;
+    sqlx::migrate!().run(&pool).await.context("migrate")?;
     let secret = Secret::random();
-    AppStateBuilder::new()
+    Ok(AppStateBuilder::new()
         .vault_path("/tmp")
         .db(pool)
         .secret(secret)
-        .build()
+        .build())
 }
 
 #[tokio::test]
-async fn delete_rejects_invalid_hex_hash() {
-    let state = setup_state().await;
+async fn delete_rejects_invalid_hex_hash() -> Result<()> {
+    let state = setup_state().await.context("failed to setup app state")?;
     let res = delete(
         State(state),
         Extension(1),
@@ -37,16 +37,18 @@ async fn delete_rejects_invalid_hex_hash() {
     )
     .await;
 
+    // Test: verify delete rejects non-hexadecimal hash format
     assert!(res.is_err());
     assert!(matches!(
         res,
         Err(crate::Error::ApiError(BadRequest("Invalid Hash Format")))
     ));
+    Ok(())
 }
 
 #[tokio::test]
-async fn get_rejects_invalid_hex_hash() {
-    let state = setup_state().await;
+async fn get_rejects_invalid_hex_hash() -> Result<()> {
+    let state = setup_state().await.context("failed to setup app state")?;
     let res = get(
         State(state),
         Extension(1),
@@ -54,18 +56,20 @@ async fn get_rejects_invalid_hex_hash() {
     )
     .await;
 
+    // Test: verify get rejects invalid hex characters in hash parameter
     assert!(res.is_err());
     assert!(matches!(
         res,
         Err(crate::Error::ApiError(BadRequest("Invalid Hash Format")))
     ));
+    Ok(())
 }
 
 #[tokio::test]
-async fn upload_rejects_missing_file_name_header() {
-    let state = setup_state().await;
+async fn upload_rejects_missing_file_name_header() -> Result<()> {
+    let state = setup_state().await.context("failed to setup app state")?;
     let mut headers = HeaderMap::new();
-    headers.insert("Content-Length", "100".parse().unwrap());
+    headers.insert("Content-Length", HeaderValue::from_static("100"));
 
     let res = upload(
         State(state),
@@ -76,6 +80,7 @@ async fn upload_rejects_missing_file_name_header() {
     )
     .await;
 
+    // Test: verify upload returns BadRequest when X-File-Name header is missing
     assert!(res.is_err());
     assert!(matches!(
         res,
@@ -83,13 +88,14 @@ async fn upload_rejects_missing_file_name_header() {
             "Missing X-File-Name header"
         )))
     ));
+    Ok(())
 }
 
 #[tokio::test]
-async fn upload_rejects_missing_content_length_header() {
-    let state = setup_state().await;
+async fn upload_rejects_missing_content_length_header() -> Result<()> {
+    let state = setup_state().await.context("failed to setup app state")?;
     let mut headers = HeaderMap::new();
-    headers.insert("X-File-Name", "photo.png".parse().unwrap());
+    headers.insert("X-File-Name", HeaderValue::from_static("photo.png"));
 
     let res = upload(
         State(state),
@@ -100,6 +106,7 @@ async fn upload_rejects_missing_content_length_header() {
     )
     .await;
 
+    // Test: verify upload returns BadRequest when Content-Length header is omitted
     assert!(res.is_err());
     assert!(matches!(
         res,
@@ -107,14 +114,15 @@ async fn upload_rejects_missing_content_length_header() {
             "Missing content length in header"
         )))
     ));
+    Ok(())
 }
 
 #[tokio::test]
-async fn upload_rejects_oversized_payload_exceeding_10gb() {
-    let state = setup_state().await;
+async fn upload_rejects_oversized_payload_exceeding_10gb() -> Result<()> {
+    let state = setup_state().await.context("failed to setup app state")?;
     let mut headers = HeaderMap::new();
-    headers.insert("X-File-Name", "huge.bin".parse().unwrap());
-    headers.insert("Content-Length", "10000000001".parse().unwrap()); // 10GB + 1 byte
+    headers.insert("X-File-Name", HeaderValue::from_static("huge.bin"));
+    headers.insert("Content-Length", HeaderValue::from_static("10000000001")); // 10GB + 1 byte
 
     let res = upload(
         State(state),
@@ -125,16 +133,18 @@ async fn upload_rejects_oversized_payload_exceeding_10gb() {
     )
     .await;
 
+    // Test: verify upload returns BadRequest when Content-Length exceeds 10GB ceiling
     assert!(res.is_err());
     assert!(matches!(
         res,
         Err(crate::Error::ApiError(BadRequest("Payload too Large")))
     ));
+    Ok(())
 }
 
 #[tokio::test]
-async fn list_rejects_partial_cursor() {
-    let state = setup_state().await;
+async fn list_rejects_partial_cursor() -> Result<()> {
+    let state = setup_state().await.context("failed to setup app state")?;
 
     // before_time without before_id
     let res = list(
@@ -149,6 +159,7 @@ async fn list_rejects_partial_cursor() {
     )
     .await;
 
+    // Test: verify cursor pagination rejects before_time when before_id is missing
     assert!(res.is_err());
     assert!(matches!(
         res,
@@ -170,6 +181,7 @@ async fn list_rejects_partial_cursor() {
     )
     .await;
 
+    // Test: verify cursor pagination rejects before_id when before_time is missing
     assert!(res.is_err());
     assert!(matches!(
         res,
@@ -177,11 +189,12 @@ async fn list_rejects_partial_cursor() {
             "Both before_time and before_id must be provided for cursor pagination"
         )))
     ));
+    Ok(())
 }
 
 #[tokio::test]
-async fn list_rejects_invalid_cursor_uuid_format() {
-    let state = setup_state().await;
+async fn list_rejects_invalid_cursor_uuid_format() -> Result<()> {
+    let state = setup_state().await.context("failed to setup app state")?;
 
     let res = list(
         State(state),
@@ -195,6 +208,7 @@ async fn list_rejects_invalid_cursor_uuid_format() {
     )
     .await;
 
+    // Test: verify cursor pagination rejects non-hex/invalid-length before_id
     assert!(res.is_err());
     assert!(matches!(
         res,
@@ -202,4 +216,5 @@ async fn list_rejects_invalid_cursor_uuid_format() {
             "Invalid before_id cursor format"
         )))
     ));
+    Ok(())
 }

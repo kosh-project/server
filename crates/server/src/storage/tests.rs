@@ -1,13 +1,10 @@
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::panic_in_result_fn)]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::panic)]
 #![allow(clippy::as_conversions)]
 
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use blake3::Hasher;
 use bytes::Bytes;
 use std::io::{Error as IoErr, ErrorKind};
@@ -26,7 +23,9 @@ where
     F: FnOnce(Service) -> Fut,
     Fut: Future<Output = Result<T>>,
 {
-    let temp_dir = TmpDir::new("vault").await?;
+    let temp_dir = TmpDir::new("vault")
+        .await
+        .context("failed to create temporary directory")?;
     let storage_service = Service::new(temp_dir.to_path_buf());
     func(storage_service).await
 }
@@ -38,7 +37,9 @@ where
     F: Fn(Transaction, PathBuf) -> Fut,
     Fut: Future<Output = anyhow::Result<T>>,
 {
-    let temp_dir = TmpDir::new("vault").await?;
+    let temp_dir = TmpDir::new("vault")
+        .await
+        .context("failed to create temporary directory")?;
     let transaction = Transaction::new(temp_dir.to_path_buf());
     func(transaction, temp_dir.to_path_buf()).await
 }
@@ -50,15 +51,17 @@ where
 #[tokio::test]
 async fn reject_invalid_filename() -> Result<()> {
     with_temp_service(|service| async move {
-        // Reject for any occurrence of forward slash
+        // Test: reject for any occurrence of forward slash
         let result = service.begin_transaction(&"o///reo/hiuh//i");
         assert!(result.is_err());
         assert!(matches!(result, Err(InvalidFileName)));
 
+        // Test: reject empty filename
         let result = service.begin_transaction(&"");
         assert!(result.is_err());
         assert!(matches!(result, Err(InvalidFileName)));
 
+        // Test: reject directory traversal patterns
         let result = service.begin_transaction(&"../../../../etc/passwd");
         assert!(result.is_err());
         assert!(matches!(result, Err(InvalidFileName)));
@@ -71,7 +74,10 @@ async fn reject_invalid_filename() -> Result<()> {
 #[tokio::test]
 async fn validation_success() -> Result<()> {
     with_temp_service(|service| async move {
-        service.begin_transaction(&"oreo.tmp.jks")?;
+        // Test: valid filename passes transaction creation
+        service
+            .begin_transaction(&"oreo.tmp.jks")
+            .context("failed to begin transaction")?;
         Ok(())
     })
     .await
@@ -105,13 +111,19 @@ async fn concurrent_write_collisions_dont_panic() -> Result<()> {
 
         let (result_a, result_b) = tokio::join!(task_a, task_b);
 
-        let metadata_a = result_a?.expect("task_a failed");
-        let metadata_b = result_b?.expect("task_b failed");
+        let metadata_a = result_a
+            .context("task_a join failed")?
+            .context("task_a save failed")?;
+        let metadata_b = result_b
+            .context("task_b join failed")?
+            .context("task_b save failed")?;
 
+        // Test: verify concurrent writes of identical content yield identical hash
         assert_eq!(metadata_a.hash.to_string(), metadata_b.hash.to_string());
 
         let expected_path =
             service.vault_path.join(metadata_a.hash.to_string());
+        // Test: verify final blob file exists in storage vault
         assert!(expected_path.exists());
 
         Ok(())
@@ -129,13 +141,20 @@ async fn service_get_blob_success() -> Result<()> {
 
         let metadata = service
             .try_save("sample.bin", Payload::new(content.len() as u64, stream))
-            .await?;
+            .await
+            .context("failed to save sample blob")?;
 
         let hash_str = metadata.hash.to_string();
-        let mut file = service.get_blob(&hash_str).await?;
+        let mut file = service
+            .get_blob(&hash_str)
+            .await
+            .context("failed to get blob")?;
 
         let mut read_bytes = Vec::new();
-        file.read_to_end(&mut read_bytes).await?;
+        file.read_to_end(&mut read_bytes)
+            .await
+            .context("failed to read blob content")?;
+        // Test: verify content read from retrieved blob matches saved bytes
         assert_eq!(read_bytes, content);
 
         Ok(())
@@ -147,6 +166,7 @@ async fn service_get_blob_success() -> Result<()> {
 async fn service_get_blob_not_found() -> Result<()> {
     with_temp_service(|service| async move {
         let result = service.get_blob("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").await;
+        // Test: verify get_blob for non-existent hash returns NotFound error
         assert!(result.is_err());
         assert!(matches!(result, Err(NotFound)));
         Ok(())
@@ -167,13 +187,18 @@ async fn service_delete_blob_success() -> Result<()> {
                 "ephemeral.bin",
                 Payload::new(content.len() as u64, stream),
             )
-            .await?;
+            .await
+            .context("failed to save ephemeral blob")?;
 
         let hash_str = metadata.hash.to_string();
         let file_path = service.vault_path.join(&hash_str);
         assert!(file_path.exists());
 
-        service.delete_blob(&hash_str).await?;
+        service
+            .delete_blob(&hash_str)
+            .await
+            .context("failed to delete blob")?;
+        // Test: verify saved blob file is removed from disk after deletion
         assert!(!file_path.exists());
 
         Ok(())
@@ -185,6 +210,7 @@ async fn service_delete_blob_success() -> Result<()> {
 async fn service_delete_blob_idempotent() -> Result<()> {
     with_temp_service(|service| async move {
         let result = service.delete_blob("nonexistent_hash_string").await;
+        // Test: verify deleting non-existent blob is idempotent and returns Ok
         assert!(result.is_ok());
         Ok(())
     })
@@ -208,16 +234,19 @@ async fn successful_commit_and_hash() -> anyhow::Result<()> {
 
         let result = transaction.commit(payload).await;
 
-        let metadata = result?;
+        let metadata = result.context("failed to commit transaction")?;
 
         let target_path = vault_path.join(metadata.hash.to_string());
 
         let mut hasher = Hasher::new();
-        let bytes = tokio::fs::read(target_path).await?;
+        let bytes = tokio::fs::read(target_path)
+            .await
+            .context("failed to read committed blob")?;
         hasher.update(&bytes);
 
         let expected_hash = hasher.finalize().to_string();
 
+        // Test: verify committed blob hash matches independently calculated Blake3 hash
         assert_eq!(expected_hash, metadata.hash.to_string());
 
         Ok(())
@@ -234,8 +263,10 @@ async fn zero_byte_stream_creates_empty_file() -> anyhow::Result<()> {
 
         let result = transaction.commit(payload).await;
 
-        let metadata = result?;
+        let metadata =
+            result.context("failed to commit zero-byte transaction")?;
 
+        // Test: verify empty payload commits with size 0
         assert_eq!(metadata.size, 0);
 
         let target_path = vault_path.join(metadata.hash.to_string());
@@ -244,6 +275,7 @@ async fn zero_byte_stream_creates_empty_file() -> anyhow::Result<()> {
 
         let expected_hash = Hasher::new().finalize().to_string();
 
+        // Test: verify committed empty file matches empty Blake3 hash
         assert_eq!(metadata.hash.to_string(), expected_hash);
 
         Ok(())
@@ -265,8 +297,8 @@ async fn aborted_test_cleans_up_garbage() -> anyhow::Result<()> {
 
         let result = transaction.commit(payload).await;
 
+        // Test: verify failed/aborted transaction returns error and removes temporary file
         assert!(result.is_err());
-
         assert!(!temp_path.exists());
 
         Ok(())
@@ -286,8 +318,8 @@ async fn transaction_fails_if_vault_missing() -> anyhow::Result<()> {
 
     let result = transaction.commit(payload).await;
 
+    // Test: verify commit to nonexistent vault returns CreateTempFile error
     assert!(result.is_err());
-
     assert!(
         matches!(result, Err(CreateTempFile { .. })),
         "Expected Err(CreateTempFile)"
@@ -305,12 +337,16 @@ async fn hardcoded_hash_correctness() -> anyhow::Result<()> {
 
         let payload = Payload::new(11_u64, f_stream);
 
-        let metadata = transaction.commit(payload).await?;
+        let metadata = transaction
+            .commit(payload)
+            .await
+            .context("failed to commit transaction")?;
 
         // Pre-calculated Blake3 hash of "hello world"
         let expected_hash =
             "d74981efa70a0c880b8d8c1985d075dbcbf679b99a5f9914e5aaf96b831a9e24";
 
+        // Test: verify committed payload matches known pre-calculated Blake3 hash
         assert_eq!(metadata.hash.to_string(), expected_hash);
 
         Ok(())
@@ -330,8 +366,8 @@ async fn mismatch_content_fails_plus_cleans_up() -> anyhow::Result<()> {
 
         let result = transaction.commit(payload).await;
 
+        // Test: verify byte count mismatch fails commit and cleans up temporary file
         assert!(result.is_err());
-
         assert!(!temp_path.exists());
 
         Ok(())
