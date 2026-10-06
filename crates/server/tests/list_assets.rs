@@ -26,10 +26,18 @@ async fn test_asset_listing_endpoint_e2e() -> anyhow::Result<()> {
             "Expected 401 for missing token"
         );
 
-        // Test: Authenticated Reuest (Zero Assts)
-        let empty_resp = ctx
+        // Test: Authenticated Request (Zero Assets)
+        let bad_resp = ctx
             .client
             .get(&endpoint)
+            .header("Authorization", format!("Bearer {token}"))
+            .send()
+            .await?;
+
+        assert_eq!(bad_resp.status(), StatusCode::BAD_REQUEST, "Expected 400 when tag query parameter is missing");
+
+        let empty_resp = ctx.client
+            .get(format!("{endpoint}?tag=0"))
             .header("Authorization", format!("Bearer {token}"))
             .send()
             .await?;

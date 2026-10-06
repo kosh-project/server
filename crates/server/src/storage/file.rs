@@ -6,9 +6,13 @@ use blake3::Hash;
 
 use crate::storage::Result;
 
+/// Metadata describing a stored content-addressable storage (CAS) blob.
 pub struct Metadata {
+    /// The BLAKE3 hash identifying the blob.
     pub hash: Hash,
+    /// Unix timestamp (seconds) when the file was last modified or committed.
     pub last_modified: i64,
+    /// Total size of the blob in bytes.
     pub size: i64,
 }
 

@@ -34,6 +34,7 @@ pub enum Error {
     Internal(#[from] internal::Error),
 }
 
+/// Convenience alias for results returned by model and database operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
 wrap_internal_err! {

@@ -7,8 +7,11 @@ use sqlx::SqlitePool;
 /// and authenticated via an `auth_verifier`. Neither field stores a raw password.
 /// This keeps the server from ever knowing who the user actually is.
 pub struct User {
+    /// Unique auto-incrementing database identifier (`users.id`).
     pub id: i64,
+    /// 32-byte BLAKE3 identity hash representing the user's public identity.
     pub identity_hash: [u8; 32],
+    /// Argon2id authentication verifier string used to validate login attempts.
     pub auth_verifier: String,
 }
 

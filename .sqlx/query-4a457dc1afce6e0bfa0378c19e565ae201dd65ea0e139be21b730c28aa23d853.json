@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT 1 AS matched FROM assets WHERE user_id = ? AND hash = ?\n        ",
+  "query": "\n                SELECT 1 AS matched FROM assets WHERE user_id = ? AND hash = ?\n                ",
   "describe": {
     "columns": [
       {
@@ -17,5 +17,5 @@
       false
     ]
   },
-  "hash": "c64a523994f496ed11db919601ef2ec4ae355f8549106c1cce6678e87b598132"
+  "hash": "4a457dc1afce6e0bfa0378c19e565ae201dd65ea0e139be21b730c28aa23d853"
 }

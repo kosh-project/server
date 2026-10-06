@@ -26,6 +26,7 @@ pub enum Error {
     #[error("Time conversion failed : {}", .0)]
     TimerError(#[from] SystemTimeError),
 
+    /// Peer client connection information (`ConnectInfo<SocketAddr>`) was missing from request extensions.
     #[error("Missing connect info")]
     MissingConnectInfo,
 

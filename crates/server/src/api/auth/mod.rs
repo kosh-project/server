@@ -19,6 +19,7 @@
 //!
 //! [`User`]: crate::model::user::User
 //! [`Session`]: crate::model::session::Session
+/// Stateless Hashcash Proof-of-Work challenge generation.
 pub mod challenge;
 pub(crate) mod hashcash;
 pub use hashcash::HashCash;

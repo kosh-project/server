@@ -7,9 +7,9 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `POST` | `/api/v1/sync/delta` | [`append_delta`] |
-//! | `GET` | `/api/v1/sync/delta` | [`stream_delta`] |
-//! | `DELETE` | `/api/v1/sync/prune` | [`prune_ledger`] |
+//! | `POST` | `/api/v1/sync/delta` | [`append_delta()`](crate::api::sync::append_delta) |
+//! | `GET` | `/api/v1/sync/delta` | [`stream_delta()`](crate::api::sync::stream_delta) |
+//! | `DELETE` | `/api/v1/sync/prune` | [`prune_ledger()`](crate::api::sync::prune_ledger) |
 //!
 //! All endpoints require a valid Bearer token and are placed behind
 //! `auth_guard` in `api/route.rs`.
@@ -41,11 +41,11 @@ use tokio_util::io::ReaderStream;
 use crate::api::{Error, Result};
 use crate::{app, storage::ledger::AppendReceipt};
 
-/// The JSON response body returned by [`append_delta`].
+/// The JSON response body returned by [`append_delta()`].
 ///
 /// These two fields form the **high-water mark cursor** that the client stores
 /// after each successful upload. On the next sync session the client passes
-/// them back as query parameters to [`stream_delta`] to resume streaming from
+/// them back as query parameters to [`stream_delta()`] to resume streaming from
 /// exactly where it left off, with no gap and no duplication.
 #[derive(Serialize)]
 pub struct AppendResponse {
@@ -132,7 +132,7 @@ use crate::api::Error::InvalidHeader;
 /// byte offset. The response body is a raw `application/octet-stream`.
 ///
 /// The client reads the returned bytes and uses the 4-byte length prefixes
-/// written by [`append_delta`] to deserialize individual encrypted actions.
+/// written by [`append_delta()`] to deserialize individual encrypted actions.
 ///
 /// ## Path traversal protection
 ///

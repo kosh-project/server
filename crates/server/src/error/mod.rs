@@ -10,7 +10,9 @@ use crate::storage;
 use crate::{model, wrap_internal_err};
 use kosh_core::logger::{Entry, Level};
 
+/// Startup and boot error types.
 pub mod boot;
+/// Low-level standard library conversion errors and macro hygiene helpers.
 pub mod internal;
 
 /// The top-level application error.
@@ -108,6 +110,7 @@ use Error::{
     ApiError, Conflict, DatabaseError, InternalError, ModelError, StorageError,
 };
 
+/// Top-level application result type returned by route handlers and services.
 pub type Result<T> = core::result::Result<T, Error>;
 
 impl Loggable for Error {

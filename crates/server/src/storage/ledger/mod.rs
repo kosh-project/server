@@ -68,6 +68,7 @@ mod handle;
 mod segment;
 
 pub use error::Error;
+/// Convenience alias for results returned by ledger operations.
 pub type Result<T> = core::result::Result<T, Error>;
 
 pub(crate) use action::AppendReceipt;
