@@ -48,8 +48,12 @@ jobs:
       - run: cargo doc --no-deps --document-private-items
 
   tests:
-    name: 'unit_integration'
-    runs-on: ubuntu-latest
+    name: 'unit_integration (${{ matrix.os }})'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
     env:
       SQLX_OFFLINE: true
     steps:
