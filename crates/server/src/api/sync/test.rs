@@ -17,9 +17,7 @@ use tmpdir::TmpDir;
 use crate::{
     api::{
         Error,
-        sync::{
-            PruneRequest, SyncRequest, append_delta, prune_ledger, stream_delta,
-        },
+        sync::{append_delta, prune, prune_ledger, pull, stream_delta},
     },
     app::{self, AppStateBuilder},
     auth::Secret,
@@ -77,9 +75,12 @@ async fn api_stream_success() -> anyhow::Result<()> {
     .await
     .context("failed to append delta for streaming")?;
 
-    let query = Query(SyncRequest {
-        file: "delta_0000001".into(),
-        offset: 0,
+    let query = Query(pull::Query {
+        namespace: "files".into(),
+        since_seq: None,
+        offset: Some(0),
+        limit: None,
+        file: Some("delta_0000001".into()),
     });
 
     let response =
@@ -133,9 +134,12 @@ async fn api_delta_not_found() -> anyhow::Result<()> {
     let (_tmp, state) = setup_env().await?;
     let user_id = 99;
 
-    let query = Query(SyncRequest {
-        file: "delta_00000099".to_string(),
-        offset: 500,
+    let query = Query(pull::Query {
+        namespace: "files".into(),
+        file: Some("delta_00000099".to_string()),
+        since_seq: None,
+        offset: Some(500),
+        limit: None,
     });
 
     let res = stream_delta(State(state), Extension(user_id), query).await;
