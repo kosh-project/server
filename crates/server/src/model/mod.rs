@@ -22,6 +22,8 @@ pub mod session;
 /// Registered user accounts and cryptographic verifiers.
 pub mod user;
 
+pub mod sync;
+
 pub use error::{Error, Result};
 
 #[cfg(test)]
