@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                id,\n                user_id,\n                namespace,\n                snapshot_seq,\n                blob_hash,\n                created_at\n            FROM\n                ledger_snapshots\n            WHERE\n                user_id = ?1 AND\n                namespace = ?2\n            ORDER BY\n                snapshot_seq DESC\n            LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "ledger_snapshots",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "user_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "ledger_snapshots",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "namespace",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ledger_snapshots",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "name": "snapshot_seq",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "ledger_snapshots",
+            "name": "snapshot_seq"
+          }
+        }
+      },
+      {
+        "name": "blob_hash",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "ledger_snapshots",
+            "name": "blob_hash"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "ledger_snapshots",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "575df69a0ed970b308c52088a2beb8dd9089f9c13409a380c49c3e128ba4cbfe"
+}

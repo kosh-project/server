@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO device_sync_watermarks (device_id, user_id, namespace, last_synced_seq, last_seen_at)\n            VALUES (?1, ?2, ?3, ?4, ?5)\n            ON CONFLICT(device_id, user_id, namespace) DO UPDATE SET\n                last_synced_seq = MAX(device_sync_watermarks.last_synced_seq, excluded.last_synced_seq),\n                last_seen_at = excluded.last_seen_at\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "9f9a23a92e721d01c725b27cdc24282b7077544ddb18508408e53f45ee57222d"
+}

@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use tokio::sync::oneshot::Sender;
 
-use crate::storage::ledger::Result;
+use crate::storage::ledger::{Namespace, Result};
 
 /// Commands that can be sent to the [`crate::storage::ledger::committer::Committer`] actor.
 ///
@@ -29,6 +29,8 @@ pub enum Action {
         payload: Bytes,
         /// Channel used to return the result to the caller.
         reply: Sender<Result<AppendReceipt>>,
+
+        namespace: Namespace,
     },
 
     /// Delete all delta segments strictly older than `before` for a user.
@@ -44,10 +46,12 @@ pub enum Action {
     Prune {
         /// The database primary key of the user whose old segments are deleted.
         user_id: i64,
-        /// All segments with an ID strictly less than this value are deleted.
-        before: u32,
+        /// The namespace to prune.
+        namespace: Namespace,
+        /// Highest sequence acknowledged by all active devices and baseline snapshots
+        safe_prune_seq: u64,
         /// Channel used to return the result to the caller.
-        reply: Sender<Result<()>>,
+        reply: Sender<Result<usize>>,
     },
 
     /// Signal the `Committer` to flush all open file handles and exit.
@@ -70,13 +74,7 @@ pub enum Action {
 /// left off.
 #[derive(Debug, Clone)]
 pub struct AppendReceipt {
-    /// The name of the segment file the payload was written to, e.g. `"delta_0000003"`.
+    pub sequence_id: u64,
     pub file_name: String,
-    /// The byte offset immediately after the last written byte in that segment.
-    ///
-    /// This is the **end** offset, not the start. A client that stores this
-    /// value and uses it as the `offset` query parameter on its next read
-    /// will resume streaming from the first byte after the data it just
-    /// uploaded — skipping nothing and re-reading nothing.
     pub offset: u64,
 }

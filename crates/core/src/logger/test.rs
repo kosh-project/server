@@ -43,7 +43,7 @@ fn entry_bincode_roundtrip() -> anyhow::Result<()> {
         bincode_next::encode_to_vec(&entry, bincode_next::config::standard())
             .context("bincode encoding should succeed")?;
     // Test: verify encoded payload is not empty
-    assert!(!encoded.is_empty());
+    assert_ne!(encoded.len(), 0);
 
     let (decoded, read_len): (Entry, usize) = bincode_next::decode_from_slice(
         &encoded,

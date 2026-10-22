@@ -1,7 +1,13 @@
+use std::{num::TryFromIntError, time::SystemTimeError};
+
 use axum::response::IntoResponse;
 use hyper::StatusCode;
 
-use crate::logger::{Level, Loggable, Module};
+use crate::{
+    error::internal,
+    logger::{Level, Loggable, Module},
+    wrap_internal_err,
+};
 
 /// Errors that can occur within the delta-CRDT sync ledger subsystem.
 ///
@@ -96,10 +102,18 @@ pub enum Error {
     /// being written to or that does not exist yet.
     #[error("Cannot prune active or future segments")]
     InvalidPrune,
+
+    #[error("Internal ledger error: {}", .0)]
+    Internal(#[from] internal::Error),
+}
+
+wrap_internal_err! {
+    TryFromIntError,
+    SystemTimeError => Error::Internal
 }
 
 use Error::{
-    CommitterDead, CorruptedSegment, InvalidFileName, InvalidOffset,
+    CommitterDead, CorruptedSegment, Internal, InvalidFileName, InvalidOffset,
     InvalidPrune, IoError, ParseIntFailure, SegmentNotFound,
 };
 
@@ -116,7 +130,7 @@ impl IntoResponse for Error {
             )
                 .into_response(),
             CommitterDead | CorruptedSegment(_) | ParseIntFailure(_)
-            | IoError(_) => {
+            | IoError(_) | Internal(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
                     .into_response()
             }
