@@ -12,6 +12,11 @@ pub struct Request {
     pub blob_hash: String,
 }
 
+/// Registers a newly committed snapshot for a user and namespace.
+///
+/// # Errors
+///
+/// Returns `BadRequest` if the hash is malformed, or an error if inserting into the database fails.
 pub async fn register_snapshot(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,

@@ -1,6 +1,6 @@
 use axum::{
     Extension, Json,
-    extract::{self, Query, State},
+    extract::{Query, State},
     response::IntoResponse,
 };
 use serde::{Deserialize, Serialize};
@@ -31,6 +31,11 @@ impl From<LedgerSnapshot> for Response {
     }
 }
 
+/// Fetches the latest snapshot metadata for a given user and namespace.
+///
+/// # Errors
+///
+/// Returns an error if querying the database fails.
 pub async fn latest_snapshot(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,

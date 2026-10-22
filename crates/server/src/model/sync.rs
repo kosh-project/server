@@ -22,6 +22,11 @@ pub struct LedgerSnapshot {
 }
 
 impl DeviceWatermark {
+    /// Upserts a watermark record for a device syncing a namespace.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if executing the database query fails.
     pub async fn upsert(
         pool: &SqlitePool,
         device_id: &[u8],
@@ -48,6 +53,11 @@ impl DeviceWatermark {
         Ok(())
     }
 
+    /// Calculates the safe sequence threshold for pruning historical segments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if executing the database query fails.
     pub async fn safe_prune_seq(
         pool: &SqlitePool,
         user_id: i64,
@@ -100,6 +110,11 @@ impl DeviceWatermark {
 }
 
 impl LedgerSnapshot {
+    /// Inserts a new snapshot record into the database.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if executing the database query fails.
     pub async fn create(
         pool: &SqlitePool,
         user_id: i64,
@@ -128,6 +143,11 @@ impl LedgerSnapshot {
         Ok(id)
     }
 
+    /// Queries the latest snapshot record for a user and namespace.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if executing the database query fails.
     pub async fn latest(
         pool: &SqlitePool,
         user_id: i64,
