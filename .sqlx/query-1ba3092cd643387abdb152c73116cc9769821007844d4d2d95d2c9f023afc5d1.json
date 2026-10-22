@@ -1,0 +1,28 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            WITH active_devices AS (\n                SELECT\n                    MIN(last_synced_seq) AS seq\n                FROM\n                    device_sync_watermarks\n                WHERE\n                    user_id = ?1 AND\n                    namespace = ?2 AND\n                    is_revoked = 0 AND\n                    last_seen_at >= ?3\n            ),\n            latest_snapshot AS (\n                SELECT\n                    MAX(snapshot_seq) AS seq\n                FROM\n                    ledger_snapshots\n                WHERE\n                    user_id = ?1 AND\n                    namespace = ?2\n            )\n            SELECT\n                active_devices.seq AS min_device_seq,\n                latest_snapshot.seq AS max_snapshot_seq\n            FROM\n                active_devices,\n                latest_snapshot\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "min_device_seq",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "max_snapshot_seq",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "1ba3092cd643387abdb152c73116cc9769821007844d4d2d95d2c9f023afc5d1"
+}

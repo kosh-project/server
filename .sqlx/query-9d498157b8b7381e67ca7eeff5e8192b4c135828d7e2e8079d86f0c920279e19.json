@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO ledger_snapshots\n                (user_id, namespace, snapshot_seq, blob_hash, created_at)\n            VALUES\n                (?, ?, ?, ?, ?)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "9d498157b8b7381e67ca7eeff5e8192b4c135828d7e2e8079d86f0c920279e19"
+}
