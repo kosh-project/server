@@ -65,9 +65,11 @@ mod action;
 mod committer;
 mod error;
 mod handle;
+pub mod namespace;
 mod segment;
 
 pub use error::Error;
+pub use namespace::Namespace;
 /// Convenience alias for results returned by ledger operations.
 pub type Result<T> = core::result::Result<T, Error>;
 

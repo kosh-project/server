@@ -65,6 +65,12 @@ pub enum Error {
     ModelError(#[from] model::Error),
 }
 
+impl From<storage::ledger::Error> for Error {
+    fn from(err: storage::ledger::Error) -> Self {
+        Self::ApiError(api::Error::Ledger(err))
+    }
+}
+
 wrap_internal_err! {
     TryFromIntError, SystemTimeError => Error::InternalError
 }
