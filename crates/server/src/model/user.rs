@@ -53,7 +53,7 @@ impl User {
     /// - Returns [`sqlx::Error`] if the database query fails.
     pub async fn verify(
         pool: &SqlitePool,
-        identity_hash: Vec<u8>,
+        identity_hash: &[u8],
         auth_verifier: String,
     ) -> Result<Option<i64>> {
         let result = sqlx::query!(

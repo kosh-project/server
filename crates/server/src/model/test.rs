@@ -32,7 +32,7 @@ async fn user_create_and_verify_success() -> Result<()> {
         .await
         .context("failed to create user")?;
 
-    let verified_id = User::verify(&pool, identity_hash.to_vec(), verifier)
+    let verified_id = User::verify(&pool, &identity_hash, verifier)
         .await
         .context("failed to verify user")?;
     // Test: verify user creation and lookup succeeds with matching verifier
@@ -67,13 +67,10 @@ async fn user_verify_mismatched_verifier_returns_none() -> Result<()> {
         .await
         .context("failed to create user")?;
 
-    let verified_id = User::verify(
-        &pool,
-        identity_hash.to_vec(),
-        "wrong_verifier".to_string(),
-    )
-    .await
-    .context("failed to execute user verification")?;
+    let verified_id =
+        User::verify(&pool, &identity_hash, "wrong_verifier".to_string())
+            .await
+            .context("failed to execute user verification")?;
     // Test: verify user verification fails when wrong verifier is supplied
     assert!(verified_id.is_none());
 
@@ -85,10 +82,9 @@ async fn user_verify_nonexistent_identity_returns_none() -> Result<()> {
     let pool = setup_db().await?;
     let identity_hash = [99u8; 32];
 
-    let verified_id =
-        User::verify(&pool, identity_hash.to_vec(), "any".to_string())
-            .await
-            .context("failed to execute user verification")?;
+    let verified_id = User::verify(&pool, &identity_hash, "any".to_string())
+        .await
+        .context("failed to execute user verification")?;
     // Test: verify non-existent user identity yields None
     assert!(verified_id.is_none());
 

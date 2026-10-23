@@ -47,12 +47,16 @@ pub async fn login(
         Err(BadRequest("identity_hash failed to decode"))?
     };
 
-    let user_id = User::verify(&state.db, identity_hash, request.auth_verifier)
-        .await?
-        .ok_or_else(|| {
-            warn!(Module::Api, "Failed login attempt with unknown identity");
-            Unauthorized("Invalid Credentials")
-        })?;
+    let user_id =
+        User::verify(&state.db, &identity_hash, request.auth_verifier)
+            .await?
+            .ok_or_else(|| {
+                warn!(
+                    Module::Api,
+                    "Failed login attempt with unknown identity"
+                );
+                Unauthorized("Invalid Credentials")
+            })?;
 
     let token = Session::create(&state.db, user_id, &state.secret).await?;
 
