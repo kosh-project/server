@@ -18,6 +18,7 @@ use crate::{
             log_middleware,
             mac_guard,
         },
+        sync,
     },
     app::State as AppState,
     logger::logging_enabled,
@@ -79,15 +80,19 @@ fn auth_route(state: &AppState) -> Router<AppState> {
 /// | `POST` | `/api/v1/sync/delta` | [`api::sync::append_delta`] |
 /// | `GET` | `/api/v1/sync/delta` | [`api::sync::stream_delta`] |
 /// | `DELETE` | `/api/v1/sync/prune` | [`api::sync::prune_ledger`] |
+/// | `GET` | `/api/v1/sync/snapshot` | [`api::sync::latest_snapshot`] |
+/// | `POST` | `/api/v1/sync/snapshot` | [`api::sync::register_snapshot`] |
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/upload/{tag}", post(assets::upload))
         .route("/assets", get(list))
         .route("/assets/{hash}", get(assets::get).delete(assets::delete))
         .route("/storage", get(storage))
-        .route("/sync/delta", post(api::sync::append_delta))
-        .route("/sync/delta", get(api::sync::stream_delta))
-        .route("/sync/prune", delete(api::sync::prune_ledger))
+        .route("/sync/delta", post(sync::append_delta))
+        .route("/sync/delta", get(sync::stream_delta))
+        .route("/sync/prune", delete(sync::prune_ledger))
+        .route("/sync/snapshot", get(sync::latest_snapshot))
+        .route("/sync/snapshot", post(sync::register_snapshot))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
         .with_device_limit()
         .route_layer(middleware::from_fn_with_state(state.clone(), mac_guard))

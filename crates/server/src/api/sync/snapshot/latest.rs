@@ -1,15 +1,17 @@
 use axum::{
     Extension, Json,
     extract::{Query, State},
-    response::IntoResponse,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{Result, app, model::sync::LedgerSnapshot};
+use crate::{
+    app, error::JsonResult, model::sync::LedgerSnapshot,
+    storage::ledger::Namespace,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct Params {
-    pub namespace: String,
+    pub namespace: Namespace,
 }
 
 #[derive(Debug, Serialize)]
@@ -40,9 +42,10 @@ pub async fn latest_snapshot(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
     Query(params): Query<Params>,
-) -> Result<impl IntoResponse> {
+) -> JsonResult<Option<Response>> {
     let snapshot =
-        LedgerSnapshot::latest(&state.db, user_id, &params.namespace).await?;
+        LedgerSnapshot::latest(&state.db, user_id, params.namespace.as_str())
+            .await?;
 
     Ok(Json(snapshot.map(Response::from)))
 }

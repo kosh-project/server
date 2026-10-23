@@ -2,9 +2,9 @@
 #![allow(clippy::panic_in_result_fn)]
 #![allow(clippy::as_conversions)]
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use axum::{
-    Extension,
+    Extension, Json,
     extract::{Query, State},
     response::IntoResponse,
 };
@@ -17,10 +17,14 @@ use tmpdir::TmpDir;
 use crate::{
     api::{
         Error,
-        sync::{append_delta, prune, prune_ledger, pull, push, stream_delta},
+        sync::{
+            append_delta, latest_snapshot, prune, prune_ledger, pull, push,
+            register_snapshot, snapshot, stream_delta,
+        },
     },
     app::{self, AppStateBuilder},
     auth::Secret,
+    model::user::User,
     storage::ledger::Namespace,
 };
 
@@ -188,5 +192,52 @@ async fn api_delta_prune_success() -> anyhow::Result<()> {
     let response = res.into_response();
     // Test: verify pruning ledgers returns 200 OK status
     assert_eq!(response.status(), StatusCode::OK);
+    Ok(())
+}
+
+#[tokio::test]
+async fn api_snapshot_register_and_latest() -> anyhow::Result<()> {
+    let (_tmp, state) = setup_env().await?;
+    User::create(&state.db, &[0_u8; 32], "fake_verifier".to_string())
+        .await
+        .context("failed to insert test user")?;
+
+    let user_id =
+        User::verify(&state.db, &[0_u8; 32], "fake_verifier".to_string())
+            .await
+            .context("failed to fetch test user_id")?
+            .context("test_user doesn't exist in database")?;
+
+    let hash_hex = "a".repeat(64); // 32-byte valid BLAKE3 hex representation
+
+    let payload = Json(snapshot::register::Request {
+        namespace: Namespace::Files,
+        snapshot_seq: 42,
+        blob_hash: hash_hex.clone(),
+    });
+
+    let res =
+        register_snapshot(State(state.clone()), Extension(user_id), payload)
+            .await
+            .context("failed to register snapshot")?;
+
+    let snap_id = res.0;
+    assert!(snap_id > 0);
+
+    let query = Query(snapshot::latest::Params {
+        namespace: Namespace::Files,
+    });
+
+    let latest_res = latest_snapshot(State(state), Extension(user_id), query)
+        .await
+        .context("failed to get latest snapshot")?;
+
+    let snap_opt = latest_res.0;
+    let Some(snap) = snap_opt else {
+        bail!("expected snapshot to be present");
+    };
+    assert_eq!(snap.snapshot_seq, 42);
+    assert_eq!(snap.blob_hash, hash_hex);
+
     Ok(())
 }

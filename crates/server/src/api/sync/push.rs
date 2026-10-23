@@ -6,8 +6,8 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::Result,
     app,
+    error::JsonResult,
     storage::ledger::{AppendReceipt, Namespace},
 };
 
@@ -43,7 +43,7 @@ pub async fn append_delta(
     Extension(user_id): Extension<i64>,
     Query(params): Query<Params>,
     body: Bytes,
-) -> Result<Json<Response>> {
+) -> JsonResult<Response> {
     let receipt = state.ledger.append(user_id, params.namespace, body).await?;
 
     Ok(Json(receipt.into()))

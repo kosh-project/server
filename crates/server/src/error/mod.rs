@@ -1,6 +1,7 @@
 use std::num::TryFromIntError;
 use std::time::SystemTimeError;
 
+use axum::Json;
 use axum::response::IntoResponse;
 use hyper::StatusCode;
 
@@ -118,6 +119,8 @@ use Error::{
 
 /// Top-level application result type returned by route handlers and services.
 pub type Result<T> = core::result::Result<T, Error>;
+
+pub type JsonResult<T> = core::result::Result<Json<T>, Error>;
 
 impl Loggable for Error {
     fn log_level(&self) -> crate::logger::Level {

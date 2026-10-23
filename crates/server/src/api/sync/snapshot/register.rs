@@ -1,5 +1,8 @@
-use crate::{Result, app, model::sync::LedgerSnapshot};
-use axum::{Extension, Json, extract::State, response::IntoResponse};
+use crate::{
+    app, error::JsonResult, model::sync::LedgerSnapshot,
+    storage::ledger::Namespace,
+};
+use axum::{Extension, Json, extract::State};
 use chrono::Utc;
 use serde::Deserialize;
 
@@ -7,7 +10,7 @@ use crate::api::Error::BadRequest;
 
 #[derive(Debug, Deserialize)]
 pub struct Request {
-    pub namespace: String,
+    pub namespace: Namespace,
     pub snapshot_seq: i64,
     pub blob_hash: String,
 }
@@ -21,7 +24,7 @@ pub async fn register_snapshot(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
     Json(payload): Json<Request>,
-) -> Result<impl IntoResponse> {
+) -> JsonResult<i64> {
     let hash_bytes = hex::decode(&payload.blob_hash)
         .map_err(|_| BadRequest("Invalid hex blob_hash"))?;
 
@@ -33,7 +36,7 @@ pub async fn register_snapshot(
     let id = LedgerSnapshot::create(
         &state.db,
         user_id,
-        &payload.namespace,
+        payload.namespace.as_str(),
         payload.snapshot_seq,
         &hash_bytes,
         now,
