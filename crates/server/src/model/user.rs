@@ -1,5 +1,5 @@
 use crate::model::Result;
-use sqlx::SqlitePool;
+use sqlx::{SqliteExecutor, SqlitePool};
 
 /// Represents a registered user in the system.
 ///
@@ -13,6 +13,14 @@ pub struct User {
     pub identity_hash: [u8; 32],
     /// Argon2id authentication verifier string used to validate login attempts.
     pub auth_verifier: String,
+
+    pub wrapped_vault_key: Vec<u8>,
+}
+
+#[derive(Debug, sqlx::FromRow, PartialEq, Eq, Clone)]
+pub struct Verified {
+    pub id: i64,
+    pub wrapped_vault_key: Vec<u8>,
 }
 
 impl User {
@@ -29,13 +37,20 @@ impl User {
         pool: &SqlitePool,
         identity_hash: &[u8],
         auth_verifier: String,
+        wrapped_vault_key: &[u8],
     ) -> Result<()> {
         sqlx::query!(
             r#"
-            INSERT INTO users (identity_hash, auth_verifier) VALUES(?, ?)
+            INSERT INTO
+                users (
+                    identity_hash,
+                    auth_verifier,
+                    wrapped_vault_key
+            ) VALUES ( ?, ?, ?)
         "#,
             identity_hash,
             auth_verifier,
+            wrapped_vault_key
         )
         .execute(pool)
         .await?;
@@ -55,10 +70,18 @@ impl User {
         pool: &SqlitePool,
         identity_hash: &[u8],
         auth_verifier: String,
-    ) -> Result<Option<i64>> {
-        let result = sqlx::query!(
+    ) -> Result<Option<Verified>> {
+        let result = sqlx::query_as!(
+            Verified,
             r#"
-                SELECT id FROM users WHERE identity_hash = ? AND auth_verifier = ?
+                SELECT
+                    id,
+                    wrapped_vault_key
+                FROM
+                    users
+                WHERE
+                    identity_hash = ? AND
+                    auth_verifier = ?
             "#,
             identity_hash,
             auth_verifier,
@@ -66,6 +89,39 @@ impl User {
         .fetch_optional(pool)
         .await?;
 
-        Ok(result.map(|rec| rec.id))
+        Ok(result)
+    }
+
+    pub async fn rotate_recovery<'e, E>(
+        pool: E,
+        user_id: i64,
+        identity_hash: &[u8],
+        auth_verifier: &str,
+        wrapped_vault_key: &[u8],
+    ) -> Result<u64>
+    where
+        E: SqliteExecutor<'e>,
+    {
+        let rows_affected = sqlx::query!(
+            r#"
+            UPDATE
+                users
+            SET
+                identity_hash = ?,
+                auth_verifier = ?,
+                wrapped_vault_key = ?
+            WHERE
+                id = ?
+        "#,
+            identity_hash,
+            auth_verifier,
+            wrapped_vault_key,
+            user_id
+        )
+        .execute(pool)
+        .await?
+        .rows_affected();
+
+        Ok(rows_affected)
     }
 }

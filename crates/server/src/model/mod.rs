@@ -24,6 +24,8 @@ pub mod user;
 
 pub mod sync;
 
+pub mod passkey;
+
 pub use error::{Error, Result};
 
 #[cfg(test)]
