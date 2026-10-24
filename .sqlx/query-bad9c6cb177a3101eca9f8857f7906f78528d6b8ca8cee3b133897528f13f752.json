@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE\n                users\n            SET\n                identity_hash = ?,\n                auth_verifier = ?,\n                wrapped_vault_key = ?\n            WHERE\n                id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "bad9c6cb177a3101eca9f8857f7906f78528d6b8ca8cee3b133897528f13f752"
+}

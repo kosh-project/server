@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT\n                INTO webauthn_credentials (\n                    credential_id,\n                    user_id,\n                    encrypted_metadata,\n                    passkey_data,\n                    counter,\n                    created_at,\n                    last_used\n            ) VALUES (?, ?, ?, ?, ?, ?, ?)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "46e25dca4c8960ff5bf32528341e9160bcf6b3a285f9ec3b29882dd9322b09ee"
+}

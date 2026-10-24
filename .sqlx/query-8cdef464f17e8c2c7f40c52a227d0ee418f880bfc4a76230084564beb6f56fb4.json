@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            DELETE\n            FROM\n                webauthn_credentials\n            WHERE\n                credential_id = ? AND\n                user_id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8cdef464f17e8c2c7f40c52a227d0ee418f880bfc4a76230084564beb6f56fb4"
+}

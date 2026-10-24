@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            DELETE FROM\n                sessions\n            WHERE\n                user_id = ? AND\n                token_hash != ?\n            RETURNING\n                token_hash AS 'token_hash!'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "token_hash!",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "token_hash"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "40f31f3b05a5d8a34786d879c2516cee67e0fcfe8298fb7297e4a7edfb5b1221"
+}
