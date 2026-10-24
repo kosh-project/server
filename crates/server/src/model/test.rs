@@ -27,16 +27,23 @@ async fn user_create_and_verify_success() -> Result<()> {
     let pool = setup_db().await?;
     let identity_hash = [1u8; 32];
     let verifier = "valid_argon2id_verifier".to_string();
+    let wrapped_vault_key = [7u8; 60];
 
-    User::create(&pool, &identity_hash, verifier.clone())
+    User::create(&pool, &identity_hash, verifier.clone(), &wrapped_vault_key)
         .await
         .context("failed to create user")?;
 
-    let verified_id = User::verify(&pool, &identity_hash, verifier)
+    let verified_user = User::verify(&pool, &identity_hash, verifier)
         .await
         .context("failed to verify user")?;
     // Test: verify user creation and lookup succeeds with matching verifier
-    assert_eq!(verified_id, Some(1));
+    assert_eq!(
+        verified_user,
+        Some(crate::model::user::Verified {
+            id: 1,
+            wrapped_vault_key: wrapped_vault_key.to_vec(),
+        })
+    );
 
     Ok(())
 }
@@ -46,12 +53,12 @@ async fn user_create_duplicate_identity_rejected() -> Result<()> {
     let pool = setup_db().await?;
     let identity_hash = [2u8; 32];
 
-    User::create(&pool, &identity_hash, "v1".to_string())
+    User::create(&pool, &identity_hash, "v1".to_string(), &[0u8; 60])
         .await
         .context("failed to create initial user")?;
 
     let duplicate_res =
-        User::create(&pool, &identity_hash, "v2".to_string()).await;
+        User::create(&pool, &identity_hash, "v2".to_string(), &[0u8; 60]).await;
     // Test: verify creating duplicate user identity is rejected
     assert!(duplicate_res.is_err());
 
@@ -63,9 +70,14 @@ async fn user_verify_mismatched_verifier_returns_none() -> Result<()> {
     let pool = setup_db().await?;
     let identity_hash = [3u8; 32];
 
-    User::create(&pool, &identity_hash, "correct_verifier".to_string())
-        .await
-        .context("failed to create user")?;
+    User::create(
+        &pool,
+        &identity_hash,
+        "correct_verifier".to_string(),
+        &[0u8; 60],
+    )
+    .await
+    .context("failed to create user")?;
 
     let verified_id =
         User::verify(&pool, &identity_hash, "wrong_verifier".to_string())
@@ -98,7 +110,7 @@ async fn session_create_wire_format_and_stateless_verify() -> Result<()> {
 
     // Create user first for foreign key
     let identity_hash = [10u8; 32];
-    User::create(&pool, &identity_hash, "v".to_string())
+    User::create(&pool, &identity_hash, "v".to_string(), &[0u8; 60])
         .await
         .context("failed to create user")?;
 
@@ -144,7 +156,7 @@ async fn session_verify_stateless_tampered_mac() -> Result<()> {
     let pool = setup_db().await?;
     let secret = Secret::random();
     let identity_hash = [11u8; 32];
-    User::create(&pool, &identity_hash, "v".to_string())
+    User::create(&pool, &identity_hash, "v".to_string(), &[0u8; 60])
         .await
         .context("failed to create user")?;
 
@@ -170,7 +182,7 @@ async fn session_verify_stateless_tampered_payload() -> Result<()> {
     let pool = setup_db().await?;
     let secret = Secret::random();
     let identity_hash = [12u8; 32];
-    User::create(&pool, &identity_hash, "v".to_string())
+    User::create(&pool, &identity_hash, "v".to_string(), &[0u8; 60])
         .await
         .context("failed to create user")?;
 
@@ -231,7 +243,7 @@ async fn session_stateful_verify_and_revoke() -> Result<()> {
     let pool = setup_db().await?;
     let secret = Secret::random();
     let identity_hash = [13u8; 32];
-    User::create(&pool, &identity_hash, "v".to_string())
+    User::create(&pool, &identity_hash, "v".to_string(), &[0u8; 60])
         .await
         .context("failed to create user")?;
 
@@ -268,7 +280,7 @@ async fn session_stateful_verify_and_revoke() -> Result<()> {
 async fn session_lazy_revocation_on_expired_db_record() -> Result<()> {
     let pool = setup_db().await?;
     let identity_hash = [14u8; 32];
-    User::create(&pool, &identity_hash, "v".to_string())
+    User::create(&pool, &identity_hash, "v".to_string(), &[0u8; 60])
         .await
         .context("failed to create user")?;
 
