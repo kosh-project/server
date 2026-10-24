@@ -5,6 +5,7 @@
 /test
 /vault
 .idea/
+skills/
 .idea/*
 # Ah yes
 .env
