@@ -34,12 +34,18 @@ pub enum Error {
     #[error("Internal Err {}", .0)]
     Internal(#[from] internal::Error),
 
+    /// A unique constraint or primary key collision in SQLite (e.g. duplicate user identity).
+    /// Sanitized into `409 Conflict` at the HTTP layer.
     #[error("Entity already exists")]
     UniqueViolation,
 
+    /// A foreign key constraint violation (e.g. referencing a non-existent parent user).
+    /// Sanitized into `400 Bad Request` at the HTTP layer.
     #[error("Referenced entity doesn't exist")]
     ForeignKeyViolation,
 
+    /// A column or table `CHECK` constraint violation (e.g. payload length exceeding limit).
+    /// Sanitized into `400 Bad Request` at the HTTP layer.
     #[error("Check violation")]
     CheckViolation,
 }

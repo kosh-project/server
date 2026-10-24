@@ -21,6 +21,7 @@ pub struct Response {
     /// and passes it as `Authorization: Bearer <token>` on every subsequent request.
     pub token: String,
 
+    /// 60-byte ChaCha20-Poly1305 wrapped root vault key encoded as 120 hex characters.
     pub wrapped_vault_key: String,
 }
 

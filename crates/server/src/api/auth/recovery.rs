@@ -12,11 +12,16 @@ use crate::{
     },
 };
 
+/// The JSON request body expected by the recovery credential rotation endpoint.
 #[derive(Deserialize)]
 pub struct Request {
+    /// 32-byte BLAKE3 identity hash encoded as 64 hex characters.
     pub identity_hash: String,
+    /// Argon2id authentication verifier string.
     pub auth_verifier: String,
+    /// 60-byte ChaCha20-Poly1305 wrapped vault key encoded as 120 hex characters.
     pub wrapped_vault_key: String,
+    /// Whether to terminate all other active sessions for this user.
     #[serde(default)]
     pub revoke_other_sessions: bool,
 }
@@ -57,6 +62,17 @@ impl Request {
     }
 }
 
+/// Rotates the authenticated user's recovery phrase, auth verifier, and wrapped root vault key.
+///
+/// Executes atomically inside an SQLite transaction. If `revoke_other_sessions` is true,
+/// all other active bearer tokens belonging to this user (except the caller's current session)
+/// are deleted from SQLite and invalidated in the in-memory session cache.
+///
+/// # Errors
+/// - Returns [`BadRequest`] if hex decoding or field length validation fails.
+/// - Returns [`Unauthorized`] if the user does not exist.
+/// - Returns [`crate::model::Error::UniqueViolation`] if the new `identity_hash` is already registered.
+/// - Returns internal error if database transaction or query fails.
 pub async fn rotate(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,

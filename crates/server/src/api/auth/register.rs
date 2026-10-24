@@ -18,6 +18,7 @@ pub struct Request {
     /// before sending it — the server does not perform any additional hashing.
     pub auth_verifier: String,
 
+    /// 60-byte ChaCha20-Poly1305 wrapped root vault key encoded as 120 hex characters.
     pub wrapped_vault_key: String,
 }
 
@@ -25,6 +26,7 @@ pub struct Request {
 ///
 /// # Errors
 /// - Returns a `BadRequest` if the identity hash cannot be decoded from hex.
+/// - Returns a `BadRequest` if the `wrapped_vault_key` length is invalid or cannot be decoded from hex.
 /// - Returns a `Conflict` if a user with the same identity hash already exists.
 /// - Returns an internal error if a database query fails.
 pub async fn register(

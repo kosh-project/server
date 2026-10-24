@@ -82,6 +82,7 @@ fn auth_route(state: &AppState) -> Router<AppState> {
 /// | `DELETE` | `/api/v1/sync/prune` | [`api::sync::prune_ledger`] |
 /// | `GET` | `/api/v1/sync/snapshot` | [`api::sync::latest_snapshot`] |
 /// | `POST` | `/api/v1/sync/snapshot` | [`api::sync::register_snapshot`] |
+/// | `PUT` | `/api/v1/auth/recovery` | [`auth::rotate`] |
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/upload/{tag}", post(assets::upload))

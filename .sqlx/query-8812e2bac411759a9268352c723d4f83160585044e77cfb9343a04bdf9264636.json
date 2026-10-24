@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO users (id, identity_hash, auth_verifier) VALUES (1, ?, 'verifier')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "8812e2bac411759a9268352c723d4f83160585044e77cfb9343a04bdf9264636"
+}

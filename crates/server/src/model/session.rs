@@ -197,6 +197,10 @@ impl Session {
 }
 
 impl Session {
+    /// Queries the hashes of all active sessions belonging to `user_id` excluding `current_token_hash`.
+    ///
+    /// # Errors
+    /// - Returns [`crate::model::Error::Database`] if the database query fails.
     pub async fn find_other_token_hashes(
         pool: &SqlitePool,
         user_id: i64,
@@ -224,6 +228,13 @@ impl Session {
             .collect())
     }
 
+    /// Atomically deletes all active sessions belonging to `user_id` except `current_token_hash`,
+    /// returning the deleted token hashes for cache invalidation.
+    ///
+    /// Uses SQLite's `RETURNING` clause to perform the delete and retrieval in a single atomic statement.
+    ///
+    /// # Errors
+    /// - Returns [`crate::model::Error::Database`] if the database query fails.
     pub async fn revoke_other_sessions<'e, E>(
         pool: E,
         user_id: i64,
