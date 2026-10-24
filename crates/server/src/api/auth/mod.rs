@@ -25,10 +25,12 @@ pub(crate) mod hashcash;
 pub use hashcash::HashCash;
 mod login;
 mod pow_guard;
+mod recovery;
 mod register;
 
 pub use login::login;
 pub use pow_guard::pow_guard;
+pub use recovery::rotate;
 pub use register::register;
 
 #[cfg(test)]
