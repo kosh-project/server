@@ -15,6 +15,7 @@ pub use state::State;
 mod builder;
 mod passkey;
 
+/// In-memory challenge cache for multi-step passkey registration and login ceremonies.
 pub use passkey::Passkey;
 
 pub use builder::AppStateBuilder;

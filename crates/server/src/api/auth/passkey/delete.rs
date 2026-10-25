@@ -1,3 +1,5 @@
+//! Route handler for revoking and deleting registered passkeys.
+
 use axum::{
     Extension,
     extract::{Path, State},
@@ -11,12 +13,20 @@ use crate::{
     model::passkey,
 };
 
-/// Deletes a passkey credential for the authenticated user.
+/// Revokes and permanently deletes a passkey credential belonging to the authenticated caller.
+///
+/// Route: `DELETE /api/v1/auth/passkey/{credential_id}` (protected by `mac_guard` and `auth_guard`).
+///
+/// 1. Decodes the URL path parameter `credential_id` from hexadecimal format into raw bytes.
+/// 2. Performs a scoped deletion query in the `webauthn_credentials` table matching both
+///    `credential_id` and the caller's `user_id`. This prevents cross-user credential tampering.
+/// 3. Returns HTTP `204 No Content` on successful deletion.
 ///
 /// # Errors
-/// - Returns `BadRequest` if `credential_id` is not valid hex.
-/// - Returns `NotFound` if no credential matches the given ID for this user.
-/// - Returns an internal error if the database query fails.
+///
+/// - Returns [`BadRequest`] if `credential_id` is not a valid hex-encoded string.
+/// - Returns [`NotFound`] if no passkey matches the given ID or if it belongs to another user.
+/// - Returns [`crate::model::Error::Database`] if the `SQLite` delete query fails.
 pub async fn delete(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,

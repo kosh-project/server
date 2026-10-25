@@ -74,6 +74,15 @@ pub enum Error {
     #[error(transparent)]
     Ledger(#[from] ledger::Error),
 
+    /// An error originating from a `WebAuthn` ceremony or cryptographic verification.
+    ///
+    /// Wraps [`webauthn_rs::prelude::WebauthnError`], which includes conditions like
+    /// challenge timeouts, user verification mismatches, unexpected authenticator
+    /// responses, or invalid public key signatures.
+    ///
+    /// In [`IntoResponse`], this maps to HTTP `400 Bad Request` with the client-safe
+    /// payload `"Passkey ceremony failed"`, deliberately preventing any internal
+    /// cryptographic trace or authenticator diagnostics from leaking to the caller.
     #[error("Web Authn {}", .0)]
     WebAuthn(#[from] webauthn_rs::prelude::WebauthnError),
 }

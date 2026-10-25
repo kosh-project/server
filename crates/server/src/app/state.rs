@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{path::Path, sync::Arc};
 
 use moka::future::Cache;
 use sqlx::SqlitePool;
@@ -51,27 +51,18 @@ pub struct State {
     /// invalidated when the server restarts.
     pub pow_secret: Secret,
 
+    /// The `WebAuthn` relying party instance.
+    ///
+    /// Configured with the server's RP ID, Origin URL, and display name.
+    /// Shared across all requests via an [`Arc`] and used to generate registration
+    /// or authentication challenges and verify client assertions.
     pub webauthn: Arc<Webauthn>,
+
+    /// In-memory cache holding pending `WebAuthn` registration and login challenges.
+    ///
+    /// Provides thread-safe, bounded, Time-To-Live storage for multi-step
+    /// passkey ceremonies to prevent challenge replay or memory leak issues.
     pub passkey: Passkey,
-}
-
-impl Default for Passkey {
-    fn default() -> Self {
-        let registration_cache = Cache::builder()
-            .time_to_live(Duration::from_secs(60))
-            .max_capacity(1_000)
-            .build();
-
-        let auth_cache = Cache::builder()
-            .time_to_live(Duration::from_secs(60))
-            .max_capacity(1_000)
-            .build();
-
-        Self {
-            registration_cache,
-            auth_cache,
-        }
-    }
 }
 
 impl State {

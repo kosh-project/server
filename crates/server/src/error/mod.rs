@@ -73,6 +73,10 @@ impl From<storage::ledger::Error> for Error {
     }
 }
 
+/// Converts low-level `WebAuthn` errors into API errors.
+///
+/// Maps the cryptographic or protocol failure to [`api::Error::WebAuthn`], which is
+/// subsequently sanitized into an HTTP 400 response by [`api::Error::into_response`].
 impl From<WebauthnError> for Error {
     fn from(e: WebauthnError) -> Self {
         Self::ApiError(api::Error::WebAuthn(e))

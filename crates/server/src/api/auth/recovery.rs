@@ -26,16 +26,23 @@ pub struct Request {
     pub revoke_other_sessions: bool,
 }
 
+/// Validated binary credentials extracted from a recovery rotation [`Request`].
 pub struct Validated {
+    /// Decoded 32-byte BLAKE3 identity hash.
     pub identity_hash: [u8; 32],
+    /// Decoded 60-byte ChaCha20-Poly1305 wrapped root vault key.
     pub wrapped_vault_key: Vec<u8>,
 }
 
 impl Request {
-    /// Decodes and validates the identity hash and wrapped vault key.
+    /// Decodes and validates the hexadecimal identity hash and wrapped vault key.
+    ///
+    /// Validates that `identity_hash` is exactly 64 hex characters (32 raw bytes) and
+    /// `wrapped_vault_key` is exactly 120 hex characters (60 raw bytes).
     ///
     /// # Errors
-    /// Returns `BadRequest` if lengths or hex decoding fails.
+    ///
+    /// - Returns [`BadRequest`] if lengths or hex decoding fail.
     pub fn decode(&self) -> Result<Validated> {
         if self.identity_hash.len() != 64 {
             Err(BadRequest(

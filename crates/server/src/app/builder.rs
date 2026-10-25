@@ -99,6 +99,14 @@ impl AppStateBuilder {
         self
     }
 
+    /// Sets a pre-configured `WebAuthn` relying party instance.
+    ///
+    /// If not provided, [`build`](Self::build) initializes a default instance configured
+    /// for local development with RP ID `"localhost"`, origin `"http://localhost:23342"`,
+    /// and relying party name `"Kosh Vault"`.
+    ///
+    /// In production, initialize this using the parameters configured in the server's
+    /// KDL configuration file ([`kosh_core::config::Passkey`]).
     #[must_use]
     pub fn webauthn(mut self, webauthn: Webauthn) -> Self {
         self.webauthn = Some(Arc::new(webauthn));
@@ -107,8 +115,12 @@ impl AppStateBuilder {
 
     /// Consumes the builder and returns the fully configured `AppState`.
     ///
-    /// If `session_cache` was not set, a default `moka` cache is created with
-    /// a 10-minute TTI and 10,000-entry capacity.
+    /// - If `session_cache` was not set, a default `moka` cache is created with
+    ///   a 10-minute TTI and 10,000-entry capacity.
+    /// - If `webauthn` was not set, a default Relying Party instance configured for
+    ///   `localhost:23342` is created.
+    /// - The `passkey` challenge cache is initialized with its default 60-second TTL
+    ///   and 1,000-entry capacity via [`Passkey::default`].
     ///
     /// # Panics
     /// Panics if `vault_path` or `db` were not configured before calling `build`.

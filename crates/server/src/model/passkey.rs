@@ -42,10 +42,21 @@ pub struct Summary {
 }
 
 impl Record {
-    /// Constructs a new passkey record from a verified `WebAuthn` passkey.
+    /// Constructs a new passkey record from a verified `WebAuthn` passkey registration.
+    ///
+    /// Extracts the raw credential ID from `passkey.cred_id()`, serializes the internal
+    /// passkey state to JSON bytes, initializes the signature counter to `0`, sets the
+    /// creation timestamp to the current Unix time, and marks `last_used` as `0`.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_id` - The database primary key of the owning user.
+    /// * `passkey` - The verified passkey object produced by `webauthn-rs` at the end of registration.
+    /// * `encrypted_metadata` - Client-encrypted metadata blob (e.g., user-assigned device nickname).
     ///
     /// # Errors
-    /// Returns an error if serializing the passkey state to JSON fails.
+    ///
+    /// Returns [`crate::model::Error::Internal`] if serializing the passkey state to JSON fails.
     pub fn new(
         user_id: i64,
         passkey: &Passkey,
@@ -72,7 +83,13 @@ impl Record {
 
     /// Inserts a new passkey credential record into the `webauthn_credentials` table.
     ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `record` - The new [`Record`] to persist.
+    ///
     /// # Errors
+    ///
     /// - Returns [`crate::model::Error::UniqueViolation`] if `credential_id` is already registered.
     /// - Returns [`crate::model::Error::ForeignKeyViolation`] if `user_id` does not exist in `users`.
     /// - Returns [`crate::model::Error::CheckViolation`] if `encrypted_metadata` exceeds 1024 bytes.
@@ -107,7 +124,15 @@ impl Record {
 
     /// Fetches a passkey credential record by its raw `credential_id`.
     ///
+    /// Returns `Some(Record)` if a matching credential exists, or `None` if not found.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `id` - Raw credential identifier bytes.
+    ///
     /// # Errors
+    ///
     /// - Returns [`crate::model::Error::Database`] if the database query fails.
     pub async fn find(pool: &SqlitePool, id: &[u8]) -> Result<Option<Self>> {
         let record = sqlx::query_as!(
@@ -136,8 +161,16 @@ impl Record {
 
     /// Lists all passkey summaries for a given user ordered newest to oldest.
     ///
+    /// Returns a vector of [`Summary`] records sorted by registration time (`created_at DESC`).
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `user_id` - The database primary key of the owning user.
+    ///
     /// # Errors
-    /// - Returns [`crate::model::Error::Database`] if the database query fails.
+    ///
+    /// Returns [`crate::model::Error::Database`] if the database query fails.
     pub async fn list_for_user(
         pool: &SqlitePool,
         user_id: i64,
@@ -172,10 +205,24 @@ impl Record {
             .collect())
     }
 
-    /// Updates the signature counter and last-used timestamp after a successful authentication.
+    /// Updates the serialized passkey state, signature counter, and last-used timestamp after a successful authentication.
+    ///
+    /// In the `WebAuthn` standard, authenticators increment an internal signature counter with
+    /// every assertion. Verifying and persisting this monotonically increasing counter enables
+    /// detection of cloned authenticators: if a counter value ever decreases or remains identical
+    /// across uses (for authenticators supporting counters), cloning is suspected.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `credential_id` - Raw credential identifier bytes matching the authenticator used.
+    /// * `passkey_data` - Updated serialized JSON bytes of the [`Passkey`] instance.
+    /// * `new_counter` - The new signature counter value reported by the authenticator assertion.
+    /// * `last_used` - Unix timestamp in seconds when the authentication occurred.
     ///
     /// # Errors
-    /// - Returns [`crate::model::Error::Database`] if the database query fails.
+    ///
+    /// Returns [`crate::model::Error::Database`] if the `SQLite` update query fails.
     pub async fn update_counter(
         pool: &SqlitePool,
         credential_id: &[u8],
@@ -207,10 +254,18 @@ impl Record {
 
     /// Deletes a passkey credential belonging to a specific user.
     ///
-    /// Returns `true` if a row was deleted, or `false` if no matching record was found.
+    /// Returns `true` if a row was deleted, or `false` if no matching record was found
+    /// (e.g., if the credential ID does not exist or belongs to another user).
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `credential_id` - Raw credential identifier bytes.
+    /// * `user_id` - The database primary key of the owning user.
     ///
     /// # Errors
-    /// - Returns [`crate::model::Error::Database`] if the database query fails.
+    ///
+    /// Returns [`crate::model::Error::Database`] if the database query fails.
     pub async fn delete(
         pool: &SqlitePool,
         credential_id: &[u8],
@@ -235,10 +290,23 @@ impl Record {
         Ok(rows_affected > 0)
     }
 
-    /// Returns a list of existing credentials for a user to exclude during registration.
+    /// Returns the list of registered credential IDs for a user to populate the `excludeCredentials` list.
+    ///
+    /// During `WebAuthn` registration, supplying the existing credential IDs in `excludeCredentials`
+    /// signals to the browser and authenticator that the user already has a passkey registered on
+    /// this device for this account, preventing redundant duplicate credentials from being created.
+    ///
+    /// If the user has no registered passkeys, returns `Ok(None)`, allowing the registration
+    /// options to omit the exclusion list cleanly.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `user_id` - The database primary key of the user.
     ///
     /// # Errors
-    /// Returns an error if querying the database fails.
+    ///
+    /// Returns [`crate::model::Error::Database`] if the `SQLite` query fails.
     pub async fn exclude_list_for_user(
         pool: &SqlitePool,
         user_id: i64,
