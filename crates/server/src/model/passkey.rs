@@ -1,8 +1,10 @@
 //! `WebAuthn` hardware passkey credential entities and database query models.
 
-use crate::model::Result;
+use crate::{error::internal, model::Result};
+use chrono::Utc;
 use serde::Serialize;
 use sqlx::SqlitePool;
+use webauthn_rs::prelude::{CredentialID, Passkey};
 
 /// A complete `WebAuthn` credential record stored in the `webauthn_credentials` table.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,6 +42,30 @@ pub struct Summary {
 }
 
 impl Record {
+    pub fn new(
+        user_id: i64,
+        passkey: &Passkey,
+        encrypted_metadata: Vec<u8>,
+    ) -> Result<Self> {
+        let Ok(passkey_data) = serde_json::to_vec(passkey) else {
+            Err(internal::Error::Message(
+                "Failed to serialize passkey state",
+            ))?
+        };
+
+        let now = Utc::now().timestamp();
+
+        Ok(Self {
+            credential_id: passkey.cred_id().to_vec(),
+            user_id,
+            passkey_data,
+            counter: 0,
+            encrypted_metadata,
+            created_at: now,
+            last_used: 0,
+        })
+    }
+
     /// Inserts a new passkey credential record into the `webauthn_credentials` table.
     ///
     /// # Errors
@@ -149,6 +175,7 @@ impl Record {
     pub async fn update_counter(
         pool: &SqlitePool,
         credential_id: &[u8],
+        passkey_data: &[u8],
         new_counter: i64,
         last_used: i64,
     ) -> Result<()> {
@@ -157,11 +184,13 @@ impl Record {
             UPDATE
                 webauthn_credentials
             SET
+                passkey_data = ?,
                 counter = ?,
                 last_used = ?
             WHERE
                 credential_id = ?
         "#,
+            passkey_data,
             new_counter,
             last_used,
             credential_id
@@ -200,5 +229,34 @@ impl Record {
         .rows_affected();
 
         Ok(rows_affected > 0)
+    }
+
+    pub async fn exclude_list_for_user(
+        pool: &SqlitePool,
+        user_id: i64,
+    ) -> Result<Option<Vec<CredentialID>>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                credential_id AS 'credential_id!'
+            FROM
+                webauthn_credentials
+            WHERE
+                user_id = ?
+            "#,
+            &user_id
+        )
+        .fetch_all(pool)
+        .await?;
+
+        if rows.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(
+            rows.into_iter()
+                .map(|r| CredentialID::from(r.credential_id))
+                .collect(),
+        ))
     }
 }

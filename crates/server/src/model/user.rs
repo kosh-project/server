@@ -132,4 +132,27 @@ impl User {
 
         Ok(rows_affected)
     }
+
+    pub async fn find_by_id(
+        pool: &SqlitePool,
+        id: i64,
+    ) -> Result<Option<Verified>> {
+        let result = sqlx::query_as!(
+            Verified,
+            r#"
+                SELECT
+                    id,
+                    wrapped_vault_key
+                FROM
+                    users
+                WHERE
+                    id = ?
+            "#,
+            id
+        )
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(result)
+    }
 }
