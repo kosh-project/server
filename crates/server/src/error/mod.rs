@@ -4,6 +4,7 @@ use std::time::SystemTimeError;
 use axum::Json;
 use axum::response::IntoResponse;
 use hyper::StatusCode;
+use webauthn_rs::prelude::WebauthnError;
 
 use crate::api;
 use crate::logger::{Loggable, logging_enabled};
@@ -69,6 +70,12 @@ pub enum Error {
 impl From<storage::ledger::Error> for Error {
     fn from(err: storage::ledger::Error) -> Self {
         Self::ApiError(api::Error::Ledger(err))
+    }
+}
+
+impl From<WebauthnError> for Error {
+    fn from(e: WebauthnError) -> Self {
+        Self::ApiError(api::Error::WebAuthn(e))
     }
 }
 

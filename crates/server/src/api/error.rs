@@ -4,6 +4,7 @@ use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
 
+use crate::api::Error::WebAuthn;
 use crate::storage::ledger;
 use crate::{error::internal, logger::Loggable};
 
@@ -72,6 +73,9 @@ pub enum Error {
     /// being masked by the API layer's generic catch-all.
     #[error(transparent)]
     Ledger(#[from] ledger::Error),
+
+    #[error("Web Authn {}", .0)]
+    WebAuthn(#[from] webauthn_rs::prelude::WebauthnError),
 }
 
 /// Convenience alias for results returned by API route handlers and middleware.
@@ -90,6 +94,8 @@ impl IntoResponse for Error {
             BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
             NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+
+            WebAuthn(_) => (StatusCode::BAD_REQUEST, "Passkey ceremony failed"),
 
             Ledger(e) => return e.into_response(),
             MalformedMultipart => {
@@ -115,7 +121,9 @@ impl Loggable for Error {
     fn log_level(&self) -> Level {
         use Error::{BadRequest, MissingField, NotFound, Unauthorized};
         match self {
-            BadRequest(_) | Unauthorized(_) | MissingField => Level::Warning,
+            BadRequest(_) | Unauthorized(_) | MissingField | WebAuthn(_) => {
+                Level::Warning
+            }
             NotFound(_) => Level::Info,
             _ => Level::Error,
         }
