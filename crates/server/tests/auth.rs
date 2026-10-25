@@ -28,10 +28,16 @@ async fn test_recovery_endpoint_validation_e2e() -> anyhow::Result<()> {
         User::create(&ctx.db, &id2, "verifier_2".into(), &initial_key2).await?;
 
         let u1_token = Session::create(&ctx.db, 1, &ctx.secret).await?;
-        let recovery_endpoint = format!("{}/api/v1/auth/recovery", ctx.base_url);
+        let recovery_endpoint =
+            format!("{}/api/v1/auth/recovery", ctx.base_url);
 
         // 1. Unauthenticated request to recovery returns 401
-        let unauth_resp = ctx.client.put(&recovery_endpoint).json(&json!({})).send().await?;
+        let unauth_resp = ctx
+            .client
+            .put(&recovery_endpoint)
+            .json(&json!({}))
+            .send()
+            .await?;
         assert_eq!(unauth_resp.status(), StatusCode::UNAUTHORIZED);
 
         // 2. Invalid bearer token returns 401
@@ -99,7 +105,8 @@ async fn test_recovery_endpoint_validation_e2e() -> anyhow::Result<()> {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_recovery_endpoint_rotation_and_session_revocation_e2e() -> anyhow::Result<()> {
+async fn test_recovery_endpoint_rotation_and_session_revocation_e2e()
+-> anyhow::Result<()> {
     with_sandbox_env("webdav_recovery_e2e_test", async move |ctx| {
         // Create User 1 and User 2
         let id1 = [1u8; 32];
@@ -115,8 +122,10 @@ async fn test_recovery_endpoint_rotation_and_session_revocation_e2e() -> anyhow:
         let u1_token2 = Session::create(&ctx.db, 1, &ctx.secret).await?;
         let u2_token = Session::create(&ctx.db, 2, &ctx.secret).await?;
 
-        let recovery_endpoint = format!("{}/api/v1/auth/recovery", ctx.base_url);
-        let passkey_list_endpoint = format!("{}/api/v1/auth/passkey", ctx.base_url);
+        let recovery_endpoint =
+            format!("{}/api/v1/auth/recovery", ctx.base_url);
+        let passkey_list_endpoint =
+            format!("{}/api/v1/auth/passkey", ctx.base_url);
 
         // 1. Rotate recovery with revoke_other_sessions = false using u1_token1
         let rotated_key_a = [30u8; 60];
@@ -253,7 +262,8 @@ async fn test_register_and_login_vault_envelope_e2e() -> anyhow::Result<()> {
         let challenge_endpoint = format!("{}/api/auth/challenge", ctx.base_url);
         let register_endpoint = format!("{}/api/auth/register", ctx.base_url);
         let login_endpoint = format!("{}/api/auth/login", ctx.base_url);
-        let passkey_list_endpoint = format!("{}/api/v1/auth/passkey", ctx.base_url);
+        let passkey_list_endpoint =
+            format!("{}/api/v1/auth/passkey", ctx.base_url);
 
         let user_id_hash = hex::encode([0x55u8; 32]);
         let vault_key_hex = hex::encode([0x77u8; 60]);

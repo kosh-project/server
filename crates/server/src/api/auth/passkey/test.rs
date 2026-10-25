@@ -12,8 +12,10 @@ fn user_id_and_handle_bijection_roundtrip() -> Result<()> {
     let test_ids = [0, 1, 2, 42, 100_000, 1_000_000_000, i64::MAX];
 
     for &id in &test_ids {
-        let handle = user_id_to_handle(id).context("user_id_to_handle succeeds for non-negative")?;
-        let roundtrip = handle_to_user_id(&handle).context("handle_to_user_id succeeds")?;
+        let handle = user_id_to_handle(id)
+            .context("user_id_to_handle succeeds for non-negative")?;
+        let roundtrip =
+            handle_to_user_id(&handle).context("handle_to_user_id succeeds")?;
         assert_eq!(id, roundtrip);
     }
 
@@ -32,21 +34,32 @@ fn handle_to_user_id_out_of_bounds_fails() {
     // Upper bits set (higher than u64::MAX)
     let handle_large = Uuid::from_u128(u128::MAX);
     let res = handle_to_user_id(&handle_large);
-    assert!(matches!(res, Err(BadRequest("Invalid user handle integer bounds"))));
+    assert!(matches!(
+        res,
+        Err(BadRequest("Invalid user handle integer bounds"))
+    ));
 
     // Exceeding i64::MAX using safe unsigned_abs conversion
     let max_u128 = u128::from(i64::MAX.unsigned_abs()) + 1;
     let handle_above_i64 = Uuid::from_u128(max_u128);
     let res = handle_to_user_id(&handle_above_i64);
-    assert!(matches!(res, Err(BadRequest("Invalid user handle integer bounds"))));
+    assert!(matches!(
+        res,
+        Err(BadRequest("Invalid user handle integer bounds"))
+    ));
 
     // 1 << 64
     let handle_u64_overflow = Uuid::from_u128(1 << 64);
     let res = handle_to_user_id(&handle_u64_overflow);
-    assert!(matches!(res, Err(BadRequest("Invalid user handle integer bounds"))));
+    assert!(matches!(
+        res,
+        Err(BadRequest("Invalid user handle integer bounds"))
+    ));
 }
 
-fn make_request_with_metadata(metadata: &str) -> Result<register::finish::Request> {
+fn make_request_with_metadata(
+    metadata: &str,
+) -> Result<register::finish::Request> {
     let json = serde_json::json!({
         "challenge_id": "00000000-0000-0000-0000-000000000000",
         "credential": {
@@ -60,7 +73,8 @@ fn make_request_with_metadata(metadata: &str) -> Result<register::finish::Reques
         },
         "encrypted_metadata": metadata
     });
-    let req = serde_json::from_value(json).context("valid finish::Request json")?;
+    let req =
+        serde_json::from_value(json).context("valid finish::Request json")?;
     Ok(req)
 }
 
@@ -96,7 +110,9 @@ fn parse_metadata_exceeding_max_length_fails() -> Result<()> {
     let res = req.parse_metadata();
     assert!(matches!(
         res,
-        Err(BadRequest("encrypted_metadata can't exceed 2048 hex chars (or 1024 bytes)"))
+        Err(BadRequest(
+            "encrypted_metadata can't exceed 2048 hex chars (or 1024 bytes)"
+        ))
     ));
 
     Ok(())
@@ -106,12 +122,18 @@ fn parse_metadata_exceeding_max_length_fails() -> Result<()> {
 fn parse_metadata_invalid_hex_fails() -> Result<()> {
     let req = make_request_with_metadata("not_a_valid_hex_string")?;
     let res = req.parse_metadata();
-    assert!(matches!(res, Err(BadRequest("Invalid hex encrypted_metadata"))));
+    assert!(matches!(
+        res,
+        Err(BadRequest("Invalid hex encrypted_metadata"))
+    ));
 
     // Odd-length hex string
     let req = make_request_with_metadata("abc")?;
     let res = req.parse_metadata();
-    assert!(matches!(res, Err(BadRequest("Invalid hex encrypted_metadata"))));
+    assert!(matches!(
+        res,
+        Err(BadRequest("Invalid hex encrypted_metadata"))
+    ));
 
     Ok(())
 }
@@ -163,7 +185,10 @@ async fn verify_and_update_passkey_corrupted_state_rejected() -> Result<()> {
     .await;
 
     match res {
-        Err(err) => assert!(err.to_string().contains("Corrupted passkey state in database")),
+        Err(err) => assert!(
+            err.to_string()
+                .contains("Corrupted passkey state in database")
+        ),
         Ok(()) => anyhow::bail!("expected Err on corrupted passkey state"),
     }
 

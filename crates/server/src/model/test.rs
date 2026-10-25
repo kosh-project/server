@@ -141,7 +141,8 @@ async fn user_rotate_recovery_success() -> Result<()> {
     let verifier1 = "verifier_initial".to_string();
     let wrapped_key1 = [1u8; 60];
 
-    User::create(&pool, &identity_hash1, verifier1.clone(), &wrapped_key1).await?;
+    User::create(&pool, &identity_hash1, verifier1.clone(), &wrapped_key1)
+        .await?;
 
     let identity_hash2 = [21u8; 32];
     let verifier2 = "verifier_rotated".to_string();
@@ -158,7 +159,11 @@ async fn user_rotate_recovery_success() -> Result<()> {
     assert_eq!(rows_affected, 1);
 
     // Old credentials no longer verify
-    assert!(User::verify(&pool, &identity_hash1, verifier1).await?.is_none());
+    assert!(
+        User::verify(&pool, &identity_hash1, verifier1)
+            .await?
+            .is_none()
+    );
 
     // New credentials verify and return rotated wrapped_vault_key
     let verified = User::verify(&pool, &identity_hash2, verifier2)
@@ -178,7 +183,9 @@ async fn user_rotate_recovery_success() -> Result<()> {
 async fn user_rotate_recovery_nonexistent_returns_zero() -> Result<()> {
     let pool = setup_db().await?;
     let identity_hash = [22u8; 32];
-    let rows = User::rotate_recovery(&pool, 9999, &identity_hash, "v", &[0u8; 60]).await?;
+    let rows =
+        User::rotate_recovery(&pool, 9999, &identity_hash, "v", &[0u8; 60])
+            .await?;
     assert_eq!(rows, 0);
 
     Ok(())
@@ -401,20 +408,25 @@ async fn session_revoke_other_sessions_keeps_active() -> Result<()> {
     let hash_u2 = hash(token_u2.as_bytes());
 
     // Check find_other_token_hashes for user 1 keeping session 2
-    let others = Session::find_other_token_hashes(&pool, 1, hash2.as_bytes()).await?;
+    let others =
+        Session::find_other_token_hashes(&pool, 1, hash2.as_bytes()).await?;
     assert_eq!(others.len(), 2);
-    let mut other_hashes: Vec<[u8; 32]> = others.into_iter().map(|th| th.0).collect();
+    let mut other_hashes: Vec<[u8; 32]> =
+        others.into_iter().map(|th| th.0).collect();
     other_hashes.sort_unstable();
     let mut expected_hashes = vec![*hash1.as_bytes(), *hash3.as_bytes()];
     expected_hashes.sort_unstable();
     assert_eq!(other_hashes, expected_hashes);
 
     // Revoke other sessions keeping session 2
-    let revoked = Session::revoke_other_sessions(&pool, 1, hash2.as_bytes()).await?;
+    let revoked =
+        Session::revoke_other_sessions(&pool, 1, hash2.as_bytes()).await?;
     assert_eq!(revoked.len(), 2);
 
     // Session 2 is still valid
-    let s2 = Session::verify(&pool, hash2.as_bytes()).await?.context("session 2 must exist")?;
+    let s2 = Session::verify(&pool, hash2.as_bytes())
+        .await?
+        .context("session 2 must exist")?;
     assert_eq!(s2.user_id, 1);
 
     // Sessions 1 and 3 are revoked
@@ -422,7 +434,9 @@ async fn session_revoke_other_sessions_keeps_active() -> Result<()> {
     assert!(Session::verify(&pool, hash3.as_bytes()).await?.is_none());
 
     // User 2's session is untouched
-    let su2 = Session::verify(&pool, hash_u2.as_bytes()).await?.context("user 2 session must exist")?;
+    let su2 = Session::verify(&pool, hash_u2.as_bytes())
+        .await?
+        .context("user 2 session must exist")?;
     assert_eq!(su2.user_id, 2);
 
     Ok(())
@@ -439,14 +453,21 @@ async fn session_revoke_other_sessions_when_none_exist() -> Result<()> {
     let token = Session::create(&pool, 1, &secret).await?;
     let token_hash = hash(token.as_bytes());
 
-    let others = Session::find_other_token_hashes(&pool, 1, token_hash.as_bytes()).await?;
+    let others =
+        Session::find_other_token_hashes(&pool, 1, token_hash.as_bytes())
+            .await?;
     assert!(others.is_empty());
 
-    let revoked = Session::revoke_other_sessions(&pool, 1, token_hash.as_bytes()).await?;
+    let revoked =
+        Session::revoke_other_sessions(&pool, 1, token_hash.as_bytes()).await?;
     assert!(revoked.is_empty());
 
     // Original session is still valid
-    assert!(Session::verify(&pool, token_hash.as_bytes()).await?.is_some());
+    assert!(
+        Session::verify(&pool, token_hash.as_bytes())
+            .await?
+            .is_some()
+    );
 
     Ok(())
 }

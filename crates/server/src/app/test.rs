@@ -118,7 +118,9 @@ async fn passkey_auth_cache_lifecycle() -> anyhow::Result<()> {
     let second_take = state.passkey.take_auth(&id).await;
     assert!(matches!(
         second_take,
-        Err(crate::api::Error::BadRequest("Challenge expired or invalid"))
+        Err(crate::api::Error::BadRequest(
+            "Challenge expired or invalid"
+        ))
     ));
 
     // 4. Non-existent UUID fails
@@ -126,7 +128,9 @@ async fn passkey_auth_cache_lifecycle() -> anyhow::Result<()> {
     let nonexistent = state.passkey.take_auth(&random_id).await;
     assert!(matches!(
         nonexistent,
-        Err(crate::api::Error::BadRequest("Challenge expired or invalid"))
+        Err(crate::api::Error::BadRequest(
+            "Challenge expired or invalid"
+        ))
     ));
 
     Ok(())
@@ -160,14 +164,18 @@ async fn passkey_registration_cache_lifecycle() -> anyhow::Result<()> {
     let mismatched = state.passkey.take_registration(&id, wrong_user).await;
     assert!(matches!(
         mismatched,
-        Err(crate::api::Error::Unauthorized("Mismatched user for challenge"))
+        Err(crate::api::Error::Unauthorized(
+            "Mismatched user for challenge"
+        ))
     ));
 
     // 3. Since it was removed from cache, subsequent call is now expired/invalid
     let retry = state.passkey.take_registration(&id, user_id).await;
     assert!(matches!(
         retry,
-        Err(crate::api::Error::BadRequest("Challenge expired or invalid"))
+        Err(crate::api::Error::BadRequest(
+            "Challenge expired or invalid"
+        ))
     ));
 
     // 4. Fresh registration challenge taken with correct user succeeds
@@ -183,15 +191,14 @@ async fn passkey_registration_cache_lifecycle() -> anyhow::Result<()> {
 
     // 5. Non-existent UUID fails
     let random_id = Uuid::new_v4();
-    let nonexistent = state
-        .passkey
-        .take_registration(&random_id, user_id)
-        .await;
+    let nonexistent =
+        state.passkey.take_registration(&random_id, user_id).await;
     assert!(matches!(
         nonexistent,
-        Err(crate::api::Error::BadRequest("Challenge expired or invalid"))
+        Err(crate::api::Error::BadRequest(
+            "Challenge expired or invalid"
+        ))
     ));
 
     Ok(())
 }
-

@@ -27,4 +27,3 @@ pub use register::{register_finish, register_start};
 
 #[cfg(test)]
 mod test;
-

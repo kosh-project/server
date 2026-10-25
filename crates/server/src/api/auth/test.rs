@@ -302,7 +302,9 @@ fn recovery_request_decode_invalid_identity_hash_len() {
     let res = req.decode();
     assert!(matches!(
         res,
-        Err(crate::Error::ApiError(BadRequest("identity_hash must be exactly 64 hex characters")))
+        Err(crate::Error::ApiError(BadRequest(
+            "identity_hash must be exactly 64 hex characters"
+        )))
     ));
 }
 
@@ -317,7 +319,9 @@ fn recovery_request_decode_invalid_identity_hash_hex() {
     let res = req.decode();
     assert!(matches!(
         res,
-        Err(crate::Error::ApiError(BadRequest("identity_hash failed to hex-decode")))
+        Err(crate::Error::ApiError(BadRequest(
+            "identity_hash failed to hex-decode"
+        )))
     ));
 }
 
@@ -349,6 +353,8 @@ fn recovery_request_decode_invalid_wrapped_vault_key_hex() {
     let res = req.decode();
     assert!(matches!(
         res,
-        Err(crate::Error::ApiError(BadRequest("wrapped_vault_key failed to hex-decode")))
+        Err(crate::Error::ApiError(BadRequest(
+            "wrapped_vault_key failed to hex-decode"
+        )))
     ));
 }

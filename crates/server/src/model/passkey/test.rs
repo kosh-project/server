@@ -20,9 +20,10 @@ async fn create_test_user(pool: &SqlitePool, id_byte: u8) -> Result<i64> {
     let verifier = format!("verifier_{id_byte}");
     let wrapped_vault_key = [id_byte; 60];
     User::create(pool, &identity_hash, verifier, &wrapped_vault_key).await?;
-    let user = User::verify(pool, &identity_hash, format!("verifier_{id_byte}"))
-        .await?
-        .context("user must exist")?;
+    let user =
+        User::verify(pool, &identity_hash, format!("verifier_{id_byte}"))
+            .await?
+            .context("user must exist")?;
     Ok(user.id)
 }
 
@@ -202,7 +203,8 @@ async fn record_list_for_user_ordering_and_summaries() -> Result<()> {
 }
 
 #[tokio::test]
-async fn record_update_counter_updates_passkey_data_and_timestamps() -> Result<()> {
+async fn record_update_counter_updates_passkey_data_and_timestamps()
+-> Result<()> {
     let pool = setup_db().await?;
     let user_id = create_test_user(&pool, 7).await?;
 
@@ -240,14 +242,9 @@ async fn record_update_counter_updates_passkey_data_and_timestamps() -> Result<(
 #[tokio::test]
 async fn record_update_counter_nonexistent_does_not_error() -> Result<()> {
     let pool = setup_db().await?;
-    let res = Record::update_counter(
-        &pool,
-        b"nonexistent_cred",
-        b"data",
-        1,
-        1000,
-    )
-    .await;
+    let res =
+        Record::update_counter(&pool, b"nonexistent_cred", b"data", 1, 1000)
+            .await;
     assert!(res.is_ok());
 
     let found = Record::find(&pool, b"nonexistent_cred").await?;

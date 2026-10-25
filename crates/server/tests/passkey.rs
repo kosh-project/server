@@ -17,8 +17,10 @@ async fn pace() {
 #[serial_test::serial]
 async fn test_passkey_public_login_endpoints_e2e() -> anyhow::Result<()> {
     with_sandbox_env("webdav_passkey_public_test", async move |ctx| {
-        let start_endpoint = format!("{}/api/auth/passkey/login/start", ctx.base_url);
-        let finish_endpoint = format!("{}/api/auth/passkey/login/finish", ctx.base_url);
+        let start_endpoint =
+            format!("{}/api/auth/passkey/login/start", ctx.base_url);
+        let finish_endpoint =
+            format!("{}/api/auth/passkey/login/finish", ctx.base_url);
 
         // 1. POST /api/auth/passkey/login/start returns challenge_id and challenge
         let resp = ctx.client.post(&start_endpoint).send().await?;
@@ -62,18 +64,27 @@ async fn test_passkey_public_login_endpoints_e2e() -> anyhow::Result<()> {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_passkey_protected_endpoints_auth_guard_e2e() -> anyhow::Result<()> {
+async fn test_passkey_protected_endpoints_auth_guard_e2e() -> anyhow::Result<()>
+{
     with_sandbox_env("webdav_passkey_auth_guard_test", async move |ctx| {
-        let register_start = format!("{}/api/v1/auth/passkey/register/start", ctx.base_url);
-        let register_finish = format!("{}/api/v1/auth/passkey/register/finish", ctx.base_url);
+        let register_start =
+            format!("{}/api/v1/auth/passkey/register/start", ctx.base_url);
+        let register_finish =
+            format!("{}/api/v1/auth/passkey/register/finish", ctx.base_url);
         let list_endpoint = format!("{}/api/v1/auth/passkey", ctx.base_url);
-        let delete_endpoint = format!("{}/api/v1/auth/passkey/01020304", ctx.base_url);
+        let delete_endpoint =
+            format!("{}/api/v1/auth/passkey/01020304", ctx.base_url);
 
         // All protected endpoints must return 401 without Authorization header
         let r1 = ctx.client.post(&register_start).send().await?;
         assert_eq!(r1.status(), StatusCode::UNAUTHORIZED);
 
-        let r2 = ctx.client.post(&register_finish).json(&json!({})).send().await?;
+        let r2 = ctx
+            .client
+            .post(&register_finish)
+            .json(&json!({}))
+            .send()
+            .await?;
         assert_eq!(r2.status(), StatusCode::UNAUTHORIZED);
 
         let r3 = ctx.client.get(&list_endpoint).send().await?;
@@ -101,12 +112,15 @@ async fn test_passkey_protected_endpoints_auth_guard_e2e() -> anyhow::Result<()>
 async fn test_passkey_register_flow_validation_e2e() -> anyhow::Result<()> {
     with_sandbox_env("webdav_passkey_register_flow_test", async move |ctx| {
         // Create user & session
-        User::create(&ctx.db, &[1u8; 32], "test_verifier".into(), &[0u8; 60]).await?;
+        User::create(&ctx.db, &[1u8; 32], "test_verifier".into(), &[0u8; 60])
+            .await?;
         let user_id = 1;
         let token = Session::create(&ctx.db, user_id, &ctx.secret).await?;
 
-        let start_endpoint = format!("{}/api/v1/auth/passkey/register/start", ctx.base_url);
-        let finish_endpoint = format!("{}/api/v1/auth/passkey/register/finish", ctx.base_url);
+        let start_endpoint =
+            format!("{}/api/v1/auth/passkey/register/start", ctx.base_url);
+        let finish_endpoint =
+            format!("{}/api/v1/auth/passkey/register/finish", ctx.base_url);
 
         // 1. Authenticated register/start returns 200 with challenge_id & challenge
         let resp = ctx
@@ -225,35 +239,47 @@ async fn test_passkey_crud_lifecycle_e2e() -> anyhow::Result<()> {
         let cred_u1_b = vec![0x44, 0x55, 0x66];
         let cred_u2 = vec![0x77, 0x88, 0x99];
 
-        Record::create(&ctx.db, &Record {
-            credential_id: cred_u1_a.clone(),
-            user_id: 1,
-            passkey_data: b"data1".to_vec(),
-            counter: 1,
-            encrypted_metadata: vec![0xaa, 0xbb],
-            created_at: 100,
-            last_used: 10,
-        }).await?;
+        Record::create(
+            &ctx.db,
+            &Record {
+                credential_id: cred_u1_a.clone(),
+                user_id: 1,
+                passkey_data: b"data1".to_vec(),
+                counter: 1,
+                encrypted_metadata: vec![0xaa, 0xbb],
+                created_at: 100,
+                last_used: 10,
+            },
+        )
+        .await?;
 
-        Record::create(&ctx.db, &Record {
-            credential_id: cred_u1_b.clone(),
-            user_id: 1,
-            passkey_data: b"data2".to_vec(),
-            counter: 2,
-            encrypted_metadata: vec![0xcc, 0xdd],
-            created_at: 200,
-            last_used: 20,
-        }).await?;
+        Record::create(
+            &ctx.db,
+            &Record {
+                credential_id: cred_u1_b.clone(),
+                user_id: 1,
+                passkey_data: b"data2".to_vec(),
+                counter: 2,
+                encrypted_metadata: vec![0xcc, 0xdd],
+                created_at: 200,
+                last_used: 20,
+            },
+        )
+        .await?;
 
-        Record::create(&ctx.db, &Record {
-            credential_id: cred_u2.clone(),
-            user_id: 2,
-            passkey_data: b"data3".to_vec(),
-            counter: 0,
-            encrypted_metadata: vec![0xee, 0xff],
-            created_at: 150,
-            last_used: 0,
-        }).await?;
+        Record::create(
+            &ctx.db,
+            &Record {
+                credential_id: cred_u2.clone(),
+                user_id: 2,
+                passkey_data: b"data3".to_vec(),
+                counter: 0,
+                encrypted_metadata: vec![0xee, 0xff],
+                created_at: 150,
+                last_used: 0,
+            },
+        )
+        .await?;
 
         // 3. List user 1's passkeys: ordered created_at DESC (cred_u1_b first)
         pace().await;
@@ -277,7 +303,8 @@ async fn test_passkey_crud_lifecycle_e2e() -> anyhow::Result<()> {
         assert_eq!(list[1]["last_used"], 10);
 
         // 4. Verify user 1's register/start now excludes user 1's 2 credentials
-        let start_endpoint = format!("{}/api/v1/auth/passkey/register/start", ctx.base_url);
+        let start_endpoint =
+            format!("{}/api/v1/auth/passkey/register/start", ctx.base_url);
         pace().await;
         let reg_start_resp = ctx
             .client
@@ -287,14 +314,16 @@ async fn test_passkey_crud_lifecycle_e2e() -> anyhow::Result<()> {
             .await?;
         assert_eq!(reg_start_resp.status(), StatusCode::OK);
         let start_body: Value = reg_start_resp.json().await?;
-        let excluded = start_body["challenge"]["publicKey"]["excludeCredentials"]
-            .as_array()
-            .unwrap();
+        let excluded =
+            start_body["challenge"]["publicKey"]["excludeCredentials"]
+                .as_array()
+                .unwrap();
         assert_eq!(excluded.len(), 2);
 
         // 5. Delete with invalid hex returns 400
         let u1_del_token = Session::create(&ctx.db, 1, &ctx.secret).await?;
-        let bad_hex_del = format!("{}/api/v1/auth/passkey/not_valid_hex", ctx.base_url);
+        let bad_hex_del =
+            format!("{}/api/v1/auth/passkey/not_valid_hex", ctx.base_url);
         let del_bad = ctx
             .client
             .delete(&bad_hex_del)
@@ -304,7 +333,8 @@ async fn test_passkey_crud_lifecycle_e2e() -> anyhow::Result<()> {
         assert_eq!(del_bad.status(), StatusCode::BAD_REQUEST);
 
         // 6. Delete nonexistent credential returns 404
-        let nonexistent_del = format!("{}/api/v1/auth/passkey/deadbeef0011", ctx.base_url);
+        let nonexistent_del =
+            format!("{}/api/v1/auth/passkey/deadbeef0011", ctx.base_url);
         pace().await;
         let del_missing = ctx
             .client
@@ -316,7 +346,8 @@ async fn test_passkey_crud_lifecycle_e2e() -> anyhow::Result<()> {
 
         // 7. User 1 tries to delete User 2's passkey -> 404 NOT_FOUND
         let u2_cred_hex = hex::encode(&cred_u2);
-        let cross_del = format!("{}/api/v1/auth/passkey/{u2_cred_hex}", ctx.base_url);
+        let cross_del =
+            format!("{}/api/v1/auth/passkey/{u2_cred_hex}", ctx.base_url);
         pace().await;
         let del_cross = ctx
             .client
@@ -338,7 +369,8 @@ async fn test_passkey_crud_lifecycle_e2e() -> anyhow::Result<()> {
 
         // 8. User 1 deletes cred_u1_a -> 204 NO_CONTENT
         let u1_a_hex = hex::encode(&cred_u1_a);
-        let own_del = format!("{}/api/v1/auth/passkey/{u1_a_hex}", ctx.base_url);
+        let own_del =
+            format!("{}/api/v1/auth/passkey/{u1_a_hex}", ctx.base_url);
         pace().await;
         let del_success = ctx
             .client

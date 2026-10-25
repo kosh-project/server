@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE\n                webauthn_credentials\n            SET\n                passkey_data = ?,\n                counter = ?,\n                last_used = ?\n            WHERE\n                credential_id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "7c62dcc6ef265cb844a0a843a111d11e2060f2ad7e879452feb3b25ec83d7cb3"
+}
