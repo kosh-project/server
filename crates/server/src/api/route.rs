@@ -2,7 +2,7 @@ use axum::{
     Json, Router,
     extract::Request,
     middleware,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 use serde_json::{Value, json};
 
@@ -10,7 +10,7 @@ use crate::{
     api::{
         self,
         assets::{self, list},
-        auth::{challenge, pow_guard},
+        auth::{self, challenge, pow_guard},
         middleware::{
             // auth_ip_limiter, device_limiter, global_ip_limiter,
             RateLimitExt,
@@ -82,6 +82,7 @@ fn auth_route(state: &AppState) -> Router<AppState> {
 /// | `DELETE` | `/api/v1/sync/prune` | [`api::sync::prune_ledger`] |
 /// | `GET` | `/api/v1/sync/snapshot` | [`api::sync::latest_snapshot`] |
 /// | `POST` | `/api/v1/sync/snapshot` | [`api::sync::register_snapshot`] |
+/// | `PUT` | `/api/v1/auth/recovery` | [`auth::rotate`] |
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/upload/{tag}", post(assets::upload))
@@ -93,6 +94,7 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .route("/sync/prune", delete(sync::prune_ledger))
         .route("/sync/snapshot", get(sync::latest_snapshot))
         .route("/sync/snapshot", post(sync::register_snapshot))
+        .route("/auth/recovery", put(auth::rotate))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
         .with_device_limit()
         .route_layer(middleware::from_fn_with_state(state.clone(), mac_guard))

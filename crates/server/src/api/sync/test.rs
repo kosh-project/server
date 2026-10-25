@@ -198,15 +198,21 @@ async fn api_delta_prune_success() -> anyhow::Result<()> {
 #[tokio::test]
 async fn api_snapshot_register_and_latest() -> anyhow::Result<()> {
     let (_tmp, state) = setup_env().await?;
-    User::create(&state.db, &[0_u8; 32], "fake_verifier".to_string())
-        .await
-        .context("failed to insert test user")?;
+    User::create(
+        &state.db,
+        &[0_u8; 32],
+        "fake_verifier".to_string(),
+        &[0u8; 60],
+    )
+    .await
+    .context("failed to insert test user")?;
 
-    let user_id =
+    let verified =
         User::verify(&state.db, &[0_u8; 32], "fake_verifier".to_string())
             .await
             .context("failed to fetch test user_id")?
             .context("test_user doesn't exist in database")?;
+    let user_id = verified.id;
 
     let hash_hex = "a".repeat(64); // 32-byte valid BLAKE3 hex representation
 

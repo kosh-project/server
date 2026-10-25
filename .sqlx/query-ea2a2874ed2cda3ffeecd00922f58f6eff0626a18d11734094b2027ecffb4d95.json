@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                    token_hash AS 'token_hash!'\n                FROM\n                    sessions\n                WHERE\n                    user_id = ? AND\n                    token_hash != ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "token_hash!",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "token_hash"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "ea2a2874ed2cda3ffeecd00922f58f6eff0626a18d11734094b2027ecffb4d95"
+}

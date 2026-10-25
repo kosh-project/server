@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                credential_id AS 'credential_id!',\n                user_id,\n                encrypted_metadata,\n                passkey_data AS 'passkey_data!',\n                counter,\n                created_at,\n                last_used\n            FROM\n                webauthn_credentials\n            WHERE\n                credential_id = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "credential_id!",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "credential_id"
+          }
+        }
+      },
+      {
+        "name": "user_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "encrypted_metadata",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "encrypted_metadata"
+          }
+        }
+      },
+      {
+        "name": "passkey_data!",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "passkey_data"
+          }
+        }
+      },
+      {
+        "name": "counter",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "counter"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "last_used",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "last_used"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8b00c5afe51c0501af4659ec400a16ce2243d1d11de4e0304310123e01693cf3"
+}

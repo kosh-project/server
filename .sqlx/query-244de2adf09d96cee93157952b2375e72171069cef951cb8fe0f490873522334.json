@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                credential_id AS 'credential_id!',\n                encrypted_metadata,\n                created_at,\n                last_used\n            FROM\n                webauthn_credentials\n            WHERE\n                user_id = ?\n            ORDER BY\n                created_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "credential_id!",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "credential_id"
+          }
+        }
+      },
+      {
+        "name": "encrypted_metadata",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "encrypted_metadata"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "last_used",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "last_used"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "244de2adf09d96cee93157952b2375e72171069cef951cb8fe0f490873522334"
+}

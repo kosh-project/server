@@ -531,7 +531,7 @@ dependencies = [
 
 [[package]]
 name = "cli"
-version = "0.1.35"
+version = "0.1.36"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -2117,7 +2117,7 @@ dependencies = [
 
 [[package]]
 name = "kosh-core"
-version = "0.1.35"
+version = "0.1.36"
 dependencies = [
  "anyhow",
  "bincode-next",
@@ -4914,7 +4914,7 @@ dependencies = [
 
 [[package]]
 name = "webdav-server"
-version = "0.1.35"
+version = "0.1.36"
 dependencies = [
  "anyhow",
  "axum",

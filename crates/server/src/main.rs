@@ -83,7 +83,8 @@ async fn boot() -> Result<(), boot::Error> {
         .synchronous(SqliteSynchronous::Normal)
         .pragma("mmap_size", "30000000000")
         .pragma("temp_store", "MEMORY")
-        .create_if_missing(true);
+        .create_if_missing(true)
+        .foreign_keys(true);
 
     let pool = SqlitePoolOptions::new()
         .max_connections(50)

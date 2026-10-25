@@ -7,7 +7,7 @@ use crate::{
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use blake3::{Hash, Hasher, keyed_hash};
-use sqlx::SqlitePool;
+use sqlx::{SqliteExecutor, SqlitePool};
 use uuid::Uuid;
 
 /// A row in the `sessions` table, representing an active authenticated session.
@@ -193,6 +193,76 @@ impl Session {
         .await?;
 
         Ok(())
+    }
+}
+
+impl Session {
+    /// Queries the hashes of all active sessions belonging to `user_id` excluding `current_token_hash`.
+    ///
+    /// # Errors
+    /// - Returns [`crate::model::Error::Database`] if the database query fails.
+    pub async fn find_other_token_hashes(
+        pool: &SqlitePool,
+        user_id: i64,
+        current_token_hash: &[u8],
+    ) -> Result<Vec<TokenHash>> {
+        let rows = sqlx::query!(
+            r#"
+                SELECT
+                    token_hash AS 'token_hash!'
+                FROM
+                    sessions
+                WHERE
+                    user_id = ? AND
+                    token_hash != ?
+            "#,
+            user_id,
+            current_token_hash
+        )
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|r| r.token_hash.try_into().ok().map(TokenHash))
+            .collect())
+    }
+
+    /// Atomically deletes all active sessions belonging to `user_id` except `current_token_hash`,
+    /// returning the deleted token hashes for cache invalidation.
+    ///
+    /// Uses SQLite's `RETURNING` clause to perform the delete and retrieval in a single atomic statement.
+    ///
+    /// # Errors
+    /// - Returns [`crate::model::Error::Database`] if the database query fails.
+    pub async fn revoke_other_sessions<'e, E>(
+        pool: E,
+        user_id: i64,
+        current_token_hash: &[u8],
+    ) -> Result<Vec<TokenHash>>
+    where
+        E: SqliteExecutor<'e>,
+    {
+        let rows = sqlx::query!(
+            r#"
+            DELETE FROM
+                sessions
+            WHERE
+                user_id = ? AND
+                token_hash != ?
+            RETURNING
+                token_hash AS 'token_hash!'
+            "#,
+            user_id,
+            current_token_hash
+        )
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|r| r.token_hash.try_into().ok().map(TokenHash))
+            .collect())
     }
 }
 

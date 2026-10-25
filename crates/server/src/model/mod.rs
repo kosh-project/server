@@ -11,7 +11,9 @@
 //!   Implements reference-counted deletion: the physical file is only removed when the
 //!   last ownership row is deleted.
 //! - [`session`](crate::model::session) — The `sessions` table. Manages opaque session tokens with a 30-day TTL.
-//! - [`user`](crate::model::user) — The `users` table. Stores hashed identities and authentication verifiers.
+//! - [`user`](crate::model::user) — The `users` table. Stores hashed identities, authentication verifiers, and vault keys.
+//! - [`passkey`](crate::model::passkey) — The `webauthn_credentials` table. Stores hardware passkeys and metadata.
+//! - [`sync`](crate::model::sync) — The `device_sync_watermarks` and `ledger_snapshots` tables for state sync.
 //! - [`error`](crate::model::error) — The `model::Error` type covering all database-layer failures.
 /// Asset metadata entities, tags, and keyset cursor pagination models.
 pub mod asset;
@@ -22,7 +24,11 @@ pub mod session;
 /// Registered user accounts and cryptographic verifiers.
 pub mod user;
 
+/// Synchronization watermarks and ledger snapshot records.
 pub mod sync;
+
+/// WebAuthn passkey credential entities and query models.
+pub mod passkey;
 
 pub use error::{Error, Result};
 
