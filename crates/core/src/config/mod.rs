@@ -70,6 +70,31 @@ pub struct Config {
     /// Defaults to `"/tmp/kosh.sock"`.
     #[knuffel(child, unwrap(argument), default = "/tmp/kosh.sock".to_string())]
     pub socket_path: String,
+
+    #[knuffel(child, default)]
+    pub passkey: Passkey,
+}
+
+#[derive(knuffel::Decode, Debug, Clone, PartialEq, Eq)]
+pub struct Passkey {
+    #[knuffel(child, unwrap(argument), default = "localhost".to_string())]
+    pub id: String,
+
+    #[knuffel(child, unwrap(argument), default = "http://localhost:23342".to_string())]
+    pub origin: String,
+
+    #[knuffel(child, unwrap(argument), default)]
+    pub name: String,
+}
+
+impl Default for Passkey {
+    fn default() -> Self {
+        Self {
+            id: "localhost".to_string(),
+            origin: "http://localhost:23342".to_string(),
+            name: "Kosh Vault".to_string(),
+        }
+    }
 }
 
 fn default_vault_path() -> PathBuf {
@@ -97,7 +122,7 @@ vault-path "./vault"
 
 // Network bindings
 host "0.0.0.0"
-port 6969
+port 23342
 
 // Security
 enable-tls false
