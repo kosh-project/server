@@ -33,6 +33,7 @@ pub use login::login;
 pub use pow_guard::pow_guard;
 pub use recovery::rotate;
 pub use register::register;
+pub mod passkey;
 
 #[cfg(test)]
 mod test;

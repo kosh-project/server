@@ -10,7 +10,7 @@ use crate::{
     api::{
         self,
         assets::{self, list},
-        auth::{self, challenge, pow_guard},
+        auth::{self, challenge, passkey, pow_guard},
         middleware::{
             // auth_ip_limiter, device_limiter, global_ip_limiter,
             RateLimitExt,
@@ -62,6 +62,8 @@ fn auth_route(state: &AppState) -> Router<AppState> {
         .route("/login", post(api::auth::login))
         .route_layer(middleware::from_fn_with_state(state.clone(), pow_guard))
         .route("/challenge", get(challenge::generate))
+        .route("/passkey/login/start", post(passkey::login_start))
+        .route("/passkey/login/finish", post(passkey::login_finish))
         .with_auth_ip_limit()
 }
 
@@ -95,6 +97,16 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .route("/sync/snapshot", get(sync::latest_snapshot))
         .route("/sync/snapshot", post(sync::register_snapshot))
         .route("/auth/recovery", put(auth::rotate))
+        .route(
+            "/auth/passkey/register/start",
+            post(passkey::register_start),
+        )
+        .route(
+            "/auth/passkey/register/finish",
+            post(passkey::register_finish),
+        )
+        .route("/auth/passkey/{credential_id}", delete(passkey::delete))
+        .route("/auth/passkey", get(passkey::list))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
         .with_device_limit()
         .route_layer(middleware::from_fn_with_state(state.clone(), mac_guard))
