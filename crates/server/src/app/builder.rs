@@ -1,10 +1,12 @@
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use moka::future::Cache;
 use sqlx::SqlitePool;
+use url::Url;
+use webauthn_rs::{Webauthn, WebauthnBuilder};
 
 use crate::{
-    app::{State as AppState, state::UserId},
+    app::{Passkey, State as AppState, state::UserId},
     auth::Secret,
     model::session::TokenHash,
     storage::{self, ledger},
@@ -34,6 +36,7 @@ pub struct AppStateBuilder {
     db: Option<SqlitePool>,
     session_cache: Option<Cache<TokenHash, UserId>>,
     secret: Option<Secret>,
+    webauthn: Option<Arc<Webauthn>>,
 }
 
 impl AppStateBuilder {
@@ -45,6 +48,7 @@ impl AppStateBuilder {
             db: None,
             session_cache: None,
             secret: None,
+            webauthn: None,
         }
     }
 
@@ -95,6 +99,12 @@ impl AppStateBuilder {
         self
     }
 
+    #[must_use]
+    pub fn webauthn(mut self, webauthn: Webauthn) -> Self {
+        self.webauthn = Some(Arc::new(webauthn));
+        self
+    }
+
     /// Consumes the builder and returns the fully configured `AppState`.
     ///
     /// If `session_cache` was not set, a default `moka` cache is created with
@@ -107,6 +117,18 @@ impl AppStateBuilder {
     pub fn build(self) -> AppState {
         let vault_path =
             self.vault_path.expect("FATAL: vault_path is required!");
+
+        let webauthn = self.webauthn.unwrap_or_else(|| {
+            let origin = Url::parse("http://localhost:23342")
+                .expect("valid test origin");
+
+            let builder = WebauthnBuilder::new("localhost", &origin)
+                .expect("valid webauthn builder")
+                .rp_name("Kosh Vault");
+
+            Arc::new(builder.build().expect("valid test webauthn"))
+        });
+
         AppState {
             storage: storage::Service::new(vault_path.clone()),
             db: self.db.expect("FATAL: database pool is required!"),
@@ -119,6 +141,9 @@ impl AppStateBuilder {
             ledger: ledger::Handle::spawn(vault_path),
             secret: self.secret.expect("FATAL: no secret provided??"),
             pow_secret: Secret::random(),
+
+            passkey: Passkey::default(),
+            webauthn,
         }
     }
 }

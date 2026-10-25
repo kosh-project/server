@@ -13,6 +13,9 @@
 pub mod state;
 pub use state::State;
 mod builder;
+mod passkey;
+
+pub use passkey::Passkey;
 
 pub use builder::AppStateBuilder;
 

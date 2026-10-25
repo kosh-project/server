@@ -1,9 +1,11 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc, time::Duration};
 
 use moka::future::Cache;
 use sqlx::SqlitePool;
+use webauthn_rs::Webauthn;
 
 use crate::{
+    app::passkey::Passkey,
     auth::Secret,
     model::session::TokenHash,
     storage::{self, ledger},
@@ -48,6 +50,28 @@ pub struct State {
     /// Because it is never persisted, all pending challenges are automatically
     /// invalidated when the server restarts.
     pub pow_secret: Secret,
+
+    pub webauthn: Arc<Webauthn>,
+    pub passkey: Passkey,
+}
+
+impl Default for Passkey {
+    fn default() -> Self {
+        let registration_cache = Cache::builder()
+            .time_to_live(Duration::from_secs(60))
+            .max_capacity(1_000)
+            .build();
+
+        let auth_cache = Cache::builder()
+            .time_to_live(Duration::from_secs(60))
+            .max_capacity(1_000)
+            .build();
+
+        Self {
+            registration_cache,
+            auth_cache,
+        }
+    }
 }
 
 impl State {
