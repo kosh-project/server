@@ -133,6 +133,10 @@ impl User {
         Ok(rows_affected)
     }
 
+    /// Looks up a verified user record by database primary key ID.
+    ///
+    /// # Errors
+    /// Returns an error if the database query fails.
     pub async fn find_by_id(
         pool: &SqlitePool,
         id: i64,

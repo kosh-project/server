@@ -272,3 +272,83 @@ fn hashcash_verify_stateless_invalid_header_length() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn recovery_request_decode_valid() -> anyhow::Result<()> {
+    let identity_hex = hex::encode([0x42u8; 32]);
+    let key_hex = hex::encode([0x99u8; 60]);
+    let req = recovery::Request {
+        identity_hash: identity_hex,
+        auth_verifier: "argon_verifier".to_string(),
+        wrapped_vault_key: key_hex,
+        revoke_other_sessions: true,
+    };
+
+    let validated = req.decode().context("decoding valid recovery request")?;
+    assert_eq!(validated.identity_hash, [0x42u8; 32]);
+    assert_eq!(validated.wrapped_vault_key, vec![0x99u8; 60]);
+
+    Ok(())
+}
+
+#[test]
+fn recovery_request_decode_invalid_identity_hash_len() {
+    let req = recovery::Request {
+        identity_hash: "abcd".to_string(),
+        auth_verifier: "v".to_string(),
+        wrapped_vault_key: hex::encode([0u8; 60]),
+        revoke_other_sessions: false,
+    };
+    let res = req.decode();
+    assert!(matches!(
+        res,
+        Err(crate::Error::ApiError(BadRequest("identity_hash must be exactly 64 hex characters")))
+    ));
+}
+
+#[test]
+fn recovery_request_decode_invalid_identity_hash_hex() {
+    let req = recovery::Request {
+        identity_hash: "z".repeat(64),
+        auth_verifier: "v".to_string(),
+        wrapped_vault_key: hex::encode([0u8; 60]),
+        revoke_other_sessions: false,
+    };
+    let res = req.decode();
+    assert!(matches!(
+        res,
+        Err(crate::Error::ApiError(BadRequest("identity_hash failed to hex-decode")))
+    ));
+}
+
+#[test]
+fn recovery_request_decode_invalid_wrapped_vault_key_len() {
+    let req = recovery::Request {
+        identity_hash: hex::encode([0u8; 32]),
+        auth_verifier: "v".to_string(),
+        wrapped_vault_key: "001122".to_string(),
+        revoke_other_sessions: false,
+    };
+    let res = req.decode();
+    assert!(matches!(
+        res,
+        Err(crate::Error::ApiError(BadRequest(
+            "wrapped_vault_key must be exactly 120 hex characters"
+        )))
+    ));
+}
+
+#[test]
+fn recovery_request_decode_invalid_wrapped_vault_key_hex() {
+    let req = recovery::Request {
+        identity_hash: hex::encode([0u8; 32]),
+        auth_verifier: "v".to_string(),
+        wrapped_vault_key: "g".repeat(120),
+        revoke_other_sessions: false,
+    };
+    let res = req.decode();
+    assert!(matches!(
+        res,
+        Err(crate::Error::ApiError(BadRequest("wrapped_vault_key failed to hex-decode")))
+    ));
+}

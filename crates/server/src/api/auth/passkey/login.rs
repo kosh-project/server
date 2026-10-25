@@ -44,6 +44,10 @@ pub struct Response {
     pub wrapped_vault_key: String,
 }
 
+/// Initiates discoverable passkey authentication.
+///
+/// # Errors
+/// - Returns a `WebAuthn` error if challenge generation fails.
 pub async fn login_start(
     State(state): State<app::State>,
 ) -> JsonResult<start::Response> {
@@ -58,6 +62,13 @@ pub async fn login_start(
     }))
 }
 
+/// Completes discoverable passkey authentication and returns a session token.
+///
+/// # Errors
+/// - Returns `BadRequest` if the challenge is unknown, expired, or invalid.
+/// - Returns `Unauthorized` if user handle mismatch or unknown passkey credential.
+/// - Returns `WebAuthn` error if credential verification fails.
+/// - Returns an internal error if database or session operations fail.
 pub async fn login_finish(
     State(state): State<app::State>,
     Json(request): Json<finish::Request>,
@@ -93,6 +104,12 @@ pub async fn login_finish(
     }))
 }
 
+/// Verifies the authentication credential against the registered passkey and updates the database.
+///
+/// # Errors
+/// - Returns an internal error if deserializing or serializing passkey state fails.
+/// - Returns a `WebAuthn` error if credential verification fails.
+/// - Returns an internal error if updating the database fails.
 pub async fn verify_and_update_passkey(
     state: &app::State,
     record: &passkey::Record,

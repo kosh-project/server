@@ -26,13 +26,17 @@ pub struct Request {
     pub revoke_other_sessions: bool,
 }
 
-struct Validated {
-    identity_hash: [u8; 32],
-    wrapped_vault_key: Vec<u8>,
+pub struct Validated {
+    pub identity_hash: [u8; 32],
+    pub wrapped_vault_key: Vec<u8>,
 }
 
 impl Request {
-    fn decode(&self) -> Result<Validated> {
+    /// Decodes and validates the identity hash and wrapped vault key.
+    ///
+    /// # Errors
+    /// Returns `BadRequest` if lengths or hex decoding fails.
+    pub fn decode(&self) -> Result<Validated> {
         if self.identity_hash.len() != 64 {
             Err(BadRequest(
                 "identity_hash must be exactly 64 hex characters",

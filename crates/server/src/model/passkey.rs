@@ -42,6 +42,10 @@ pub struct Summary {
 }
 
 impl Record {
+    /// Constructs a new passkey record from a verified `WebAuthn` passkey.
+    ///
+    /// # Errors
+    /// Returns an error if serializing the passkey state to JSON fails.
     pub fn new(
         user_id: i64,
         passkey: &Passkey,
@@ -231,6 +235,10 @@ impl Record {
         Ok(rows_affected > 0)
     }
 
+    /// Returns a list of existing credentials for a user to exclude during registration.
+    ///
+    /// # Errors
+    /// Returns an error if querying the database fails.
     pub async fn exclude_list_for_user(
         pool: &SqlitePool,
         user_id: i64,
@@ -260,3 +268,7 @@ impl Record {
         ))
     }
 }
+
+#[cfg(test)]
+mod test;
+

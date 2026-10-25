@@ -2,6 +2,10 @@ use axum::{Extension, Json, extract::State};
 
 use crate::{app, error::JsonResult, model::passkey};
 
+/// Lists all passkeys registered for the authenticated user.
+///
+/// # Errors
+/// - Returns an internal error if the database query fails.
 pub async fn list(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,

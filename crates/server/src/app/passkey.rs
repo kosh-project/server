@@ -27,6 +27,10 @@ impl Passkey {
         challenge_id
     }
 
+    /// Retrieves and removes a cached discoverable authentication challenge.
+    ///
+    /// # Errors
+    /// Returns `BadRequest` if the challenge ID does not exist in cache or has expired.
     pub async fn take_auth(
         &self,
         id: &Uuid,
@@ -49,6 +53,11 @@ impl Passkey {
         challenge_id
     }
 
+    /// Retrieves and removes a cached registration challenge for the expected user.
+    ///
+    /// # Errors
+    /// - Returns `BadRequest` if the challenge ID does not exist in cache or has expired.
+    /// - Returns `Unauthorized` if the cached challenge belongs to a different user.
     pub async fn take_registration(
         &self,
         id: &Uuid,

@@ -50,6 +50,11 @@ pub mod finish {
     }
 }
 
+/// Initiates passkey registration for an authenticated user.
+///
+/// # Errors
+/// - Returns a `WebAuthn` error if challenge generation fails.
+/// - Returns an internal error if retrieving excluded credentials fails.
 pub async fn register_start(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
@@ -75,6 +80,12 @@ pub async fn register_start(
     }))
 }
 
+/// Completes passkey registration for an authenticated user.
+///
+/// # Errors
+/// - Returns `BadRequest` if challenge is invalid, expired, user mismatch, or metadata is invalid.
+/// - Returns `WebAuthn` error if registration verification fails.
+/// - Returns an internal error if database operations fail.
 pub async fn register_finish(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,

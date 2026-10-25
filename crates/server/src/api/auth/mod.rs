@@ -26,7 +26,7 @@ pub(crate) mod hashcash;
 pub use hashcash::HashCash;
 mod login;
 mod pow_guard;
-mod recovery;
+pub(crate) mod recovery;
 mod register;
 
 pub use login::login;

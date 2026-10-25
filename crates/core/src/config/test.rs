@@ -69,10 +69,13 @@ async fn load_or_init_creates_fresh_file_and_loads() -> anyhow::Result<()> {
 
     // Test: verify config file was created and contains expected default values
     assert!(config_path.exists());
-    assert_eq!(config.port, 6969);
+    assert_eq!(config.port, 23342);
     assert_eq!(config.host, "0.0.0.0");
     assert!(!config.enable_tls);
     assert_eq!(config.socket_path, "/tmp/kosh.sock");
+    assert_eq!(config.passkey.id, "localhost");
+    assert_eq!(config.passkey.origin, "http://localhost:23342");
+    assert_eq!(config.passkey.name, "Kosh Vault");
 
     // Test: verify relative vault path normalizes to config parent directory
     let expected_vault = config_path
@@ -131,6 +134,7 @@ fn helper_path_accessors() -> anyhow::Result<()> {
         host: "0.0.0.0".to_string(),
         enable_tls: false,
         socket_path: "/tmp/kosh.sock".to_string(),
+        passkey: Passkey::default(),
     };
 
     // Test: verify helper accessors construct correct sub-paths under vault
@@ -165,6 +169,96 @@ async fn malformed_kdl_returns_error() -> anyhow::Result<()> {
     // Test: verify syntax error during KDL parse returns error variant
     assert!(result.is_err());
     assert!(matches!(result, Err(Error::Parse(_))));
+
+    Ok(())
+}
+
+#[test]
+fn passkey_default_values() {
+    let default_passkey = Passkey::default();
+    assert_eq!(default_passkey.id, "localhost");
+    assert_eq!(default_passkey.origin, "http://localhost:23342");
+    assert_eq!(default_passkey.name, "Kosh Vault");
+}
+
+#[tokio::test]
+#[serial]
+async fn custom_passkey_config_parsing() -> anyhow::Result<()> {
+    let _guard = EnvGuard("KOSH_CONFIG");
+    let temp_dir = TmpDir::new("kosh-test-config")
+        .await
+        .context("failed to create temporary directory")?;
+    let config_path = temp_dir.to_path_buf().join("config.kdl");
+
+    let custom_kdl = r#"
+vault-path "/var/kosh/custom_vault"
+port 8080
+host "127.0.0.1"
+enable-tls true
+socket-path "/run/kosh/custom.sock"
+
+passkey {
+    id "vault.example.com"
+    origin "https://vault.example.com"
+    name "Example Vault"
+}
+"#;
+
+    tokio::fs::write(&config_path, custom_kdl)
+        .await
+        .context("failed to write custom config")?;
+
+    unsafe {
+        std::env::set_var("KOSH_CONFIG", &config_path);
+    }
+
+    let config = Config::load_or_init()
+        .await
+        .context("failed to load custom config")?;
+
+    assert_eq!(config.passkey.id, "vault.example.com");
+    assert_eq!(config.passkey.origin, "https://vault.example.com");
+    assert_eq!(config.passkey.name, "Example Vault");
+
+    Ok(())
+}
+
+#[tokio::test]
+#[serial]
+async fn custom_passkey_config_partial_decoding() -> anyhow::Result<()> {
+    let _guard = EnvGuard("KOSH_CONFIG");
+    let temp_dir = TmpDir::new("kosh-test-config")
+        .await
+        .context("failed to create temporary directory")?;
+    let config_path = temp_dir.to_path_buf().join("partial_config.kdl");
+
+    let custom_kdl = r#"
+vault-path "/var/kosh/custom_vault"
+port 8080
+host "127.0.0.1"
+enable-tls true
+socket-path "/run/kosh/custom.sock"
+
+passkey {
+    id "partial.example.com"
+}
+"#;
+
+    tokio::fs::write(&config_path, custom_kdl)
+        .await
+        .context("failed to write custom config")?;
+
+    unsafe {
+        std::env::set_var("KOSH_CONFIG", &config_path);
+    }
+
+    let config = Config::load_or_init()
+        .await
+        .context("failed to load custom config")?;
+
+    assert_eq!(config.passkey.id, "partial.example.com");
+    assert_eq!(config.passkey.origin, "http://localhost:23342");
+    assert_eq!(config.passkey.name, "");
 
     Ok(())
 }

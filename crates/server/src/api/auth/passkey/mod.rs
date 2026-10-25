@@ -24,3 +24,7 @@ pub use delete::delete;
 pub use list::list;
 pub use login::{login_finish, login_start};
 pub use register::{register_finish, register_start};
+
+#[cfg(test)]
+mod test;
+

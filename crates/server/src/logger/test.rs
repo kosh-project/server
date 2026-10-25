@@ -29,6 +29,7 @@ where
             .join("kosh.sock")
             .to_string_lossy()
             .into(),
+        passkey: kosh_core::config::Passkey::default(),
     };
 
     let (sender, log_handler) = Service::start(&config)

@@ -11,6 +11,12 @@ use crate::{
     model::passkey,
 };
 
+/// Deletes a passkey credential for the authenticated user.
+///
+/// # Errors
+/// - Returns `BadRequest` if `credential_id` is not valid hex.
+/// - Returns `NotFound` if no credential matches the given ID for this user.
+/// - Returns an internal error if the database query fails.
 pub async fn delete(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
