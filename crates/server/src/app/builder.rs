@@ -121,6 +121,8 @@ impl AppStateBuilder {
     ///   `localhost:23342` is created.
     /// - The `passkey` challenge cache is initialized with its default 60-second TTL
     ///   and 1,000-entry capacity via [`Passkey::default`].
+    /// - The `mailbox` cache is initialized with its default 300-second TTL and
+    ///   1,000-entry capacity via [`Mailbox::default`].
     ///
     /// # Panics
     /// Panics if `vault_path` or `db` were not configured before calling `build`.

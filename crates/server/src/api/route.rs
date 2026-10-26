@@ -97,6 +97,9 @@ fn auth_route(state: &AppState) -> Router<AppState> {
 /// | `POST` | `/api/v1/auth/passkey/register/finish` | [`passkey::register_finish`] | Completes passkey registration and persists credential |
 /// | `GET` | `/api/v1/auth/passkey` | [`passkey::list`] | Lists all registered passkeys for caller |
 /// | `DELETE` | `/api/v1/auth/passkey/{credential_id}` | [`passkey::delete`] | Deletes a registered passkey owned by caller |
+/// | `POST` | `/api/v1/devices/mailbox` | [`mailbox::create`] | Allocates ephemeral ECDH mailbox |
+/// | `POST` | `/api/v1/devices/mailbox/{id}/fulfill` | [`mailbox::fulfill`] | Deposits payload into mailbox |
+/// | `GET` | `/api/v1/devices/mailbox/{id}` | [`mailbox::pickup`] | Polls or picks up mailbox payload |
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/upload/{tag}", post(assets::upload))
@@ -119,6 +122,7 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         )
         .route("/auth/passkey/{credential_id}", delete(passkey::delete))
         .route("/auth/passkey", get(passkey::list))
+        // Ephemeral blind ECDH mailbox relay for device pairing
         .route("/devices/mailbox", post(mailbox::create))
         .route("/devices/mailbox/{id}/fulfill", post(mailbox::fulfill))
         .route("/devices/mailbox/{id}", get(mailbox::pickup))

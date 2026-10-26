@@ -1,11 +1,18 @@
 //! In-memory ephemeral ECDH key exchange mailbox cache.
 //!
-//! Provides a bounded, single-use, in-memory mailbox relay with:
-//! - 8-character lowercase Crockford Base32 identifiers (`0123456789abcdefghjkmnpqrstvwxyz`).
-//! - Atomic state transitions: `Pending` -> `Fulfilled(Vec<u8>)` -> `Consumed`.
-//! - Single-use "burn-after-reading" semantics upon pickup.
-//! - Anti-enumeration security: cross-tenant access returns [`NotFound`], preventing ID discovery.
-//! - Automatic expiration via bounded Time-To-Live (`TTL = 300s`) managed by [`moka::future::Cache`].
+//! Provides a bounded, single-use, in-memory mailbox relay for out-of-band device pairing:
+//! - **Blind Relay:** The server acts as an untrusted blind relay, storing opaque byte payloads
+//!   without inspecting or retaining cryptographic secrets.
+//! - **Crockford Base32 Identifiers:** 8-character lowercase identifiers drawn from
+//!   `0123456789abcdefghjkmnpqrstvwxyz`, intentionally avoiding ambiguous characters (`i`, `l`, `o`, `u`).
+//! - **Atomic State Transitions:** Strict one-way state transitions:
+//!   `Pending` -> `Fulfilled` -> `Consumed`.
+//! - **Burn-After-Reading:** Enforces single-use semantics; fetching a fulfilled payload consumes
+//!   it and immediately evicts the mailbox from memory.
+//! - **Anti-Enumeration Security:** Cross-tenant access returns [`NotFound`], preventing ID discovery
+//!   or probe attacks.
+//! - **Automatic Expiration:** In-memory [`moka::future::Cache`] enforces a strict 300-second
+//!   Time-To-Live ([`Mailbox::TTL_SECS`]), automatically pruning unfulfilled or abandoned mailboxes.
 
 use std::{
     mem::replace,
@@ -28,6 +35,9 @@ use crate::{
 const BASE32_ALPHABET: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
 
 /// Lifecycle status of an ephemeral key exchange mailbox.
+///
+/// Models the one-way atomic state transitions of an ephemeral mailbox entry:
+/// `Pending` -> `Fulfilled(Vec<u8>)` -> `Consumed`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Status {
     /// Mailbox created by receiver, awaiting sender fulfillment.
@@ -41,20 +51,28 @@ pub enum Status {
 use Status::{Consumed, Fulfilled, Pending};
 
 /// Thread-safe cached mailbox entry holding user ownership and atomic lifecycle status.
+///
+/// Encapsulates the user ownership boundary along with an [`Arc`]-wrapped [`Mutex`]
+/// guarding the mutable [`Status`] enum.
 #[derive(Clone)]
 pub struct Entry {
-    /// Owner user ID of the mailbox.
+    /// Primary key identifier of the user account (`users.id`) that created and owns this mailbox.
     pub user_id: UserId,
-    /// Protected atomic lifecycle status.
+    /// Thread-safe reference-counted mutex guarding atomic mailbox state transitions.
     pub status: Arc<Mutex<Status>>,
 }
 
 impl Entry {
     /// Atomically retrieves and burns the payload if fulfilled.
     ///
+    /// - If status is `Pending`, returns `Ok(None)` leaving the mailbox untouched.
+    /// - If status is `Fulfilled`, atomically replaces the status with `Consumed`
+    ///   and returns `Ok(Some(payload))`.
+    /// - If status is already `Consumed`, returns [`NotFound`].
+    ///
     /// # Errors
     ///
-    /// - Returns [`InternalErr`] if the internal mutex is poisoned.
+    /// - Returns [`InternalErr`] if the internal mutex guard is poisoned.
     /// - Returns [`NotFound`] if the entry has already been consumed.
     fn take(&self) -> api::Result<Option<Vec<u8>>> {
         let mut status = self.status.lock().map_err(|_| {
@@ -77,12 +95,18 @@ impl Entry {
 }
 
 /// Ephemeral in-memory mailbox relay cache.
+///
+/// Provides a concurrent, in-memory store for device pairing handshakes.
+/// Backed by a [`moka::future::Cache`] configured with a 300-second Time-To-Live ([`Self::TTL_SECS`])
+/// and a maximum capacity of 1,000 active entries.
 #[derive(Clone)]
 pub struct Mailbox {
+    /// Concurrent in-memory cache mapping 8-character Base32 mailbox IDs to [`Entry`] objects.
     cache: Cache<String, Entry>,
 }
 
 impl Default for Mailbox {
+    /// Constructs a default `Mailbox` cache with standard capacity (1,000 entries) and TTL (300 seconds).
     fn default() -> Self {
         Self::new()
     }
@@ -92,7 +116,7 @@ impl Mailbox {
     /// Default time-to-live for mailbox entries in seconds (5 minutes).
     pub const TTL_SECS: u64 = 300;
 
-    /// Constructs a new `Mailbox` cache with default capacity and TTL limits.
+    /// Constructs a new `Mailbox` cache with default capacity (1,000 entries) and TTL (300 seconds).
     #[must_use]
     pub fn new() -> Self {
         let cache = Cache::builder()
@@ -104,6 +128,11 @@ impl Mailbox {
     }
 
     /// Generates an 8-character lowercase Crockford Base32 identifier.
+    ///
+    /// Samples 40 cryptographically secure random bits (5 raw bytes via [`rand::random`])
+    /// and slices them into eight 5-bit chunks. Each chunk indexes into the Crockford
+    /// Base32 alphabet (`0123456789abcdefghjkmnpqrstvwxyz`), excluding visually ambiguous
+    /// letters (`i`, `l`, `o`, `u`) to minimize transcription errors during out-of-band entry.
     fn generate_id() -> String {
         let bytes: [u8; 5] = rand::random();
         let n = u64::from_be_bytes([
@@ -121,6 +150,10 @@ impl Mailbox {
     }
 
     /// Allocates a new mailbox entry bound to `user_id` and returns its 8-character ID.
+    ///
+    /// Loops to generate an 8-character Crockford Base32 identifier that does not collide
+    /// with an active cache entry, initializes its state to `Pending`, and inserts it
+    /// into the cache with a 300-second TTL.
     pub async fn create(&self, user_id: UserId) -> String {
         let mut id;
         loop {
@@ -140,12 +173,15 @@ impl Mailbox {
 
     /// Deposits a payload into the mailbox if currently in `Pending` state.
     ///
+    /// Atomically transitions the mailbox from `Pending` to `Fulfilled`.
+    /// If the entry has already been consumed, it is removed from the cache.
+    ///
     /// # Errors
     ///
     /// - Returns [`NotFound`] if the mailbox does not exist, has expired, belongs to another user,
     ///   or has already been consumed.
     /// - Returns [`BadRequest`] if the mailbox has already been fulfilled.
-    /// - Returns [`InternalErr`] if the mailbox mutex is poisoned.
+    /// - Returns [`InternalErr`] if the mailbox mutex guard is poisoned.
     pub async fn fulfill(
         &self,
         id: &str,
@@ -180,10 +216,10 @@ impl Mailbox {
         Ok(())
     }
 
-    /// Verifies that a mailbox exists and belongs to the given user.
+    /// Verifies that a mailbox exists and belongs to the specified user.
     ///
-    /// To prevent mailbox enumeration attacks, returns [`NotFound`] even if the mailbox
-    /// exists but belongs to a different tenant.
+    /// To prevent mailbox enumeration attacks across tenants, returns [`NotFound`]
+    /// both when the mailbox does not exist and when it belongs to a different user.
     ///
     /// # Errors
     ///
@@ -209,13 +245,14 @@ impl Mailbox {
     /// Retrieves the mailbox payload if fulfilled, burning the entry atomically upon pickup.
     ///
     /// Returns `Ok(None)` if the mailbox is still in `Pending` state. If fulfilled, returns
-    /// `Ok(Some(payload))` and evicts the mailbox from cache.
+    /// `Ok(Some(payload))` and evicts the mailbox from cache to enforce single-use
+    /// "burn-after-reading" semantics.
     ///
     /// # Errors
     ///
     /// - Returns [`NotFound`] if the mailbox does not exist, has expired, belongs to another user,
     ///   or has already been consumed.
-    /// - Returns [`InternalErr`] if the mailbox mutex is poisoned.
+    /// - Returns [`InternalErr`] if the mailbox mutex guard is poisoned.
     pub async fn pickup(
         &self,
         id: &str,

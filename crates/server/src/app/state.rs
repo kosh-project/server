@@ -64,6 +64,10 @@ pub struct State {
     /// passkey ceremonies to prevent challenge replay or memory leak issues.
     pub passkey: Passkey,
 
+    /// In-memory ephemeral mailbox cache for device pairing and ECDH key exchange.
+    ///
+    /// Stores short-lived, blind relay envelopes indexed by 8-character Crockford Base32
+    /// identifiers with automatic 300-second TTL expiration and single-use burn semantics.
     pub mailbox: Mailbox,
 }
 
