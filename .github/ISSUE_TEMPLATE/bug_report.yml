@@ -1,0 +1,57 @@
+name: Bug Report
+description: File a bug report to help us improve Kosh
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please provide as much detail as possible to help us diagnose and resolve the bug.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: What went wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Exact steps to reproduce the behavior.
+      placeholder: |
+        1. Start the server with `cargo run -p webdav-server`
+        2. Send request to ...
+        3. Observe error ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Info
+      description: Provide information about your operating system, Rust version, and hardware target.
+      placeholder: |
+        - OS: Linux (Ubuntu 24.04 / Debian 12 / Arch)
+        - Rust version: rustc --version output
+        - Target hardware: CPU / RAM (e.g., x86_64, aarch64, Raspberry Pi 4)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Backtraces
+      description: If applicable, add server or CLI logs (scrub any sensitive secret keys before pasting).
+      render: shell
