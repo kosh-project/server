@@ -11,6 +11,7 @@
 //! - [`crate::api::assets`] — Upload, download, and delete handlers for encrypted blobs.
 //! - [`crate::api::auth`] — Registration and login endpoints.
 //! - [`crate::api::middleware`] — Request authentication and response telemetry.
+//! - [`crate::api::mailbox`] — Ephemeral blind ECDH mailbox relay for device pairing.
 //! - [`crate::api::route`] — The top-level Axum router that composes all of the above.
 //! - [`mod@crate::api::error`] — The `api::Error` type that covers all HTTP-layer failures.
 /// Asset upload, paginated listing, streaming download, and deletion handlers.
@@ -27,3 +28,6 @@ pub mod sync;
 pub mod error;
 
 pub use error::{Error, Result};
+
+/// Ephemeral blind ECDH mailbox relay endpoints for device pairing.
+pub mod mailbox;

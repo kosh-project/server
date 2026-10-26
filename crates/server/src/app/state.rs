@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 use webauthn_rs::Webauthn;
 
 use crate::{
-    app::passkey::Passkey,
+    app::{Mailbox, Passkey},
     auth::Secret,
     model::session::TokenHash,
     storage::{self, ledger},
@@ -63,6 +63,12 @@ pub struct State {
     /// Provides thread-safe, bounded, Time-To-Live storage for multi-step
     /// passkey ceremonies to prevent challenge replay or memory leak issues.
     pub passkey: Passkey,
+
+    /// In-memory ephemeral mailbox cache for device pairing and ECDH key exchange.
+    ///
+    /// Stores short-lived, blind relay envelopes indexed by 8-character Crockford Base32
+    /// identifiers with automatic 300-second TTL expiration and single-use burn semantics.
+    pub mailbox: Mailbox,
 }
 
 impl State {

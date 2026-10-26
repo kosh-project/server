@@ -202,3 +202,41 @@ async fn passkey_registration_cache_lifecycle() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn mailbox_state_integration_lifecycle() -> anyhow::Result<()> {
+    let pool = SqlitePool::connect("sqlite::memory:")
+        .await
+        .context("db connect")?;
+    let secret = Secret::random();
+    let state = AppStateBuilder::new()
+        .vault_path("/tmp/test_vault")
+        .db(pool)
+        .secret(secret)
+        .build();
+
+    let user_id = 42;
+    let mailbox_id = state.mailbox.create(user_id).await;
+    assert_eq!(mailbox_id.len(), 8);
+
+    // Initial state is pending
+    let initial = state.mailbox.pickup(&mailbox_id, user_id).await?;
+    assert_eq!(initial, None);
+
+    // Fulfill via app state
+    let test_payload = vec![1, 2, 3, 4, 5, 6];
+    state
+        .mailbox
+        .fulfill(&mailbox_id, user_id, test_payload.clone())
+        .await?;
+
+    // Pickup via app state
+    let picked = state.mailbox.pickup(&mailbox_id, user_id).await?;
+    assert_eq!(picked, Some(test_payload));
+
+    // Consumed: second pickup returns NotFound
+    let retry = state.mailbox.pickup(&mailbox_id, user_id).await;
+    assert!(matches!(retry, Err(crate::api::Error::NotFound(_))));
+
+    Ok(())
+}
