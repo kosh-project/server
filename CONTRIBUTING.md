@@ -19,6 +19,7 @@ This document is the authoritative onboarding manual and engineering reference f
 10. [Telemetry and The Ratatui Admin CLI](#10-telemetry-and-the-ratatui-admin-cli)
 11. [Development Setup and Workflow](#11-development-setup-and-workflow)
 12. [Coding Standards and Lint Contract](#12-coding-standards-and-lint-contract)
+13. [Code of Conduct](#13-code-of-conduct)
 
 ---
 
@@ -384,5 +385,13 @@ cargo test --workspace
 # 4. Verify documentation compiles with zero warnings or broken links
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
+
+---
+
+## 13. Code of Conduct
+
+All contributors, maintainers, and community members are expected to follow our [Code of Conduct](CODE_OF_CONDUCT.md). Please report any unacceptable behavior to the project maintainers via GitHub Private Vulnerability Reporting or repository contacts.
+
+---
 
 Thank you for helping build Kosh!
