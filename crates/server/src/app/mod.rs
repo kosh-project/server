@@ -13,7 +13,10 @@
 pub mod state;
 pub use state::State;
 mod builder;
+mod mailbox;
 mod passkey;
+
+pub use mailbox::Mailbox;
 
 /// In-memory challenge cache for multi-step passkey registration and login ceremonies.
 pub use passkey::Passkey;
