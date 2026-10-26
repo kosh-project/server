@@ -11,6 +11,7 @@ use crate::{
         self,
         assets::{self, list},
         auth::{self, challenge, passkey, pow_guard},
+        mailbox,
         middleware::{
             // auth_ip_limiter, device_limiter, global_ip_limiter,
             RateLimitExt,
@@ -118,6 +119,9 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         )
         .route("/auth/passkey/{credential_id}", delete(passkey::delete))
         .route("/auth/passkey", get(passkey::list))
+        .route("/devices/mailbox", post(mailbox::create))
+        .route("/devices/mailbox/{id}/fulfill", post(mailbox::fulfill))
+        .route("/devices/mailbox/{id}", get(mailbox::pickup))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
         .with_device_limit()
         .route_layer(middleware::from_fn_with_state(state.clone(), mac_guard))
