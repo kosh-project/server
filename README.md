@@ -213,7 +213,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
 We welcome contributions from developers interested in systems programming, cryptography, low-level I/O optimization, and clean architecture.
 
-Please read our [**Contributor and Architecture Guide**](CONTRIBUTING.md) for detailed onboarding instructions, database migration workflows, and code review expectations.
+Please read our [**Contributor and Architecture Guide**](CONTRIBUTING.md) for detailed onboarding instructions, database migration workflows, and code review expectations. All contributors are expected to adhere to our [**Code of Conduct**](CODE_OF_CONDUCT.md).
 
 ---
 
