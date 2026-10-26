@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use axum::Router;
 use hyper::Request;
@@ -89,7 +89,7 @@ impl RateLimitExt for Router<app::State> {
     fn with_global_ip_limit(self) -> Self {
         let config = Arc::new(
             GovernorConfigBuilder::default()
-                .per_second(25)
+                .period(Duration::from_millis(40))
                 .burst_size(10)
                 .finish()
                 .expect("Failed to build global IP governor"),
@@ -101,7 +101,7 @@ impl RateLimitExt for Router<app::State> {
     fn with_auth_ip_limit(self) -> Self {
         let config = Arc::new(
             GovernorConfigBuilder::default()
-                .per_second(2)
+                .period(Duration::from_millis(200))
                 .burst_size(2)
                 .finish()
                 .expect("Failed to build auth IP governor"),

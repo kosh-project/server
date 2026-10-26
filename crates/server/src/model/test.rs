@@ -2,6 +2,7 @@
 #![allow(clippy::panic_in_result_fn)]
 #![allow(clippy::string_slice)]
 #![allow(clippy::unnecessary_wraps)]
+#![allow(clippy::assert_is_empty)]
 
 use super::{
     session::{Session, TokenHash},
@@ -99,6 +100,113 @@ async fn user_verify_nonexistent_identity_returns_none() -> Result<()> {
         .context("failed to execute user verification")?;
     // Test: verify non-existent user identity yields None
     assert!(verified_id.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn user_find_by_id_success() -> Result<()> {
+    let pool = setup_db().await?;
+    let identity_hash = [5u8; 32];
+    let verifier = "verifier_5".to_string();
+    let wrapped_vault_key = [8u8; 60];
+
+    User::create(&pool, &identity_hash, verifier, &wrapped_vault_key).await?;
+
+    let found = User::find_by_id(&pool, 1).await?;
+    assert_eq!(
+        found,
+        Some(crate::model::user::Verified {
+            id: 1,
+            wrapped_vault_key: wrapped_vault_key.to_vec(),
+        })
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn user_find_by_id_nonexistent_returns_none() -> Result<()> {
+    let pool = setup_db().await?;
+    let found = User::find_by_id(&pool, 9999).await?;
+    assert!(found.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn user_rotate_recovery_success() -> Result<()> {
+    let pool = setup_db().await?;
+    let identity_hash1 = [20u8; 32];
+    let verifier1 = "verifier_initial".to_string();
+    let wrapped_key1 = [1u8; 60];
+
+    User::create(&pool, &identity_hash1, verifier1.clone(), &wrapped_key1)
+        .await?;
+
+    let identity_hash2 = [21u8; 32];
+    let verifier2 = "verifier_rotated".to_string();
+    let wrapped_key2 = [2u8; 60];
+
+    let rows_affected = User::rotate_recovery(
+        &pool,
+        1,
+        &identity_hash2,
+        &verifier2,
+        &wrapped_key2,
+    )
+    .await?;
+    assert_eq!(rows_affected, 1);
+
+    // Old credentials no longer verify
+    assert!(
+        User::verify(&pool, &identity_hash1, verifier1)
+            .await?
+            .is_none()
+    );
+
+    // New credentials verify and return rotated wrapped_vault_key
+    let verified = User::verify(&pool, &identity_hash2, verifier2)
+        .await?
+        .context("user must verify with new credentials")?;
+    assert_eq!(verified.id, 1);
+    assert_eq!(verified.wrapped_vault_key, wrapped_key2.to_vec());
+
+    // find_by_id returns updated wrapped_vault_key
+    let found = User::find_by_id(&pool, 1).await?.context("user exists")?;
+    assert_eq!(found.wrapped_vault_key, wrapped_key2.to_vec());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn user_rotate_recovery_nonexistent_returns_zero() -> Result<()> {
+    let pool = setup_db().await?;
+    let identity_hash = [22u8; 32];
+    let rows =
+        User::rotate_recovery(&pool, 9999, &identity_hash, "v", &[0u8; 60])
+            .await?;
+    assert_eq!(rows, 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn user_rotate_recovery_duplicate_identity_rejected() -> Result<()> {
+    let pool = setup_db().await?;
+    let id1 = [23u8; 32];
+    let id2 = [24u8; 32];
+
+    User::create(&pool, &id1, "v1".to_string(), &[1u8; 60]).await?;
+    User::create(&pool, &id2, "v2".to_string(), &[2u8; 60]).await?;
+
+    // Attempting to rotate user 2 to id1 should fail with UniqueViolation
+    let res = User::rotate_recovery(&pool, 2, &id1, "v_new", &[3u8; 60]).await;
+    assert!(matches!(res, Err(crate::model::Error::UniqueViolation)));
+
+    // User 2's credentials remain untouched
+    let verified = User::verify(&pool, &id2, "v2".to_string()).await?;
+    assert!(verified.is_some());
 
     Ok(())
 }
@@ -272,6 +380,94 @@ async fn session_stateful_verify_and_revoke() -> Result<()> {
         .context("failed to re-verify revoked session")?;
     // Test: verify revoked session is no longer retrievable
     assert!(after_revoke.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn session_revoke_other_sessions_keeps_active() -> Result<()> {
+    let pool = setup_db().await?;
+    let secret = Secret::random();
+    let identity_hash1 = [15u8; 32];
+    let identity_hash2 = [16u8; 32];
+
+    User::create(&pool, &identity_hash1, "v1".to_string(), &[0u8; 60]).await?;
+    User::create(&pool, &identity_hash2, "v2".to_string(), &[0u8; 60]).await?;
+
+    // Create 3 sessions for user 1
+    let token1 = Session::create(&pool, 1, &secret).await?;
+    let token2 = Session::create(&pool, 1, &secret).await?;
+    let token3 = Session::create(&pool, 1, &secret).await?;
+
+    // Create 1 session for user 2
+    let token_u2 = Session::create(&pool, 2, &secret).await?;
+
+    let hash1 = hash(token1.as_bytes());
+    let hash2 = hash(token2.as_bytes());
+    let hash3 = hash(token3.as_bytes());
+    let hash_u2 = hash(token_u2.as_bytes());
+
+    // Check find_other_token_hashes for user 1 keeping session 2
+    let others =
+        Session::find_other_token_hashes(&pool, 1, hash2.as_bytes()).await?;
+    assert_eq!(others.len(), 2);
+    let mut other_hashes: Vec<[u8; 32]> =
+        others.into_iter().map(|th| th.0).collect();
+    other_hashes.sort_unstable();
+    let mut expected_hashes = vec![*hash1.as_bytes(), *hash3.as_bytes()];
+    expected_hashes.sort_unstable();
+    assert_eq!(other_hashes, expected_hashes);
+
+    // Revoke other sessions keeping session 2
+    let revoked =
+        Session::revoke_other_sessions(&pool, 1, hash2.as_bytes()).await?;
+    assert_eq!(revoked.len(), 2);
+
+    // Session 2 is still valid
+    let s2 = Session::verify(&pool, hash2.as_bytes())
+        .await?
+        .context("session 2 must exist")?;
+    assert_eq!(s2.user_id, 1);
+
+    // Sessions 1 and 3 are revoked
+    assert!(Session::verify(&pool, hash1.as_bytes()).await?.is_none());
+    assert!(Session::verify(&pool, hash3.as_bytes()).await?.is_none());
+
+    // User 2's session is untouched
+    let su2 = Session::verify(&pool, hash_u2.as_bytes())
+        .await?
+        .context("user 2 session must exist")?;
+    assert_eq!(su2.user_id, 2);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn session_revoke_other_sessions_when_none_exist() -> Result<()> {
+    let pool = setup_db().await?;
+    let secret = Secret::random();
+    let id_hash = [25u8; 32];
+    User::create(&pool, &id_hash, "v".to_string(), &[0u8; 60]).await?;
+
+    // User only has a single active session
+    let token = Session::create(&pool, 1, &secret).await?;
+    let token_hash = hash(token.as_bytes());
+
+    let others =
+        Session::find_other_token_hashes(&pool, 1, token_hash.as_bytes())
+            .await?;
+    assert!(others.is_empty());
+
+    let revoked =
+        Session::revoke_other_sessions(&pool, 1, token_hash.as_bytes()).await?;
+    assert!(revoked.is_empty());
+
+    // Original session is still valid
+    assert!(
+        Session::verify(&pool, token_hash.as_bytes())
+            .await?
+            .is_some()
+    );
 
     Ok(())
 }

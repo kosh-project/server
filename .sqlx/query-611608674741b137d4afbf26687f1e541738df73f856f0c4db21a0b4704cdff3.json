@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                credential_id AS 'credential_id!'\n            FROM\n                webauthn_credentials\n            WHERE\n                user_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "credential_id!",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "webauthn_credentials",
+            "name": "credential_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "611608674741b137d4afbf26687f1e541738df73f856f0c4db21a0b4704cdff3"
+}

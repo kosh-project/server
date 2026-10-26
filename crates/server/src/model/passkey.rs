@@ -1,8 +1,10 @@
 //! `WebAuthn` hardware passkey credential entities and database query models.
 
-use crate::model::Result;
+use crate::{error::internal, model::Result};
+use chrono::Utc;
 use serde::Serialize;
 use sqlx::SqlitePool;
+use webauthn_rs::prelude::{CredentialID, Passkey};
 
 /// A complete `WebAuthn` credential record stored in the `webauthn_credentials` table.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,9 +42,54 @@ pub struct Summary {
 }
 
 impl Record {
-    /// Inserts a new passkey credential record into the `webauthn_credentials` table.
+    /// Constructs a new passkey record from a verified `WebAuthn` passkey registration.
+    ///
+    /// Extracts the raw credential ID from `passkey.cred_id()`, serializes the internal
+    /// passkey state to JSON bytes, initializes the signature counter to `0`, sets the
+    /// creation timestamp to the current Unix time, and marks `last_used` as `0`.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_id` - The database primary key of the owning user.
+    /// * `passkey` - The verified passkey object produced by `webauthn-rs` at the end of registration.
+    /// * `encrypted_metadata` - Client-encrypted metadata blob (e.g., user-assigned device nickname).
     ///
     /// # Errors
+    ///
+    /// Returns [`crate::model::Error::Internal`] if serializing the passkey state to JSON fails.
+    pub fn new(
+        user_id: i64,
+        passkey: &Passkey,
+        encrypted_metadata: Vec<u8>,
+    ) -> Result<Self> {
+        let Ok(passkey_data) = serde_json::to_vec(passkey) else {
+            Err(internal::Error::Message(
+                "Failed to serialize passkey state",
+            ))?
+        };
+
+        let now = Utc::now().timestamp();
+
+        Ok(Self {
+            credential_id: passkey.cred_id().to_vec(),
+            user_id,
+            passkey_data,
+            counter: 0,
+            encrypted_metadata,
+            created_at: now,
+            last_used: 0,
+        })
+    }
+
+    /// Inserts a new passkey credential record into the `webauthn_credentials` table.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `record` - The new [`Record`] to persist.
+    ///
+    /// # Errors
+    ///
     /// - Returns [`crate::model::Error::UniqueViolation`] if `credential_id` is already registered.
     /// - Returns [`crate::model::Error::ForeignKeyViolation`] if `user_id` does not exist in `users`.
     /// - Returns [`crate::model::Error::CheckViolation`] if `encrypted_metadata` exceeds 1024 bytes.
@@ -77,7 +124,15 @@ impl Record {
 
     /// Fetches a passkey credential record by its raw `credential_id`.
     ///
+    /// Returns `Some(Record)` if a matching credential exists, or `None` if not found.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `id` - Raw credential identifier bytes.
+    ///
     /// # Errors
+    ///
     /// - Returns [`crate::model::Error::Database`] if the database query fails.
     pub async fn find(pool: &SqlitePool, id: &[u8]) -> Result<Option<Self>> {
         let record = sqlx::query_as!(
@@ -106,8 +161,16 @@ impl Record {
 
     /// Lists all passkey summaries for a given user ordered newest to oldest.
     ///
+    /// Returns a vector of [`Summary`] records sorted by registration time (`created_at DESC`).
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `user_id` - The database primary key of the owning user.
+    ///
     /// # Errors
-    /// - Returns [`crate::model::Error::Database`] if the database query fails.
+    ///
+    /// Returns [`crate::model::Error::Database`] if the database query fails.
     pub async fn list_for_user(
         pool: &SqlitePool,
         user_id: i64,
@@ -142,13 +205,28 @@ impl Record {
             .collect())
     }
 
-    /// Updates the signature counter and last-used timestamp after a successful authentication.
+    /// Updates the serialized passkey state, signature counter, and last-used timestamp after a successful authentication.
+    ///
+    /// In the `WebAuthn` standard, authenticators increment an internal signature counter with
+    /// every assertion. Verifying and persisting this monotonically increasing counter enables
+    /// detection of cloned authenticators: if a counter value ever decreases or remains identical
+    /// across uses (for authenticators supporting counters), cloning is suspected.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `credential_id` - Raw credential identifier bytes matching the authenticator used.
+    /// * `passkey_data` - Updated serialized JSON bytes of the [`Passkey`] instance.
+    /// * `new_counter` - The new signature counter value reported by the authenticator assertion.
+    /// * `last_used` - Unix timestamp in seconds when the authentication occurred.
     ///
     /// # Errors
-    /// - Returns [`crate::model::Error::Database`] if the database query fails.
+    ///
+    /// Returns [`crate::model::Error::Database`] if the `SQLite` update query fails.
     pub async fn update_counter(
         pool: &SqlitePool,
         credential_id: &[u8],
+        passkey_data: &[u8],
         new_counter: i64,
         last_used: i64,
     ) -> Result<()> {
@@ -157,11 +235,13 @@ impl Record {
             UPDATE
                 webauthn_credentials
             SET
+                passkey_data = ?,
                 counter = ?,
                 last_used = ?
             WHERE
                 credential_id = ?
         "#,
+            passkey_data,
             new_counter,
             last_used,
             credential_id
@@ -174,10 +254,18 @@ impl Record {
 
     /// Deletes a passkey credential belonging to a specific user.
     ///
-    /// Returns `true` if a row was deleted, or `false` if no matching record was found.
+    /// Returns `true` if a row was deleted, or `false` if no matching record was found
+    /// (e.g., if the credential ID does not exist or belongs to another user).
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `credential_id` - Raw credential identifier bytes.
+    /// * `user_id` - The database primary key of the owning user.
     ///
     /// # Errors
-    /// - Returns [`crate::model::Error::Database`] if the database query fails.
+    ///
+    /// Returns [`crate::model::Error::Database`] if the database query fails.
     pub async fn delete(
         pool: &SqlitePool,
         credential_id: &[u8],
@@ -201,4 +289,53 @@ impl Record {
 
         Ok(rows_affected > 0)
     }
+
+    /// Returns the list of registered credential IDs for a user to populate the `excludeCredentials` list.
+    ///
+    /// During `WebAuthn` registration, supplying the existing credential IDs in `excludeCredentials`
+    /// signals to the browser and authenticator that the user already has a passkey registered on
+    /// this device for this account, preventing redundant duplicate credentials from being created.
+    ///
+    /// If the user has no registered passkeys, returns `Ok(None)`, allowing the registration
+    /// options to omit the exclusion list cleanly.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `user_id` - The database primary key of the user.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::model::Error::Database`] if the `SQLite` query fails.
+    pub async fn exclude_list_for_user(
+        pool: &SqlitePool,
+        user_id: i64,
+    ) -> Result<Option<Vec<CredentialID>>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                credential_id AS 'credential_id!'
+            FROM
+                webauthn_credentials
+            WHERE
+                user_id = ?
+            "#,
+            &user_id
+        )
+        .fetch_all(pool)
+        .await?;
+
+        if rows.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(
+            rows.into_iter()
+                .map(|r| CredentialID::from(r.credential_id))
+                .collect(),
+        ))
+    }
 }
+
+#[cfg(test)]
+mod test;

@@ -1,9 +1,11 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use moka::future::Cache;
 use sqlx::SqlitePool;
+use webauthn_rs::Webauthn;
 
 use crate::{
+    app::passkey::Passkey,
     auth::Secret,
     model::session::TokenHash,
     storage::{self, ledger},
@@ -48,6 +50,19 @@ pub struct State {
     /// Because it is never persisted, all pending challenges are automatically
     /// invalidated when the server restarts.
     pub pow_secret: Secret,
+
+    /// The `WebAuthn` relying party instance.
+    ///
+    /// Configured with the server's RP ID, Origin URL, and display name.
+    /// Shared across all requests via an [`Arc`] and used to generate registration
+    /// or authentication challenges and verify client assertions.
+    pub webauthn: Arc<Webauthn>,
+
+    /// In-memory cache holding pending `WebAuthn` registration and login challenges.
+    ///
+    /// Provides thread-safe, bounded, Time-To-Live storage for multi-step
+    /// passkey ceremonies to prevent challenge replay or memory leak issues.
+    pub passkey: Passkey,
 }
 
 impl State {

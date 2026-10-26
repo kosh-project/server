@@ -10,7 +10,7 @@ use crate::{
     api::{
         self,
         assets::{self, list},
-        auth::{self, challenge, pow_guard},
+        auth::{self, challenge, passkey, pow_guard},
         middleware::{
             // auth_ip_limiter, device_limiter, global_ip_limiter,
             RateLimitExt,
@@ -50,18 +50,24 @@ pub fn route_main(state: AppState) -> Router {
 /// Constructs the unauthenticated authentication sub-router.
 ///
 /// These endpoints do not require a Bearer token and are intentionally
-/// excluded from the `auth_guard` middleware layer.
+/// excluded from the `auth_guard` middleware layer. Rate limiting is applied
+/// per IP address via `auth_ip_limit`.
 ///
-/// | Method | Path | Handler |
-/// |--------|------|---------|
-/// | `POST` | `/api/auth/register` | [`api::auth::register`] |
-/// | `POST` | `/api/auth/login` | [`api::auth::login`] |
+/// | Method | Path | Handler | Description |
+/// |--------|------|---------|-------------|
+/// | `POST` | `/api/auth/register` | [`api::auth::register`] | Password-based user registration with `PoW` |
+/// | `POST` | `/api/auth/login` | [`api::auth::login`] | Password-based user login with `PoW` |
+/// | `GET`  | `/api/auth/challenge` | [`challenge::generate`] | Issues stateless Hashcash `PoW` challenge |
+/// | `POST` | `/api/auth/passkey/login/start` | [`passkey::login_start`] | Initiates discoverable passkey login ceremony |
+/// | `POST` | `/api/auth/passkey/login/finish` | [`passkey::login_finish`] | Completes passkey login and issues session token |
 fn auth_route(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/register", post(api::auth::register))
         .route("/login", post(api::auth::login))
         .route_layer(middleware::from_fn_with_state(state.clone(), pow_guard))
         .route("/challenge", get(challenge::generate))
+        .route("/passkey/login/start", post(passkey::login_start))
+        .route("/passkey/login/finish", post(passkey::login_finish))
         .with_auth_ip_limit()
 }
 
@@ -69,20 +75,27 @@ fn auth_route(state: &AppState) -> Router<AppState> {
 ///
 /// Every route registered here is wrapped by [`auth_guard`], which validates
 /// the `Authorization: Bearer <token>` header and injects the resolved
-/// `user_id` into the request extensions before the handler is called.
+/// `user_id` into the request extensions before the handler is called. In addition,
+/// requests pass through [`mac_guard`] to verify session token cryptographic signatures
+/// and [`RateLimitExt::with_device_limit`] to throttle abusive callers.
 ///
-/// | Method | Path | Handler |
-/// |--------|------|---------|
-/// | `POST` | `/api/v1/upload/{tag}` | [`assets::upload`] |
-/// | `GET` | `/api/v1/assets/{hash}` | [`assets::get`] |
-/// | `DELETE` | `/api/v1/assets/{hash}` | [`assets::delete`] |
-/// | `GET` | `/api/v1/storage` | [`storage`] |
-/// | `POST` | `/api/v1/sync/delta` | [`api::sync::append_delta`] |
-/// | `GET` | `/api/v1/sync/delta` | [`api::sync::stream_delta`] |
-/// | `DELETE` | `/api/v1/sync/prune` | [`api::sync::prune_ledger`] |
-/// | `GET` | `/api/v1/sync/snapshot` | [`api::sync::latest_snapshot`] |
-/// | `POST` | `/api/v1/sync/snapshot` | [`api::sync::register_snapshot`] |
-/// | `PUT` | `/api/v1/auth/recovery` | [`auth::rotate`] |
+/// | Method | Path | Handler | Description |
+/// |--------|------|---------|-------------|
+/// | `POST` | `/api/v1/upload/{tag}` | [`assets::upload`] | Uploads a content-addressed binary asset blob |
+/// | `GET` | `/api/v1/assets` | [`list`] | Lists assets with cursor pagination and tag filters |
+/// | `GET` | `/api/v1/assets/{hash}` | [`assets::get`] | Streams an asset by `BLAKE3` hash |
+/// | `DELETE` | `/api/v1/assets/{hash}` | [`assets::delete`] | Decrements ownership reference count for an asset |
+/// | `GET` | `/api/v1/storage` | [`storage`] | Checks storage subsystem availability |
+/// | `POST` | `/api/v1/sync/delta` | [`api::sync::append_delta`] | Appends delta sync segment |
+/// | `GET` | `/api/v1/sync/delta` | [`api::sync::stream_delta`] | Streams delta sync segments |
+/// | `DELETE` | `/api/v1/sync/prune` | [`api::sync::prune_ledger`] | Prunes merged delta sync segments |
+/// | `GET` | `/api/v1/sync/snapshot` | [`api::sync::latest_snapshot`] | Retrieves the latest state snapshot |
+/// | `POST` | `/api/v1/sync/snapshot` | [`api::sync::register_snapshot`] | Registers a new state snapshot |
+/// | `PUT` | `/api/v1/auth/recovery` | [`auth::rotate`] | Rotates user authentication and recovery credentials |
+/// | `POST` | `/api/v1/auth/passkey/register/start` | [`passkey::register_start`] | Generates passkey creation challenge |
+/// | `POST` | `/api/v1/auth/passkey/register/finish` | [`passkey::register_finish`] | Completes passkey registration and persists credential |
+/// | `GET` | `/api/v1/auth/passkey` | [`passkey::list`] | Lists all registered passkeys for caller |
+/// | `DELETE` | `/api/v1/auth/passkey/{credential_id}` | [`passkey::delete`] | Deletes a registered passkey owned by caller |
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/upload/{tag}", post(assets::upload))
@@ -95,6 +108,16 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .route("/sync/snapshot", get(sync::latest_snapshot))
         .route("/sync/snapshot", post(sync::register_snapshot))
         .route("/auth/recovery", put(auth::rotate))
+        .route(
+            "/auth/passkey/register/start",
+            post(passkey::register_start),
+        )
+        .route(
+            "/auth/passkey/register/finish",
+            post(passkey::register_finish),
+        )
+        .route("/auth/passkey/{credential_id}", delete(passkey::delete))
+        .route("/auth/passkey", get(passkey::list))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
         .with_device_limit()
         .route_layer(middleware::from_fn_with_state(state.clone(), mac_guard))

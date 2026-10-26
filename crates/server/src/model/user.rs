@@ -132,4 +132,43 @@ impl User {
 
         Ok(rows_affected)
     }
+
+    /// Looks up a verified user record by database primary key ID.
+    ///
+    /// Returns `Some(Verified)` containing the user's ID and encrypted `wrapped_vault_key`
+    /// if a matching user exists in the database, or `None` if no record was found.
+    ///
+    /// This lookup is used during passkey authentication to retrieve the user's
+    /// encrypted vault key after their public key signature has been verified.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - The `SQLite` connection pool.
+    /// * `id` - The database primary key of the user (`users.id`).
+    ///
+    /// # Errors
+    ///
+    /// - Returns [`crate::model::Error::Database`] if the database query fails.
+    pub async fn find_by_id(
+        pool: &SqlitePool,
+        id: i64,
+    ) -> Result<Option<Verified>> {
+        let result = sqlx::query_as!(
+            Verified,
+            r#"
+                SELECT
+                    id,
+                    wrapped_vault_key
+                FROM
+                    users
+                WHERE
+                    id = ?
+            "#,
+            id
+        )
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(result)
+    }
 }
