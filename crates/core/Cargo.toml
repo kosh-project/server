@@ -19,6 +19,7 @@ knuffel = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 miette = { workspace = true }
+local-ip-address = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = '0.2', default-features = false }
