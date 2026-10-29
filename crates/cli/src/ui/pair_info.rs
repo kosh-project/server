@@ -7,13 +7,13 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph, Widget},
 };
 
-use crate::core::pairing::PairingData;
+use crate::core::pairing;
 
 #[derive(Default)]
 pub struct PairInfo {
     pub is_visible: bool,
     pub is_online: bool,
-    pub data: PairingData,
+    pub data: pairing::Data,
 }
 
 impl PairInfo {
@@ -27,7 +27,7 @@ impl PairInfo {
 
         let bytes = cert.fingerprint_raw()?;
 
-        let data = PairingData::new(config.enable_tls, config.port, &bytes)?;
+        let data = pairing::Data::new(config, &bytes)?;
 
         Ok(Self {
             is_visible: false,
@@ -169,3 +169,95 @@ fn _render_heading(area: Rect, buf: &mut Buffer) {
 
     heading.render(rect, buf);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Context;
+    use kosh_core::config::{Config, Mdns, Passkey};
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+    use tmpdir::TmpDir;
+
+    #[test]
+    fn test_help_line() {
+        let line = PairInfo::help_line();
+        let rendered = line.to_string();
+        assert!(rendered.contains("<p>"));
+        assert!(rendered.contains("hide this menu"));
+    }
+
+    #[tokio::test]
+    async fn test_try_from_succeeds_with_tls_identity() -> anyhow::Result<()> {
+        let temp_dir = TmpDir::new("pair-info-test")
+            .await
+            .context("create temp dir")?;
+        let vault_path = temp_dir.to_path_buf();
+
+        let _ = tls::Identity::load_or_create(&vault_path, &["kosh-ui.local"])
+            .await
+            .context("generate test tls identity")?;
+
+        let config = Config {
+            vault_path,
+            port: 23342,
+            host: "0.0.0.0".to_string(),
+            enable_tls: true,
+            socket_path: "/tmp/kosh.sock".to_string(),
+            passkey: Passkey::default(),
+            mdns: Mdns {
+                enable: true,
+                hostname: "kosh-ui".to_string(),
+                ..Default::default()
+            },
+        };
+
+        let pair_info = PairInfo::try_from(&config)
+            .await
+            .context("PairInfo::try_from should succeed")?;
+
+        assert!(!pair_info.is_visible);
+        assert!(!pair_info.is_online);
+        assert!(pair_info.data.tls_enabled);
+        assert_eq!(pair_info.data.words.len(), 3);
+        assert!(!pair_info.data.qr_lines.is_empty());
+
+        let address_text: Vec<String> = pair_info
+            .data
+            .server_address
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
+        assert!(address_text.iter().any(|l| l.contains("kosh-ui.local")));
+
+        // Test widget rendering
+        let area = Rect::new(0, 0, 80, 24);
+        let mut buf = Buffer::empty(area);
+        Widget::render(&pair_info, area, &mut buf);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_try_from_fails_when_cert_missing() -> anyhow::Result<()> {
+        let temp_dir = TmpDir::new("pair-info-missing")
+            .await
+            .context("create temp dir")?;
+
+        let config = Config {
+            vault_path: temp_dir.to_path_buf(),
+            port: 23342,
+            host: "0.0.0.0".to_string(),
+            enable_tls: true,
+            socket_path: "/tmp/kosh.sock".to_string(),
+            passkey: Passkey::default(),
+            mdns: Mdns::default(),
+        };
+
+        let result = PairInfo::try_from(&config).await;
+        assert!(result.is_err(), "PairInfo::try_from must fail when cert.pem is absent");
+
+        Ok(())
+    }
+}
+
