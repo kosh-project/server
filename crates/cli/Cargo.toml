@@ -23,3 +23,7 @@ qrcodegen = "1.8.0"
 bip39 = "3.0.0"
 base64 = "0.23.1"
 local-ip-address = { workspace = true }
+
+[dev-dependencies]
+tmpdir = "1.0.0"
+

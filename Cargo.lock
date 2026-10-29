@@ -585,6 +585,7 @@ dependencies = [
  "qrcodegen",
  "ratatui",
  "textwrap 0.16.2",
+ "tmpdir",
  "tokio",
  "webdav-server",
 ]
