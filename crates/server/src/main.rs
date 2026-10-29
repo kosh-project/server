@@ -1,25 +1,22 @@
 use kosh_core::config::Config;
 use kosh_core::tls;
 use rustls::crypto::ring;
-use std::str::FromStr;
 use tokio::io;
 use tokio::{signal, sync::watch};
 use webdav_server::auth::Secret;
 use webdav_server::error::boot;
 use webdav_server::error::boot::Error::AlreadyInitiated;
+use webdav_server::mdns;
+use webdav_server::model::database;
 use webdav_server::server::Launcher;
+use webdav_server::storage;
 use webdav_server::{
     api::route::route_main,
     app::AppStateBuilder,
     info,
-    logger::{self, GLOBAL_LOGGER, Module},
+    logger::{self, Module},
     shutdown,
     storage::ledger,
-};
-
-use sqlx::sqlite::{
-    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
-    SqliteSynchronous,
 };
 
 async fn shutdown_signal() -> io::Result<()> {
@@ -66,39 +63,11 @@ async fn boot() -> Result<(), boot::Error> {
 
     let config = Config::load_or_init().await?;
 
-    tokio::fs::create_dir_all(&config.vault_path).await?;
-    info!(
-        Module::Storage,
-        "Vault initialized at {}",
-        config.vault_path.display()
-    );
-
-    let db_path =
-        format!("sqlite://{}/metadata.db", config.vault_path.display());
-
+    let logger_handle = logger::init(&config).await?;
+    storage::init(&config).await?;
+    let pool = database::init(&config).await?;
     let secret = Secret::load_or_create(&config).await?;
-
-    let options = SqliteConnectOptions::from_str(&db_path)?
-        .journal_mode(SqliteJournalMode::Wal)
-        .synchronous(SqliteSynchronous::Normal)
-        .pragma("mmap_size", "30000000000")
-        .pragma("temp_store", "MEMORY")
-        .create_if_missing(true)
-        .foreign_keys(true);
-
-    let pool = SqlitePoolOptions::new()
-        .max_connections(50)
-        .connect_with(options)
-        .await?;
-
-    let (log_sender, logger_handle) = logger::Service::start(&config).await?;
-
-    GLOBAL_LOGGER
-        .set(log_sender)
-        .map_err(|_| AlreadyInitiated("Global Logger"))?;
-
-    sqlx::migrate!("./migrations").run(&pool).await?;
-    info!(Module::Database, "Applied all pending SQLite migrations");
+    let identity = tls::init(&config).await?;
 
     let app_state = AppStateBuilder::new()
         .db(pool.clone())
@@ -106,12 +75,10 @@ async fn boot() -> Result<(), boot::Error> {
         .secret(secret)
         .build();
 
-    let identity =
-        tls::Identity::load_or_create(app_state.vault_path().to_owned())
-            .await?;
-
     let ledger_sender = app_state.ledger.sender().clone();
     let app = route_main(app_state);
+
+    let broadcaster = mdns::init(&config);
 
     let (shutdown_tx, _rx) = watch::channel(false);
 
@@ -123,6 +90,11 @@ async fn boot() -> Result<(), boot::Error> {
         config.enable_tls,
     );
     launcher.run(shutdown_signal()).await?;
+
+    if let Some(b) = broadcaster {
+        b.shutdown();
+        info!(Module::Server, "mDNS broadcaster shut down cleanly");
+    }
 
     info!(
         Module::Database,

@@ -18,14 +18,10 @@ use tokio::{
     net::UnixDatagram,
     spawn,
     sync::mpsc::{Receiver, Sender, channel},
-    task::JoinHandle,
-    time::{MissedTickBehavior, interval, timeout},
+    time::{MissedTickBehavior, interval},
 };
 
-use crate::{
-    fatal,
-    logger::{Entry, Module, error::Result},
-};
+use crate::logger::{self, Entry, error::Result};
 
 /// The number of milliseconds in one calendar day (24 * 60 * 60 * 1000).
 ///
@@ -100,7 +96,7 @@ impl Service {
     /// created or the initial log file cannot be opened.
     pub async fn start(
         config: &Config,
-    ) -> Result<(Sender<Entry>, LoggerHandler)> {
+    ) -> Result<(Sender<Entry>, logger::Handle)> {
         let (sender, receiver) = channel(1000);
 
         let log_path = config.log_path();
@@ -127,7 +123,7 @@ impl Service {
         };
 
         let task = spawn(async move { service.run().await });
-        Ok((sender, LoggerHandler(task)))
+        Ok((sender, logger::Handle(task)))
     }
 
     /// Returns the path to the directory where daily log files are written.
@@ -228,32 +224,4 @@ pub fn format_date_time(time_stamp_millis: i64) -> String {
     let time =
         DateTime::from_timestamp_millis(time_stamp_millis).unwrap_or_default();
     format!("log_{}-{}-{}.bin", time.year(), time.month(), time.day())
-}
-
-/// A handle to the background logging task.
-///
-/// Returned by [`Service::start`] alongside the channel sender. The caller should
-/// retain this handle and use it during the server's graceful shutdown sequence to
-/// ensure that all buffered log entries are flushed to disk before the process exits.
-pub struct LoggerHandler(JoinHandle<()>);
-
-impl LoggerHandler {
-    /// Waits for the logging task to finish, with a timeout.
-    ///
-    /// Before calling this method, the caller must send a [`kosh_core::logger::Level::Shutdown`]
-    /// entry through the channel (typically via the [`crate::shutdown!`] macro) to signal the
-    /// service to exit its receive loop. This method then waits up to `secs` seconds for
-    /// the task to join.
-    ///
-    /// If the task does not finish within the grace period, a [`kosh_core::logger::Level::Fatal`]
-    /// log entry is emitted (which will itself be silently dropped if the sender is gone) and the
-    /// method returns, allowing the OS to clean up the task.
-    pub async fn shutdown_with_grace(self, secs: u64) {
-        if let Err(e) = timeout(Duration::from_secs(secs), self.0).await {
-            fatal!(
-                Module::Logger,
-                "Grace period of {secs} secs, timed out, forcefully terminating engine.\n{e}"
-            );
-        }
-    }
 }
