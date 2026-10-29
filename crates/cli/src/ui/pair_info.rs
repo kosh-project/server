@@ -255,9 +255,11 @@ mod tests {
         };
 
         let result = PairInfo::try_from(&config).await;
-        assert!(result.is_err(), "PairInfo::try_from must fail when cert.pem is absent");
+        assert!(
+            result.is_err(),
+            "PairInfo::try_from must fail when cert.pem is absent"
+        );
 
         Ok(())
     }
 }
-

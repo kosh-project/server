@@ -44,8 +44,8 @@ async fn test_mdns_broadcast_and_shutdown_lifecycle() -> anyhow::Result<()> {
     };
 
     // Start broadcaster
-    let broadcaster =
-        Broadcaster::start(&config).context("failed to start mDNS broadcaster")?;
+    let broadcaster = Broadcaster::start(&config)
+        .context("failed to start mDNS broadcaster")?;
 
     // Verify service can be browsed and resolved
     let daemon = mdns_sd::ServiceDaemon::new().context("client daemon")?;
@@ -66,7 +66,10 @@ async fn test_mdns_broadcast_and_shutdown_lifecycle() -> anyhow::Result<()> {
         }
     }
 
-    assert!(discovered, "Advertised mDNS service was not discovered within timeout");
+    assert!(
+        discovered,
+        "Advertised mDNS service was not discovered within timeout"
+    );
 
     // Shutdown client and broadcaster cleanly
     let _ = daemon.shutdown();

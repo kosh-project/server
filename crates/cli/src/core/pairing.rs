@@ -197,7 +197,11 @@ mod tests {
         assert!(mdns_line.contains("kosh-nas.local"));
         assert!(mdns_line.contains("23342"));
 
-        assert!(address_text.iter().any(|line| line.contains("localhost:23342")));
+        assert!(
+            address_text
+                .iter()
+                .any(|line| line.contains("localhost:23342"))
+        );
 
         Ok(())
     }
@@ -220,7 +224,11 @@ mod tests {
             !address_text.iter().any(|line| line.contains("mDNS")),
             "mDNS should not be displayed when disabled: {address_text:?}"
         );
-        assert!(address_text.iter().any(|line| line.contains("localhost:23342")));
+        assert!(
+            address_text
+                .iter()
+                .any(|line| line.contains("localhost:23342"))
+        );
 
         Ok(())
     }
@@ -246,15 +254,30 @@ mod tests {
         let data2 = Data::new(&config, &fingerprint)?;
 
         assert_eq!(data1.fingerprint, data2.fingerprint);
-        let words1: Vec<String> = data1.words.iter().map(std::string::ToString::to_string).collect();
-        let words2: Vec<String> = data2.words.iter().map(std::string::ToString::to_string).collect();
+        let words1: Vec<String> = data1
+            .words
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
+        let words2: Vec<String> = data2
+            .words
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         assert_eq!(words1, words2);
 
-        let qr1: Vec<String> = data1.qr_lines.iter().map(std::string::ToString::to_string).collect();
-        let qr2: Vec<String> = data2.qr_lines.iter().map(std::string::ToString::to_string).collect();
+        let qr1: Vec<String> = data1
+            .qr_lines
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
+        let qr2: Vec<String> = data2
+            .qr_lines
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         assert_eq!(qr1, qr2);
 
         Ok(())
     }
 }
-

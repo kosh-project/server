@@ -102,7 +102,10 @@ fn broadcaster_start_fails_on_empty_hostname() {
     let mut config = make_test_config(true, false);
     config.mdns.hostname = String::new();
     let broadcaster = Broadcaster::start(&config);
-    assert!(broadcaster.is_err(), "Broadcaster::start must fail with empty hostname");
+    assert!(
+        broadcaster.is_err(),
+        "Broadcaster::start must fail with empty hostname"
+    );
 }
 
 #[test]
@@ -136,4 +139,3 @@ fn broadcaster_start_with_filtered_nonexistent_interface() {
         b.shutdown();
     }
 }
-

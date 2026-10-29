@@ -5,13 +5,7 @@ use anyhow::Context;
 use kosh_core::config::{Config, Mdns, Passkey};
 use kosh_core::tls;
 use tmpdir::TmpDir;
-use webdav_server::{
-    auth::Secret,
-    logger,
-    mdns,
-    model::database,
-    storage,
-};
+use webdav_server::{auth::Secret, logger, mdns, model::database, storage};
 
 #[tokio::test]
 async fn test_server_boot_helpers_pipeline() -> anyhow::Result<()> {
@@ -67,7 +61,9 @@ async fn test_server_boot_helpers_pipeline() -> anyhow::Result<()> {
     assert_eq!(user_count, 0);
 
     // 4. Secret initialization: loads or creates server secret
-    let _secret = Secret::load_or_create(&config).await.context("secret load/create")?;
+    let _secret = Secret::load_or_create(&config)
+        .await
+        .context("secret load/create")?;
     assert!(config.secret_path().exists());
 
     // 5. TLS initialization: creates certificate with SANs

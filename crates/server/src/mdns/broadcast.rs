@@ -52,7 +52,9 @@ impl Broadcaster {
         Ok(Self { daemon, fullname })
     }
 
-    pub(crate) fn resolve_addresses(configured_interfaces: &[String]) -> Vec<IpAddr> {
+    pub(crate) fn resolve_addresses(
+        configured_interfaces: &[String],
+    ) -> Vec<IpAddr> {
         let mut unique_ips: HashSet<IpAddr> =
             HashSet::with_capacity(configured_interfaces.len());
 

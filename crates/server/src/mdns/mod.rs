@@ -29,4 +29,3 @@ pub fn init(config: &Config) -> Option<Broadcaster> {
 
 #[cfg(test)]
 mod test;
-

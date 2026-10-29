@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use crate::{error::boot::Result, info};
 use kosh_core::{config::Config, logger::Module};
 use sqlx::{
     SqlitePool,
@@ -8,7 +9,6 @@ use sqlx::{
         SqliteSynchronous,
     },
 };
-use crate::{error::boot::Result, info};
 
 /// Initializes the SQLite metadata database pool and applies pending migrations.
 ///

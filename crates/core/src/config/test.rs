@@ -351,7 +351,10 @@ mdns {
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidHostname { hostname, reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidHostname {
+        hostname, reason, ..
+    }) = err
+    else {
         anyhow::bail!("expected InvalidHostname diagnostic, got {err:?}");
     };
     assert_eq!(hostname, "vault.local");
@@ -389,7 +392,8 @@ mdns {
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidPropertyKey { reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidPropertyKey { reason, .. }) = err
+    else {
         anyhow::bail!("expected InvalidPropertyKey diagnostic, got {err:?}");
     };
     assert!(reason.contains("empty"));
@@ -426,7 +430,8 @@ mdns {
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidPropertyKey { reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidPropertyKey { reason, .. }) = err
+    else {
         anyhow::bail!("expected InvalidPropertyKey diagnostic, got {err:?}");
     };
     assert!(reason.contains('='));
@@ -466,7 +471,8 @@ mdns {{
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::ValueTooLong { actual_len, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::ValueTooLong { actual_len, .. }) = err
+    else {
         anyhow::bail!("expected ValueTooLong diagnostic, got {err:?}");
     };
     assert_eq!(actual_len, 129);
@@ -509,7 +515,8 @@ mdns {{
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::PayloadTooLarge { total_len, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::PayloadTooLarge { total_len, .. }) = err
+    else {
         anyhow::bail!("expected PayloadTooLarge diagnostic, got {err:?}");
     };
     assert!(total_len > 400);
@@ -544,7 +551,8 @@ mdns {
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidHostname { reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidHostname { reason, .. }) = err
+    else {
         anyhow::bail!("expected InvalidHostname diagnostic, got {err:?}");
     };
     assert!(reason.contains("empty"));
@@ -554,7 +562,8 @@ mdns {
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_rejects_hostname_exceeding_63_chars() -> anyhow::Result<()> {
+async fn mdns_validation_rejects_hostname_exceeding_63_chars()
+-> anyhow::Result<()> {
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -582,7 +591,8 @@ mdns {{
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidHostname { reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidHostname { reason, .. }) = err
+    else {
         anyhow::bail!("expected InvalidHostname diagnostic, got {err:?}");
     };
     assert!(reason.contains("exceeds 63"));
@@ -592,7 +602,8 @@ mdns {{
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_accepts_hostname_with_exact_63_chars() -> anyhow::Result<()> {
+async fn mdns_validation_accepts_hostname_with_exact_63_chars()
+-> anyhow::Result<()> {
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -625,7 +636,8 @@ mdns {{
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_rejects_hostname_with_leading_or_trailing_hyphen() -> anyhow::Result<()> {
+async fn mdns_validation_rejects_hostname_with_leading_or_trailing_hyphen()
+-> anyhow::Result<()> {
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -653,7 +665,8 @@ mdns {{
         let result = Config::load_or_init().await;
         assert!(result.is_err(), "expected error for hostname: {bad_name}");
         let err = result.err().context("expected error")?;
-        let Error::Mdns(MdnsDiagnostic::InvalidHostname { reason, .. }) = err else {
+        let Error::Mdns(MdnsDiagnostic::InvalidHostname { reason, .. }) = err
+        else {
             anyhow::bail!("expected InvalidHostname diagnostic, got {err:?}");
         };
         assert!(reason.contains("hyphen"));
@@ -664,7 +677,8 @@ mdns {{
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_rejects_hostname_with_invalid_characters() -> anyhow::Result<()> {
+async fn mdns_validation_rejects_hostname_with_invalid_characters()
+-> anyhow::Result<()> {
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -692,7 +706,8 @@ mdns {{
         let result = Config::load_or_init().await;
         assert!(result.is_err(), "expected error for hostname: {bad_name}");
         let err = result.err().context("expected error")?;
-        let Error::Mdns(MdnsDiagnostic::InvalidHostname { reason, .. }) = err else {
+        let Error::Mdns(MdnsDiagnostic::InvalidHostname { reason, .. }) = err
+        else {
             anyhow::bail!("expected InvalidHostname diagnostic, got {err:?}");
         };
         assert!(reason.contains("invalid characters"));
@@ -728,7 +743,8 @@ mdns {
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidInterface { reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidInterface { reason, .. }) = err
+    else {
         anyhow::bail!("expected InvalidInterface diagnostic, got {err:?}");
     };
     assert!(reason.contains("empty"));
@@ -738,7 +754,8 @@ mdns {
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_rejects_interface_exceeding_15_bytes() -> anyhow::Result<()> {
+async fn mdns_validation_rejects_interface_exceeding_15_bytes()
+-> anyhow::Result<()> {
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -763,7 +780,8 @@ mdns {
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidInterface { reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidInterface { reason, .. }) = err
+    else {
         anyhow::bail!("expected InvalidInterface diagnostic, got {err:?}");
     };
     assert!(reason.contains("exceeds 15 bytes"));
@@ -773,7 +791,8 @@ mdns {
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_rejects_interface_with_invalid_chars() -> anyhow::Result<()> {
+async fn mdns_validation_rejects_interface_with_invalid_chars()
+-> anyhow::Result<()> {
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -798,7 +817,8 @@ mdns {
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidInterface { reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidInterface { reason, .. }) = err
+    else {
         anyhow::bail!("expected InvalidInterface diagnostic, got {err:?}");
     };
     assert!(reason.contains("invalid characters"));
@@ -808,7 +828,8 @@ mdns {
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_rejects_key_exceeding_32_chars() -> anyhow::Result<()> {
+async fn mdns_validation_rejects_key_exceeding_32_chars() -> anyhow::Result<()>
+{
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -838,7 +859,8 @@ mdns {{
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidPropertyKey { reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidPropertyKey { reason, .. }) = err
+    else {
         anyhow::bail!("expected InvalidPropertyKey diagnostic, got {err:?}");
     };
     assert!(reason.contains("exceeds 32"));
@@ -848,7 +870,8 @@ mdns {{
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_rejects_key_with_non_printable_ascii() -> anyhow::Result<()> {
+async fn mdns_validation_rejects_key_with_non_printable_ascii()
+-> anyhow::Result<()> {
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -875,7 +898,8 @@ mdns {
     let result = Config::load_or_init().await;
     assert!(result.is_err());
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::InvalidPropertyKey { reason, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::InvalidPropertyKey { reason, .. }) = err
+    else {
         anyhow::bail!("expected InvalidPropertyKey diagnostic, got {err:?}");
     };
     assert!(reason.contains("non-printable"));
@@ -916,9 +940,14 @@ mdns {{
         std::env::set_var("KOSH_CONFIG", &config_path);
     }
 
-    let config = Config::load_or_init().await.context("boundary config should succeed")?;
+    let config = Config::load_or_init()
+        .await
+        .context("boundary config should succeed")?;
     assert_eq!(config.mdns.hostname, "valid-hostname-123");
-    assert_eq!(config.mdns.interfaces, vec!["eth0", "wlan.0", "veth_test-1"]);
+    assert_eq!(
+        config.mdns.interfaces,
+        vec!["eth0", "wlan.0", "veth_test-1"]
+    );
     assert_eq!(config.mdns.txt.properties.len(), 1);
     assert_eq!(config.mdns.txt.properties[0].key, key32);
     assert_eq!(config.mdns.txt.properties[0].value, val128);
@@ -928,7 +957,8 @@ mdns {{
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_accepts_interface_with_exact_15_bytes() -> anyhow::Result<()> {
+async fn mdns_validation_accepts_interface_with_exact_15_bytes()
+-> anyhow::Result<()> {
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -955,7 +985,9 @@ mdns {{
         std::env::set_var("KOSH_CONFIG", &config_path);
     }
 
-    let config = Config::load_or_init().await.context("15-byte interface should succeed")?;
+    let config = Config::load_or_init()
+        .await
+        .context("15-byte interface should succeed")?;
     assert_eq!(config.mdns.interfaces, vec![iface_15]);
 
     Ok(())
@@ -963,7 +995,8 @@ mdns {{
 
 #[tokio::test]
 #[serial]
-async fn mdns_validation_txt_payload_exact_400_succeeds_and_401_fails() -> anyhow::Result<()> {
+async fn mdns_validation_txt_payload_exact_400_succeeds_and_401_fails()
+-> anyhow::Result<()> {
     let _guard = EnvGuard("KOSH_CONFIG");
     let temp_dir = TmpDir::new("kosh-test-config")
         .await
@@ -996,7 +1029,9 @@ mdns {{
         std::env::set_var("KOSH_CONFIG", &config_path);
     }
 
-    let config = Config::load_or_init().await.context("400-byte payload should succeed")?;
+    let config = Config::load_or_init()
+        .await
+        .context("400-byte payload should succeed")?;
     assert_eq!(config.mdns.txt.properties.len(), 4);
 
     // Now make 4th property value 91 bytes -> total 401 bytes
@@ -1022,7 +1057,8 @@ mdns {{
     let result = Config::load_or_init().await;
     assert!(result.is_err(), "401-byte payload should fail");
     let err = result.err().context("expected error")?;
-    let Error::Mdns(MdnsDiagnostic::PayloadTooLarge { total_len, .. }) = err else {
+    let Error::Mdns(MdnsDiagnostic::PayloadTooLarge { total_len, .. }) = err
+    else {
         anyhow::bail!("expected PayloadTooLarge diagnostic, got {err:?}");
     };
     assert_eq!(total_len, 401);
@@ -1054,7 +1090,9 @@ mdns {
         std::env::set_var("KOSH_CONFIG", &config_path);
     }
 
-    let config = Config::load_or_init().await.context("single-character hostname should succeed")?;
+    let config = Config::load_or_init()
+        .await
+        .context("single-character hostname should succeed")?;
     assert_eq!(config.mdns.hostname, "k");
 
     Ok(())
@@ -1086,12 +1124,12 @@ mdns {
         std::env::set_var("KOSH_CONFIG", &config_path);
     }
 
-    let config = Config::load_or_init().await.context("empty property value should succeed")?;
+    let config = Config::load_or_init()
+        .await
+        .context("empty property value should succeed")?;
     assert_eq!(config.mdns.txt.properties.len(), 1);
     assert_eq!(config.mdns.txt.properties[0].key, "valueless-key");
     assert_eq!(config.mdns.txt.properties[0].value, "");
 
     Ok(())
 }
-
-

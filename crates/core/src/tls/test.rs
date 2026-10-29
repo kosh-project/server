@@ -184,7 +184,9 @@ async fn identity_forge_with_duplicate_and_empty_sans() -> anyhow::Result<()> {
 
     let identity = Identity::load_or_create(temp_dir.as_ref(), &dirty_sans)
         .await
-        .context("identity creation with redundant and empty SANs should succeed")?;
+        .context(
+            "identity creation with redundant and empty SANs should succeed",
+        )?;
 
     assert!(identity.cert_pem.contains("-----BEGIN CERTIFICATE-----"));
     assert!(identity.key_pem.contains("-----BEGIN PRIVATE KEY-----"));
@@ -219,7 +221,9 @@ async fn tls_init_with_mdns_enabled_and_disabled() -> anyhow::Result<()> {
     };
 
     // 1. Init with mDNS enabled
-    let id1 = init(&config).await.context("tls::init with mdns enabled should succeed")?;
+    let id1 = init(&config)
+        .await
+        .context("tls::init with mdns enabled should succeed")?;
     assert!(temp_dir.to_path_buf().join("tls/cert.pem").exists());
     assert!(temp_dir.to_path_buf().join("tls/key.pem").exists());
 
@@ -227,7 +231,9 @@ async fn tls_init_with_mdns_enabled_and_disabled() -> anyhow::Result<()> {
     assert_eq!(fp1.len(), 64);
 
     // 2. Idempotent load
-    let id2 = init(&config).await.context("second tls::init should load existing identity")?;
+    let id2 = init(&config)
+        .await
+        .context("second tls::init should load existing identity")?;
     assert_eq!(id1.cert_pem, id2.cert_pem);
     assert_eq!(fp1, id2.fingerprint()?);
 
@@ -238,7 +244,9 @@ async fn tls_init_with_mdns_enabled_and_disabled() -> anyhow::Result<()> {
     config.vault_path = temp_dir2.to_path_buf();
     config.mdns.enable = false;
 
-    let id3 = init(&config).await.context("tls::init with mdns disabled should succeed")?;
+    let id3 = init(&config)
+        .await
+        .context("tls::init with mdns disabled should succeed")?;
     assert!(temp_dir2.to_path_buf().join("tls/cert.pem").exists());
     assert_eq!(id3.fingerprint()?.len(), 64);
 
@@ -264,9 +272,10 @@ async fn tls_init_fails_on_unwritable_vault_path() -> anyhow::Result<()> {
     };
 
     let result = init(&config).await;
-    assert!(result.is_err(), "tls::init must fail when vault path is a file");
+    assert!(
+        result.is_err(),
+        "tls::init must fail when vault path is a file"
+    );
 
     Ok(())
 }
-
-

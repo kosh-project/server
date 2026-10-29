@@ -592,7 +592,9 @@ async fn database_init_creates_db_and_migrates() -> Result<()> {
 #[tokio::test]
 async fn database_init_fails_on_invalid_path() -> Result<()> {
     let config = kosh_core::config::Config {
-        vault_path: std::path::PathBuf::from("/nonexistent_forbidden_dir_abc/nested"),
+        vault_path: std::path::PathBuf::from(
+            "/nonexistent_forbidden_dir_abc/nested",
+        ),
         port: 23342,
         host: "0.0.0.0".to_string(),
         enable_tls: false,
@@ -602,9 +604,10 @@ async fn database_init_fails_on_invalid_path() -> Result<()> {
     };
 
     let result = crate::model::database::init(&config).await;
-    assert!(result.is_err(), "database::init must fail on invalid unwritable path");
+    assert!(
+        result.is_err(),
+        "database::init must fail on invalid unwritable path"
+    );
 
     Ok(())
 }
-
-

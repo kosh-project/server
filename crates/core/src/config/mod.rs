@@ -26,7 +26,10 @@ mod test;
 pub use error::{Error, Result};
 
 use knuffel::span::Span;
-pub use mdns::{Diagnostic as MdnsDiagnostic, Mdns, Property as MdnsProperty, Txt as MdnsTxt};
+pub use mdns::{
+    Diagnostic as MdnsDiagnostic, Mdns, Property as MdnsProperty,
+    Txt as MdnsTxt,
+};
 pub use passkey::Passkey;
 use std::{env, path::PathBuf};
 use tokio::fs;
