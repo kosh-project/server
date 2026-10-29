@@ -1,3 +1,5 @@
+//! Background logger task handle and graceful shutdown coordination.
+
 use std::time::Duration;
 
 use kosh_core::logger::Module;
@@ -7,8 +9,8 @@ use crate::fatal;
 
 /// A handle to the background logging task.
 ///
-/// Returned by [`Service::start`] alongside the channel sender. The caller should
-/// retain this handle and use it during the server's graceful shutdown sequence to
+/// Returned by [`crate::logger::init`] or [`crate::logger::Service::start`] alongside the channel sender.
+/// The caller should retain this handle and use it during the server's graceful shutdown sequence to
 /// ensure that all buffered log entries are flushed to disk before the process exits.
 pub struct Handle(pub JoinHandle<()>);
 
@@ -23,6 +25,10 @@ impl Handle {
     /// If the task does not finish within the grace period, a [`kosh_core::logger::Level::Fatal`]
     /// log entry is emitted (which will itself be silently dropped if the sender is gone) and the
     /// method returns, allowing the OS to clean up the task.
+    ///
+    /// # Arguments
+    ///
+    /// * `secs` - Maximum number of seconds to wait for background logging task completion.
     pub async fn shutdown_with_grace(self, secs: u64) {
         if let Err(e) = timeout(Duration::from_secs(secs), self.0).await {
             fatal!(

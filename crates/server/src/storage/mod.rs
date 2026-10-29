@@ -1,25 +1,28 @@
-/// The storage layer — responsible for all filesystem operations.
-///
-/// This module manages the Content-Addressable Storage (CAS) vault where
-/// all encrypted blobs live on disk. It deliberately knows nothing about
-/// users, sessions, or metadata — that is the model layer's concern.
-///
-/// ## Key responsibilities
-///
-/// - Accepting a raw byte stream and committing it to disk atomically.
-/// - Naming blobs by their BLAKE3 hash (CAS semantics).
-/// - Serving blobs back as file handles for streaming to clients.
-/// - Deleting blobs when their reference count drops to zero.
-///
-/// ## Atomicity guarantee
-///
-/// Every write goes through an internal transaction. The transaction
-/// streams bytes to a `<uuid>.tmp` staging file first, then does an atomic
-/// `rename(2)` into the vault. If anything fails mid-stream, the temp file
-/// is cleaned up and the vault is left untouched.
+//! The storage layer — responsible for all filesystem operations.
+//!
+//! This module manages the Content-Addressable Storage (CAS) vault where
+//! all encrypted blobs live on disk. It deliberately knows nothing about
+//! users, sessions, or metadata — that is the model layer's concern.
+//!
+//! ## Key responsibilities
+//!
+//! - Accepting a raw byte stream and committing it to disk atomically.
+//! - Naming blobs by their BLAKE3 hash (CAS semantics).
+//! - Serving blobs back as file handles for streaming to clients.
+//! - Deleting blobs when their reference count drops to zero.
+//!
+//! ## Atomicity guarantee
+//!
+//! Every write goes through an internal transaction. The transaction
+//! streams bytes to a `<uuid>.tmp` staging file first, then does an atomic
+//! `rename(2)` into the vault. If anything fails mid-stream, the temp file
+//! is cleaned up and the vault is left untouched.
+
+/// Storage layer error types and Result aliases.
 pub mod error;
 /// File metadata and descriptor types for vault CAS blobs.
 pub mod file;
+/// Per-user append-only sync ledger engine and segment management.
 pub mod ledger;
 /// Storage service engine managing blob streaming, writing, and deletion.
 pub mod service;
@@ -81,11 +84,20 @@ where
     }
 }
 
-/// Initializes the storage subsystem by ensuring the vault directory exists.
+/// Initializes the storage subsystem by ensuring the root vault directory exists on disk.
+///
+/// Verifies that `<vault_path>` exists or creates all required parent directories.
+/// This must run early in the server bootstrap sequence before SQLite metadata creation,
+/// CAS blob streaming, or TLS key generation attempt to write to the vault.
+///
+/// # Arguments
+///
+/// * `config` - Server configuration containing the configured [`Config::vault_path`].
 ///
 /// # Errors
 ///
-/// Returns [`boot::Error::Storage`] if creating the vault directory fails.
+/// Returns [`boot::Error::Io`] if creating the vault directory or parent directories fails
+/// (e.g. insufficient filesystem permissions or read-only filesystem).
 pub async fn init(config: &Config) -> boot::Result<()> {
     tokio::fs::create_dir_all(&config.vault_path).await?;
     info!(

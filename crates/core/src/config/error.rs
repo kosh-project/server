@@ -17,6 +17,11 @@ pub enum Error {
     #[error("File system I/O error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// An mDNS zero-configuration discovery validation rule failed.
+    ///
+    /// This variant wraps rich diagnostics from [`mdns::Diagnostic`], covering
+    /// hostname label length, invalid characters, interface name limits,
+    /// or TXT record payload size boundaries according to RFC 6762 and RFC 6763.
     #[error(transparent)]
     #[diagnostic(transparent)]
     Mdns(#[from] mdns::Diagnostic),

@@ -1,3 +1,13 @@
+//! DNS-SD TXT record property configuration and validation.
+//!
+//! Multicast DNS Service Discovery ([RFC 6763](https://datatracker.ietf.org/doc/html/rfc6763)) allows
+//! services to publish auxiliary metadata as key-value pairs formatted as `key=value` strings inside
+//! DNS TXT records.
+//!
+//! To prevent IP packet fragmentation over lossy or low-bandwidth links (such as home Wi-Fi),
+//! RFC 6763 recommends keeping total TXT record sizes well under the typical 512-byte DNS UDP
+//! limit. This module enforces strict boundaries on key characters, value lengths, and total payload size.
+
 use knuffel::{Decode, span::Span};
 use miette::NamedSource;
 use std::sync::Arc;
@@ -6,7 +16,19 @@ use crate::config::mdns::Diagnostic::{
     self, InvalidPropertyKey, PayloadTooLarge, ValueTooLong,
 };
 
-/// Configuration for custom DNS-SD TXT record properties.
+/// Configuration container for custom DNS-SD TXT record properties.
+///
+/// Under the `mdns` node in KDL, zero or more `property` entries can be specified
+/// inside a child `txt` block:
+///
+/// ```kdl
+/// mdns {
+///     txt {
+///         property "version" "1.0"
+///         property "auth" "passkey"
+///     }
+/// }
+/// ```
 #[derive(Debug, Decode, Clone, PartialEq, Eq)]
 #[knuffel(span_type = Span)]
 pub struct Txt {
@@ -14,12 +36,13 @@ pub struct Txt {
     #[knuffel(span)]
     pub span: Span,
 
-    /// Collection of custom key-value attributes.
+    /// Collection of custom key-value attributes to publish in the DNS-SD TXT record.
     #[knuffel(children(name = "property"))]
     pub properties: Vec<Property>,
 }
 
 impl Default for Txt {
+    /// Constructs an empty TXT records container with zero custom properties.
     fn default() -> Self {
         Self {
             span: Span(0, 0),
@@ -28,7 +51,9 @@ impl Default for Txt {
     }
 }
 
-/// A key-value pair included in mDNS DNS-SD TXT records.
+/// A key-value attribute pair included in mDNS DNS-SD TXT records.
+///
+/// Encoded as `key=value` strings within the DNS-SD TXT record according to RFC 6763.
 #[derive(Decode, Debug, Clone, PartialEq, Eq)]
 #[knuffel(span_type = Span)]
 pub struct Property {
@@ -36,17 +61,31 @@ pub struct Property {
     #[knuffel(span)]
     pub span: Span,
 
-    /// The attribute key.
+    /// The attribute key (up to 32 printable ASCII characters, excluding `=`).
     #[knuffel(argument)]
     pub key: String,
 
-    /// The attribute value.
+    /// The attribute value (up to 128 bytes).
     #[knuffel(argument)]
     pub value: String,
 }
 
 impl Txt {
     /// Validates all custom TXT properties against RFC 6763 rules and safe MTU limits.
+    ///
+    /// Validates each property individually via [`Property::validate`], and enforces that
+    /// the aggregate byte length of all encoded `key=value` attributes does not exceed
+    /// 400 bytes, avoiding UDP packet fragmentation across Wi-Fi networks.
+    ///
+    /// # Arguments
+    ///
+    /// * `src` - Reference to the named source code file for error span rendering.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Diagnostic::InvalidPropertyKey`] or [`Diagnostic::ValueTooLong`] if any
+    /// individual property is invalid.
+    /// Returns [`Diagnostic::PayloadTooLarge`] if the combined TXT payload exceeds 400 bytes.
     pub(crate) fn validate(
         &self,
         src: &Arc<NamedSource>,
@@ -74,6 +113,24 @@ impl Txt {
 }
 
 impl Property {
+    /// Validates an individual key-value property pair against RFC 6763 DNS-SD specifications.
+    ///
+    /// # Validation Rules
+    ///
+    /// - **Key non-empty**: The key string must contain at least 1 character.
+    /// - **Key length limit**: The key must not exceed 32 characters (RFC 6763 Section 6.4 recommends short keys).
+    /// - **Key delimiter**: The key must not contain `=` since `=` is the DNS-SD key-value separator (RFC 6763 Section 6.4).
+    /// - **Key character set**: The key must contain only printable ASCII characters (0x20 through 0x7E).
+    /// - **Value length limit**: The value string must not exceed 128 bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `src` - Reference to the named source code file for error span rendering.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Diagnostic::InvalidPropertyKey`] if the key is empty, too long, contains `=`, or has non-printable characters.
+    /// Returns [`Diagnostic::ValueTooLong`] if the value exceeds 128 bytes.
     #[inline]
     fn validate(&self, src: &Arc<NamedSource>) -> Result<(), Diagnostic> {
         let key = &self.key;
@@ -108,7 +165,7 @@ impl Property {
                 help: "In DNS-SD TXT records, '=' is reserved as the key-value delimiter".to_string(),
                 src: Arc::clone(src),
                 span: self.span.clone().into(),
-                            });
+            });
         }
 
         if let Some(bad_byte) =

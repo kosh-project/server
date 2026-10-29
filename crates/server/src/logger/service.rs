@@ -36,7 +36,7 @@ pub(crate) const DAY_MILLIS: i64 = 86_400_000;
 /// dedicated `tokio` task and never shares memory with the HTTP request threads.
 ///
 /// Callers interact with the service indirectly through the [`crate::logger::GLOBAL_LOGGER`]
-/// sender and the `LoggerHandler` returned by [`Service::start`]. The `Service` itself is
+/// sender and the [`logger::Handle`] returned by [`Service::start`]. The `Service` itself is
 /// consumed by the background task and is not accessible after startup.
 pub struct Service {
     /// The receive end of the bounded MPSC channel.
@@ -53,9 +53,10 @@ pub struct Service {
     /// Compared against each incoming entry's timestamp to detect when a day boundary
     /// has been crossed and a new log file must be opened.
     today: i64,
-    /// The absolute path to the `kosh/logs` directory.
+    /// The absolute path to the directory where daily log files are stored.
     ///
-    /// Derived from `dirs::state_dir()` at startup and used when opening new daily files
+    /// Derived from [`Config::log_path`](kosh_core::config::Config::log_path) at startup
+    /// (resolving to `<vault_path>/state/logs`) and used when opening new daily files
     /// during log rotation.
     log_path: PathBuf,
     /// An unbound Unix Datagram Socket used to broadcast entries to the admin CLI.
@@ -79,21 +80,24 @@ impl Service {
     ///
     /// This method must be called once during server startup. It:
     ///
-    /// 1. Creates a bounded MPSC channel with the specified `capacity`.
-    /// 2. Resolves the XDG state directory and creates `kosh/logs` if it does not exist.
+    /// 1. Creates a bounded MPSC channel with capacity 1000.
+    /// 2. Resolves the log directory via [`Config::log_path`](kosh_core::config::Config::log_path) and creates `<vault_path>/state/logs` if it does not exist.
     /// 3. Opens (or creates) the current day's log file in append mode.
     /// 4. Creates an unbound Unix Datagram Socket for broadcasting.
     /// 5. Spawns a dedicated `tokio` task that runs the `Service::run` loop.
     ///
     /// The returned `Sender` should be stored in [`crate::logger::GLOBAL_LOGGER`] immediately
-    /// after this call. The returned `LoggerHandler` should be kept alive and awaited
-    /// during graceful shutdown via `LoggerHandler::shutdown_with_grace`.
+    /// after this call. The returned [`logger::Handle`] should be kept alive and awaited
+    /// during graceful shutdown via [`logger::Handle::shutdown_with_grace`].
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Server configuration specifying log directories and Unix socket paths.
     ///
     /// # Errors
     ///
-    /// Returns `Error::LogDirectoryInitialization` if the XDG state directory
-    /// cannot be determined. Returns `Error::Io` if the log directory cannot be
-    /// created or the initial log file cannot be opened.
+    /// Returns [`crate::logger::Error::Io`] if the log directory cannot be created or the initial log file
+    /// cannot be opened.
     pub async fn start(
         config: &Config,
     ) -> Result<(Sender<Entry>, logger::Handle)> {
@@ -202,6 +206,7 @@ impl Service {
         Ok(())
     }
 
+    /// Broadcasts an asynchronous heartbeat pulse to the admin CLI socket.
     async fn send_hearbeat(&self) {
         let Ok(bytes) = encode_to_vec(Heartbeat, config::standard()) else {
             return;
@@ -219,6 +224,10 @@ impl Service {
 ///
 /// If the timestamp cannot be converted to a valid [`DateTime`], the function falls back
 /// to the Unix epoch (1970-01-01) via `unwrap_or_default`.
+///
+/// # Arguments
+///
+/// * `time_stamp_millis` - UTC epoch timestamp in milliseconds.
 #[must_use]
 pub fn format_date_time(time_stamp_millis: i64) -> String {
     let time =

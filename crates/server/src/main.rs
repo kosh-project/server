@@ -1,3 +1,29 @@
+//! Main executable entry point for the Kosh server daemon.
+//!
+//! # Boot Pipeline
+//!
+//! The server boots through an explicit, ordered sequence of subsystem initializers:
+//!
+//! 1. **Crypto Provider** — Installs the `ring` cryptography backend for `rustls`.
+//! 2. **Configuration** — Loads `config.kdl` via [`Config::load_or_init`], validating mDNS and `WebAuthn` parameters.
+//! 3. **Telemetry Logger** — Spawns the background [`logger`](webdav_server::logger) worker and Unix socket broadcaster.
+//! 4. **Storage Vault** — Ensures `<vault_path>` directory exists via [`storage::init`].
+//! 5. **Database Pool** — Connects to SQLite at `<vault_path>/metadata.db`, applies PRAGMAs, and runs migrations via [`database::init`].
+//! 6. **Server Secret** — Loads or derives the HMAC authentication key via [`Secret::load_or_create`].
+//! 7. **TLS Identity** — Discovers LAN IPs and mDNS hostname, forging or loading X.509 certs via [`tls::init`].
+//! 8. **Application State** — Assembles the dependency graph using [`AppStateBuilder`] and mounts Axum routes.
+//! 9. **mDNS Broadcaster** — Starts local multicast service discovery on UDP 5353 via [`mdns::init`].
+//! 10. **HTTP/HTTPS Ingress** — Binds the listener port via [`Launcher`] and awaits OS termination signals.
+//!
+//! # Graceful Teardown
+//!
+//! When a `SIGINT` (Ctrl+C) or `SIGTERM` signal is captured:
+//! 1. Ingress listener stops accepting new connections and drains active HTTP requests.
+//! 2. The mDNS broadcaster unregisters service announcements, sending TTL=0 goodbye packets.
+//! 3. SQLite connection pool closes cleanly, committing pending WAL transactions.
+//! 4. Background storage ledger flushes outstanding mutation deltas.
+//! 5. Logger commits all buffered telemetry entries to disk before process exit.
+
 use kosh_core::config::Config;
 use kosh_core::tls;
 use rustls::crypto::ring;
@@ -19,6 +45,14 @@ use webdav_server::{
     storage::ledger,
 };
 
+/// Listens for process termination signals across Unix and non-Unix platforms.
+///
+/// Resolves when either `SIGINT` (Ctrl+C) or `SIGTERM` (standard process termination)
+/// is received, triggering the graceful shutdown sequence.
+///
+/// # Errors
+///
+/// Returns [`std::io::Error`] if registering the OS signal listener fails.
 async fn shutdown_signal() -> io::Result<()> {
     type Err = io::Error;
     let ctrl_c = signal::ctrl_c();
@@ -49,6 +83,10 @@ async fn shutdown_signal() -> io::Result<()> {
     Ok(())
 }
 
+/// Daemon entry point.
+///
+/// Initializes the Tokio runtime, executes the [`boot`] sequence, and reports any startup
+/// or runtime fatal errors through `miette` formatted output.
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     boot().await?;
@@ -56,6 +94,12 @@ async fn main() -> miette::Result<()> {
     Ok(())
 }
 
+/// Orchestrates the server boot sequence and coordinated graceful shutdown.
+///
+/// # Errors
+///
+/// Returns [`boot::Error`] if any configuration, storage, database, cryptographic,
+/// or network binding step fails during startup.
 async fn boot() -> Result<(), boot::Error> {
     ring::default_provider()
         .install_default()

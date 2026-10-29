@@ -1,3 +1,10 @@
+//! `WebAuthn` / Passkey Relying Party configuration schema.
+//!
+//! This module defines the [`Passkey`] configuration structure parsed from KDL, specifying
+//! Relying Party (RP) parameters including RP ID, origin URL, and human-friendly display name.
+//! These settings govern browser origin validation and hardware key scoping during `FIDO2` / `WebAuthn`
+//! registration and login ceremonies.
+
 /// Configuration settings for `WebAuthn` passkey authentication.
 ///
 /// In the `WebAuthn` standard, the server acts as the **Relying Party (RP)**.

@@ -1,3 +1,14 @@
+//! Interactive terminal UI overlay widget for device pairing and TLS certificate verification.
+//!
+//! Renders a modal overlay displaying:
+//! 1. Real-time server connectivity status (online/offline).
+//! 2. Active network addresses (mDNS `.local` domain, loopback, and local interface IPs).
+//! 3. A Unicode half-block QR code encoding the TLS certificate fingerprint.
+//! 4. 12 human-verifiable BIP-39 mnemonic verification words.
+//! 5. SHA-256 TLS certificate fingerprint in base64.
+//!
+//! Can be toggled open or closed at any time by pressing `<p>` in the admin TUI.
+
 use kosh_core::{config::Config, tls};
 use ratatui::{
     buffer::Buffer,
@@ -9,14 +20,32 @@ use ratatui::{
 
 use crate::core::pairing;
 
+/// Terminal UI state and widget renderer for the Device Pairing overlay.
 #[derive(Default)]
 pub struct PairInfo {
+    /// Whether the pairing modal is currently visible on top of the main log view.
     pub is_visible: bool,
+    /// Whether the server daemon is currently running and actively broadcasting heartbeats.
     pub is_online: bool,
+    /// Precomputed cryptographic pairing and display data.
     pub data: pairing::Data,
 }
 
 impl PairInfo {
+    /// Initializes the pairing UI state by loading the server's TLS certificate from disk.
+    ///
+    /// Reads `cert.pem` and `key.pem` from `<vault_path>/tls/`, computes the raw SHA-256
+    /// certificate fingerprint, and generates precomputed BIP-39 words, QR code lines,
+    /// and network address strings.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Active configuration containing vault paths, ports, and mDNS settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the certificate files cannot be loaded from disk or if fingerprint
+    /// derivation / pairing data precomputation fails.
     pub async fn try_from(config: &Config) -> anyhow::Result<Self> {
         let cert_path = config.tls_identity_path();
         let cert = tls::Identity::load(
@@ -36,6 +65,7 @@ impl PairInfo {
         })
     }
 
+    /// Generates the keybinding hint line for the TUI footer.
     #[inline]
     pub fn help_line() -> Line<'static> {
         Line::from(vec![" <p> - ".blue().bold(), "hide this menu".into()])
@@ -43,6 +73,7 @@ impl PairInfo {
 }
 
 impl Widget for &PairInfo {
+    /// Renders the modal pairing window into the specified terminal area buffer.
     fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
@@ -79,6 +110,7 @@ impl Widget for &PairInfo {
 }
 
 impl PairInfo {
+    /// Draws the outer rounded modal boundary frame with centered title and internal padding.
     #[inline]
     fn render_outer_frame(&self, area: Rect, buf: &mut Buffer) -> Rect {
         let block = Block::default()
@@ -93,6 +125,7 @@ impl PairInfo {
         inner
     }
 
+    /// Renders current server status indicator and resolved network addresses.
     #[inline]
     fn render_addresses(&self, area: Rect, buf: &mut Buffer) {
         let vert_chunks = Layout::default()
@@ -112,11 +145,13 @@ impl PairInfo {
             .render(vert_chunks[1], buf);
     }
 
+    /// Renders the Unicode half-block QR code representation of the certificate fingerprint.
     #[inline]
     fn render_qr(&self, area: Rect, buf: &mut Buffer) {
         Paragraph::new(self.data.qr_lines.clone()).render(area, buf);
     }
 
+    /// Renders the 12-word BIP-39 mnemonic verification words inside a bordered sub-block.
     #[inline]
     fn render_words(&self, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered()
@@ -132,6 +167,7 @@ impl PairInfo {
             .render(inner_area, buf);
     }
 
+    /// Renders the base64-encoded SHA-256 certificate fingerprint inside a bordered sub-block.
     #[inline]
     fn render_fingerprint(&self, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered()
@@ -151,6 +187,7 @@ impl PairInfo {
     }
 }
 
+/// Renders the ASCII art header banner above the pairing dialog (reserved for widescreen layouts).
 fn _render_heading(area: Rect, buf: &mut Buffer) {
     let heading = Paragraph::new(
         r#"      ___           _              ___      _      _              .

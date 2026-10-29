@@ -8,12 +8,15 @@
 //!
 //! - [`api`] — HTTP route handlers, middleware, and API-layer error types.
 //! - [`app`] — Application state and the builder used to construct it.
+//! - [`auth`] — Bearer token format definitions and cryptographic secrets management.
 //! - [`mod@error`] — The top-level error type and its domain-specific sub-modules.
 //! - [`logger`] — Structured asynchronous telemetry: MPSC channel, background service,
 //!   daily rolling log files, Unix Datagram Socket broadcasting, and the logging macros.
 //! - [`mod@log`] — A lightweight, deprecated debug-only logging macro and ANSI color helpers.
 //!   Superseded by the structured macros in [`logger`].
+//! - [`mdns`] — Multicast DNS (mDNS / DNS-SD) zero-configuration service discovery broadcaster.
 //! - [`model`] — Database entity definitions and query functions (users, sessions, assets).
+//! - [`server`] — Production Axum server runner supporting plain HTTP and Rustls HTTPS.
 //! - [`storage`] — The CAS storage engine, file transactions, and blob management.
 //!
 //! ## Architecture
@@ -64,6 +67,7 @@ pub mod storage;
 /// Centralized application error handling and domain propagation.
 pub mod error;
 
+/// Multicast DNS (mDNS / DNS-SD) zero-configuration service discovery broadcaster.
 pub mod mdns;
 
 pub use error::{Error, Result};

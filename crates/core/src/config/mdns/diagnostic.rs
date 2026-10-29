@@ -1,7 +1,17 @@
+//! Rich compiler-grade diagnostic errors for mDNS configuration parsing and validation.
+//!
+//! When a user makes a syntax or semantic error in `config.kdl` under the `mdns` block,
+//! these diagnostics integrate with [`miette`] to produce informative terminal error
+//! messages with source snippets, colored underlines, and actionable hints.
+
 use miette::{NamedSource, SourceSpan};
 use std::sync::Arc;
 
 /// Rich diagnostic errors emitted during mDNS configuration validation.
+///
+/// Each variant represents a distinct protocol violation or boundary overflow,
+/// carrying the source file context and exact byte span within `config.kdl`
+/// so that `miette` can format a clear visual indicator.
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum Diagnostic {
     /// The mDNS hostname fails RFC 1034 / RFC 1123 DNS label rules.
@@ -64,7 +74,7 @@ pub enum Diagnostic {
         span: SourceSpan,
     },
 
-    /// A single TXT record property value exceeds 128 characters.
+    /// A single TXT record property value exceeds 128 bytes.
     #[error("mDNS TXT property value exceeds 128-character limit")]
     #[diagnostic(
         code(kosh::config::mdns::value_too_long),

@@ -1,9 +1,20 @@
+//! Background mDNS service daemon lifecycle, address resolution, and announcement engine.
+
 use std::{collections::HashSet, net::IpAddr, time::Duration};
 
 use kosh_core::config::Config;
 use local_ip_address::list_afinet_netifas;
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 
+/// An active Multicast DNS service broadcaster handle.
+///
+/// Wraps an underlying [`ServiceDaemon`] thread and the registered service's fully-qualified
+/// domain name (`fullname`). While this handle remains alive, the daemon automatically responds
+/// to multicast queries on UDP port 5353 and broadcasts unsolicited announcement packets
+/// across the configured network interfaces.
+///
+/// Call [`Broadcaster::shutdown`] during server shutdown to send goodbye packets and terminate
+/// the daemon thread cleanly.
 pub struct Broadcaster {
     daemon: ServiceDaemon,
     fullname: String,
@@ -11,6 +22,17 @@ pub struct Broadcaster {
 
 impl Broadcaster {
     /// Starts the mDNS daemon and registers the service info based on configuration.
+    ///
+    /// Determines service parameters from [`Config`]:
+    /// - **Service type**: `_https._tcp.local.` if TLS is enabled, else `_http._tcp.local.`.
+    /// - **Instance name & hostname**: Uses [`kosh_core::config::Mdns::hostname`] formatted as `<hostname>.local.`.
+    /// - **IP addresses**: Discovered via `Self::resolve_addresses` according to configured interface filters.
+    /// - **Port**: Advertises the active server HTTP/HTTPS port.
+    /// - **TXT properties**: Key-value pairs configured in [`kosh_core::config::Mdns::txt`].
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Server configuration specifying port, TLS mode, and mDNS settings.
     ///
     /// # Errors
     ///
@@ -52,6 +74,19 @@ impl Broadcaster {
         Ok(Self { daemon, fullname })
     }
 
+    /// Resolves active, non-loopback IP addresses across host network interfaces.
+    ///
+    /// If `configured_interfaces` is non-empty, only interfaces whose system names match
+    /// an entry in the list are included (e.g. `eth0`, `wlan0`). If `configured_interfaces`
+    /// is empty, all active non-loopback IPv4 and IPv6 addresses are included.
+    ///
+    /// # Arguments
+    ///
+    /// * `configured_interfaces` - Slice of interface name filters specified in configuration.
+    ///
+    /// # Returns
+    ///
+    /// A vector of unique [`IpAddr`] instances discovered on the matching interfaces.
     pub(crate) fn resolve_addresses(
         configured_interfaces: &[String],
     ) -> Vec<IpAddr> {
@@ -81,6 +116,12 @@ impl Broadcaster {
         unique_ips.into_iter().collect()
     }
 
+    /// Gracefully unregisters the service and stops the background mDNS daemon.
+    ///
+    /// Sends a DNS "goodbye" packet with TTL = 0 to notify local network peers that the service
+    /// is going offline immediately, allowing clients to remove the service from their discovery
+    /// caches without waiting for cache timeouts. Waits up to 500ms for unregistration confirmation
+    /// before shutting down the daemon.
     pub fn shutdown(self) {
         if let Ok(receiver) = self.daemon.unregister(&self.fullname) {
             let _ = receiver.recv_timeout(Duration::from_millis(500));

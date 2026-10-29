@@ -14,6 +14,7 @@
 //! - [`user`](crate::model::user) — The `users` table. Stores hashed identities, authentication verifiers, and vault keys.
 //! - [`passkey`](crate::model::passkey) — The `webauthn_credentials` table. Stores hardware passkeys and metadata.
 //! - [`sync`](crate::model::sync) — The `device_sync_watermarks` and `ledger_snapshots` tables for state sync.
+//! - [`database`](crate::model::database) — SQLite connection pool setup, performance PRAGMA tuning, and schema migration runner.
 //! - [`error`](crate::model::error) — The `model::Error` type covering all database-layer failures.
 /// Asset metadata entities, tags, and keyset cursor pagination models.
 pub mod asset;
@@ -30,6 +31,7 @@ pub mod sync;
 /// WebAuthn passkey credential entities and query models.
 pub mod passkey;
 
+/// SQLite connection pool creation, pragma configuration, and migration runner.
 pub mod database;
 
 pub use error::{Error, Result};

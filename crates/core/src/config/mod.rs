@@ -11,9 +11,25 @@
 //! ```kdl
 //! vault-path "./vault"
 //! host "0.0.0.0"
-//! port 6969
-//! enable-tls false
+//! port 23342
+//! enable-tls true
 //! socket-path "/tmp/kosh.sock"
+//!
+//! passkey {
+//!     id "localhost"
+//!     origin "https://localhost:23342"
+//!     name "Kosh Vault"
+//! }
+//!
+//! mdns {
+//!     enable true
+//!     hostname "kosh-nas"
+//!     interfaces "eth0" "wlan0"
+//!     txt {
+//!         property "vendor" "kosh"
+//!         property "version" "0.1.36"
+//!     }
+//! }
 //! ```
 
 mod error;
@@ -89,6 +105,11 @@ pub struct Config {
     #[knuffel(child, default)]
     pub passkey: Passkey,
 
+    /// Configuration for Multicast DNS (mDNS) and DNS-SD zero-configuration discovery.
+    ///
+    /// Governs whether the server advertises its local `.local` hostname and service ports
+    /// over LAN interfaces, enabling client apps to discover the vault without manual IP entry.
+    /// If omitted in the configuration file, defaults to broadcasting as `"kosh.local"`.
     #[knuffel(child, default)]
     pub mdns: Mdns,
 }
