@@ -1,3 +1,5 @@
+use crate::config::mdns;
+
 /// Errors that can occur while parsing or loading the server configuration.
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum Error {
@@ -14,6 +16,10 @@ pub enum Error {
     /// A filesystem I/O error occurred while reading or writing the configuration file.
     #[error("File system I/O error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Mdns(#[from] mdns::Diagnostic),
 }
 
 /// A type alias for `Result<T, config::Error>`.
