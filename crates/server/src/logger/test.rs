@@ -243,4 +243,3 @@ async fn logger_handle_shutdown_with_grace_on_unresponsive_task() {
     let handle = logger::Handle(join_handle);
     handle.shutdown_with_grace(0).await;
 }
-

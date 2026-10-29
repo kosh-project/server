@@ -376,7 +376,8 @@ async fn mismatch_content_fails_plus_cleans_up() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn storage_init_creates_vault_directory_if_missing() -> anyhow::Result<()> {
+async fn storage_init_creates_vault_directory_if_missing() -> anyhow::Result<()>
+{
     let temp_dir = TmpDir::new("vault-init-test")
         .await
         .context("failed to create temporary directory")?;
@@ -427,9 +428,10 @@ async fn storage_init_fails_if_vault_path_is_file() -> anyhow::Result<()> {
     };
 
     let result = crate::storage::init(&config).await;
-    assert!(result.is_err(), "storage::init must fail when vault_path is a file");
+    assert!(
+        result.is_err(),
+        "storage::init must fail when vault_path is a file"
+    );
 
     Ok(())
 }
-
-
