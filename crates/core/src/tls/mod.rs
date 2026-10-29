@@ -20,8 +20,28 @@ mod cert;
 mod error;
 
 pub use cert::Identity;
-
+pub use cert::lan_ips;
 pub use error::{Error, Result};
+
+use crate::config::Config;
+use crate::tls;
 
 #[cfg(test)]
 mod test;
+
+/// Initializes the TLS identity by loading or generating certificates with LAN and mDNS SANs.
+///
+/// # Errors
+///
+/// Returns [`Error::Io`] if the TLS directory cannot be created or PEM files cannot be read/written.
+/// Returns [`Error::CertificateGen`] if generating the self-signed certificate fails.
+pub async fn init(config: &Config) -> Result<Identity> {
+    let mut extra_sans = tls::lan_ips();
+    if config.mdns.enable {
+        extra_sans.push(format!("{}.local", config.mdns.hostname));
+    }
+
+    let identity =
+        Identity::load_or_create(&config.vault_path, &extra_sans).await?;
+    Ok(identity)
+}
