@@ -16,6 +16,7 @@ fn dummy_config(vault_path: PathBuf) -> Config {
         enable_tls: false,
         socket_path: "/tmp/kosh.sock".to_string(),
         passkey: kosh_core::config::Passkey::default(),
+        mdns: kosh_core::config::Mdns::default(),
     }
 }
 
