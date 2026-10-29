@@ -64,6 +64,8 @@ pub mod storage;
 /// Centralized application error handling and domain propagation.
 pub mod error;
 
+pub mod mdns;
+
 pub use error::{Error, Result};
 
 /// Bearer token format definitions and cryptographic secrets management.
