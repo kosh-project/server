@@ -6,6 +6,7 @@ use std::{
 use crate::tls::Error::NoCertificatesFound;
 
 use super::error::Result;
+use local_ip_address::list_afinet_netifas;
 use rcgen::generate_simple_self_signed;
 use rustls_pemfile::certs;
 use sha2::{Digest, Sha256};
@@ -39,9 +40,13 @@ impl Identity {
     /// Returns [`super::Error::Io`] if the `tls/` directory cannot be created, or if the PEM
     /// files cannot be read or written. Returns [`super::Error::CertificateGen`] if `rcgen`
     /// fails to generate a valid certificate.
-    pub async fn load_or_create<P>(vault_path: P) -> Result<Self>
+    pub async fn load_or_create<P, S>(
+        vault_path: P,
+        extra_sans: &[S],
+    ) -> Result<Self>
     where
-        P: AsRef<Path>,
+        P: AsRef<Path> + Send,
+        S: AsRef<str> + Sync,
     {
         let tls_dir = vault_path.as_ref().join("tls");
         let cert_path = tls_dir.join("cert.pem");
@@ -51,7 +56,7 @@ impl Identity {
             Self::load(&cert_path, &key_path).await
         } else {
             fs::create_dir_all(tls_dir).await?;
-            Self::create(&cert_path, &key_path).await
+            Self::create(&cert_path, &key_path, extra_sans).await
         }
     }
 
@@ -66,7 +71,7 @@ impl Identity {
     /// Returns [`super::Error::Io`] if either file cannot be read.
     pub async fn load<P>(cert_path: P, key_path: P) -> Result<Self>
     where
-        P: AsRef<Path>,
+        P: AsRef<Path> + Send,
     {
         let cert_pem = fs::read_to_string(cert_path.as_ref()).await?;
         let key_pem = fs::read_to_string(key_path.as_ref()).await?;
@@ -75,11 +80,16 @@ impl Identity {
     }
 
     /// Generates a fresh self-signed identity and writes the PEM files to disk.
-    async fn create<P>(cert_path: P, key_path: P) -> Result<Self>
+    async fn create<P, S>(
+        cert_path: P,
+        key_path: P,
+        extra_sans: &[S],
+    ) -> Result<Self>
     where
-        P: AsRef<Path>,
+        P: AsRef<Path> + Send,
+        S: AsRef<str> + Sync,
     {
-        let identity = Self::forge()?;
+        let identity = Self::forge(extra_sans)?;
 
         fs::write(cert_path, &identity.cert_pem).await?;
         fs::write(key_path, &identity.key_pem).await?;
@@ -88,14 +98,25 @@ impl Identity {
     }
 
     /// Generates a new self-signed certificate in memory without writing to disk.
-    fn forge() -> Result<Self> {
-        let subject_alt_name = [
+    fn forge<S>(extra_sans: &[S]) -> Result<Self>
+    where
+        S: AsRef<str>,
+    {
+        let mut sans = vec![
             "localhost".to_string(),
             "127.0.0.1".to_string(),
             "0.0.0.0".to_string(),
         ];
 
-        let certified_key = generate_simple_self_signed(&subject_alt_name)?;
+        for san in extra_sans {
+            let s = san.as_ref().trim();
+            if s.is_empty() || sans.iter().any(|existing| existing == s) {
+                continue;
+            }
+            sans.push(s.to_string());
+        }
+
+        let certified_key = generate_simple_self_signed(sans)?;
 
         Ok(Self {
             cert_pem: certified_key.cert.pem(),
@@ -153,4 +174,20 @@ impl Identity {
 
         Ok(hasher.finalize().into())
     }
+}
+
+#[must_use]
+pub fn lan_ips() -> Vec<String> {
+    let mut ips = Vec::new();
+    if let Ok(interfaces) = list_afinet_netifas() {
+        for (_name, ip) in interfaces {
+            if !ip.is_loopback() {
+                let s = ip.to_string();
+                if !ips.contains(&s) {
+                    ips.push(s);
+                }
+            }
+        }
+    }
+    ips
 }
