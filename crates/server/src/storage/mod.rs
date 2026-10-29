@@ -32,7 +32,10 @@ use bytes::Bytes;
 use futures::Stream;
 
 pub use error::{Error, Result};
+use kosh_core::{config::Config, logger::Module};
 pub use service::Service;
+
+use crate::{error::boot, info};
 
 #[cfg(test)]
 mod tests;
@@ -76,4 +79,20 @@ where
             stream,
         }
     }
+}
+
+/// Initializes the storage subsystem by ensuring the vault directory exists.
+///
+/// # Errors
+///
+/// Returns [`boot::Error::Storage`] if creating the vault directory fails.
+pub async fn init(config: &Config) -> boot::Result<()> {
+    tokio::fs::create_dir_all(&config.vault_path).await?;
+    info!(
+        Module::Storage,
+        "Vault initialized at {}",
+        config.vault_path.display()
+    );
+
+    Ok(())
 }

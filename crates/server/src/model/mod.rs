@@ -30,6 +30,8 @@ pub mod sync;
 /// WebAuthn passkey credential entities and query models.
 pub mod passkey;
 
+pub mod database;
+
 pub use error::{Error, Result};
 
 #[cfg(test)]
