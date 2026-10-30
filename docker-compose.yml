@@ -1,0 +1,23 @@
+services:
+  kosh-server:
+    image: ghcr.io/kosh-project/server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kosh-server
+    restart: unless-stopped
+
+    network_mode: "host"
+    environment:
+      - KOSH_CONFIG=/etc/kosh/config.kdl
+      - RUST_LOG=info
+
+    volumes:
+      # KDL Configuration (mounts host ./config/config.kdl or KOSH_CONFIG_PATH to /etc/kosh/config.kdl)
+      - ${KOSH_CONFIG_PATH:-./config/config.kdl}:/etc/kosh/config.kdl:ro
+
+      # Encrypted Vault Storage (mounts host ./vault or KOSH_VAULT_PATH to /vault)
+      - ${KOSH_VAULT_PATH:-./vault}:/vault:rw
+
+      # Runtime Socket Directory (exposes /tmp/kosh.sock to host ./run or KOSH_RUN_PATH)
+      - ${KOSH_RUN_PATH:-./run}:/tmp:rw
