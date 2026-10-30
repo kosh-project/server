@@ -1,6 +1,6 @@
 [package]
-name = "webdav-server"
-version = "0.1.36"
+name = "server"
+version = "0.1.4"
 edition = "2024"
 rust-version = "1.97.1"
 

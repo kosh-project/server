@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use bincode_next::config;
 use ratatui::layout::Rect;
-use webdav_server::logger;
+use server::logger;
 
 mod input;
 mod render;
@@ -148,7 +148,7 @@ impl EntryList {
 
 #[cfg(test)]
 mod tests {
-    use webdav_server::logger::{Entry, Level, Module};
+    use server::logger::{Entry, Level, Module};
 
     use super::*;
 
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn perfect_payload_deserialization() {
         use bincode_next::config;
-        use webdav_server::logger::{Entry as LogEntry, Level, Module};
+        use server::logger::{Entry as LogEntry, Level, Module};
 
         let log1 = LogEntry {
             timestamp_ms: 100,

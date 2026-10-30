@@ -569,28 +569,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cli"
-version = "0.1.36"
-dependencies = [
- "anyhow",
- "base64 0.23.1",
- "bincode-next",
- "bip39",
- "chrono",
- "color-eyre",
- "crossterm",
- "futures",
- "kosh-core",
- "local-ip-address",
- "qrcodegen",
- "ratatui",
- "textwrap 0.16.2",
- "tmpdir",
- "tokio",
- "webdav-server",
-]
-
-[[package]]
 name = "cmake"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2197,8 +2175,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "kosh-cli"
+version = "0.1.4"
+dependencies = [
+ "anyhow",
+ "base64 0.23.1",
+ "bincode-next",
+ "bip39",
+ "chrono",
+ "color-eyre",
+ "crossterm",
+ "futures",
+ "kosh-core",
+ "local-ip-address",
+ "qrcodegen",
+ "ratatui",
+ "server",
+ "textwrap 0.16.2",
+ "tmpdir",
+ "tokio",
+]
+
+[[package]]
 name = "kosh-core"
-version = "0.1.36"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "bincode-next",
@@ -3803,6 +3803,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "server"
+version = "0.1.4"
+dependencies = [
+ "anyhow",
+ "axum",
+ "axum-server",
+ "bincode-next",
+ "blake3",
+ "bytes",
+ "chrono",
+ "dirs",
+ "fs4",
+ "futures",
+ "hex",
+ "http-body-util",
+ "httpc-test",
+ "hyper",
+ "knuffel",
+ "kosh-core",
+ "local-ip-address",
+ "mdns-sd",
+ "miette",
+ "moka",
+ "rand 0.10.2",
+ "rcgen",
+ "reqwest 0.13.4",
+ "rustls",
+ "rustls-pemfile",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "serial_test",
+ "sha2 0.11.0",
+ "sqlx",
+ "thiserror 2.0.19",
+ "tmpdir",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tower_governor",
+ "url",
+ "uuid",
+ "webauthn-rs",
+]
+
+[[package]]
 name = "sha1"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5112,52 +5158,6 @@ dependencies = [
  "serde",
  "serde_json",
  "url",
-]
-
-[[package]]
-name = "webdav-server"
-version = "0.1.36"
-dependencies = [
- "anyhow",
- "axum",
- "axum-server",
- "bincode-next",
- "blake3",
- "bytes",
- "chrono",
- "dirs",
- "fs4",
- "futures",
- "hex",
- "http-body-util",
- "httpc-test",
- "hyper",
- "knuffel",
- "kosh-core",
- "local-ip-address",
- "mdns-sd",
- "miette",
- "moka",
- "rand 0.10.2",
- "rcgen",
- "reqwest 0.13.4",
- "rustls",
- "rustls-pemfile",
- "serde",
- "serde_json",
- "serde_repr",
- "serial_test",
- "sha2 0.11.0",
- "sqlx",
- "thiserror 2.0.19",
- "tmpdir",
- "tokio",
- "tokio-util",
- "tower",
- "tower_governor",
- "url",
- "uuid",
- "webauthn-rs",
 ]
 
 [[package]]
