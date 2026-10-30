@@ -1,6 +1,6 @@
 [package]
-name = "cli"
-version = "0.1.36"
+name = "kosh-cli"
+version = "0.1.4"
 edition = "2024"
 
 
@@ -17,7 +17,7 @@ futures.workspace = true
 ratatui = { version = "0.30.2", features = ["widget-calendar"] }
 textwrap = "0.16.2"
 tokio = { workspace = true, features = ["time"] }
-webdav-server = { path = "../server" }
+server = { path = "../server"}
 kosh-core = { path = "../core" }
 qrcodegen = "1.8.0"
 bip39 = "3.0.0"
@@ -26,4 +26,3 @@ local-ip-address = { workspace = true }
 
 [dev-dependencies]
 tmpdir = "1.0.0"
-

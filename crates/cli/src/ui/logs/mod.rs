@@ -19,7 +19,7 @@ pub struct Entry {
     pub raw: logger::Entry,
 }
 
-use webdav_server::logger::{self, Level, Module};
+use server::logger::{self, Level, Module};
 
 const GREEN: Style = Style::new().fg(Color::Green);
 const RED: Style = Style::new().fg(Color::Red);
@@ -90,7 +90,7 @@ impl From<logger::Entry> for Entry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use webdav_server::logger::{Entry as LogEntry, Level, Module};
+    use server::logger::{Entry as LogEntry, Level, Module};
 
     #[test]
     fn test_corrupt_timestamp_panic() {
