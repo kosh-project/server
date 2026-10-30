@@ -6,8 +6,8 @@ mod boilerplate;
 use boilerplate::with_sandbox_env;
 use hyper::StatusCode;
 use serde_json::{Value, json};
+use server::model::{passkey::Record, session::Session, user::User};
 use uuid::Uuid;
-use webdav_server::model::{passkey::Record, session::Session, user::User};
 
 async fn pace() {
     tokio::time::sleep(std::time::Duration::from_millis(80)).await;

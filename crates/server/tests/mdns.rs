@@ -3,9 +3,9 @@
 
 use anyhow::Context;
 use kosh_core::config::{Config, Mdns, MdnsProperty, MdnsTxt, Passkey};
+use server::mdns::{self, Broadcaster};
 use std::time::Duration;
 use tmpdir::TmpDir;
-use webdav_server::mdns::{self, Broadcaster};
 
 #[tokio::test]
 async fn test_mdns_broadcast_and_shutdown_lifecycle() -> anyhow::Result<()> {

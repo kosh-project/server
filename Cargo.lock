@@ -569,6 +569,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "cli"
+version = "0.1.4"
+dependencies = [
+ "anyhow",
+ "base64 0.23.1",
+ "bincode-next",
+ "bip39",
+ "chrono",
+ "color-eyre",
+ "crossterm",
+ "futures",
+ "kosh-core",
+ "local-ip-address",
+ "qrcodegen",
+ "ratatui",
+ "server",
+ "textwrap 0.16.2",
+ "tmpdir",
+ "tokio",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2172,28 +2194,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "kosh-cli"
-version = "0.1.4"
-dependencies = [
- "anyhow",
- "base64 0.23.1",
- "bincode-next",
- "bip39",
- "chrono",
- "color-eyre",
- "crossterm",
- "futures",
- "kosh-core",
- "local-ip-address",
- "qrcodegen",
- "ratatui",
- "server",
- "textwrap 0.16.2",
- "tmpdir",
- "tokio",
 ]
 
 [[package]]
