@@ -170,9 +170,7 @@ impl Identity {
     /// Returns [`super::Error::Io`] if the PEM data does not contain a valid DER certificate block.
     pub fn fingerprint(&self) -> Result<String> {
         let mut reader = Cursor::new(self.cert_pem.as_bytes());
-        let mut cert_iter = certs(&mut reader);
-
-        let der = cert_iter.next().ok_or_else(|| {
+        let der = certs(&mut reader).next().ok_or_else(|| {
             Error::new(
                 io::ErrorKind::InvalidData,
                 "No certificate found in PEM",
@@ -200,9 +198,9 @@ impl Identity {
     /// DER certificate block. Returns [`super::Error::Io`] if the DER block cannot be parsed.
     pub fn fingerprint_raw(&self) -> Result<[u8; 32]> {
         let mut reader = Cursor::new(self.cert_pem.as_bytes());
-        let mut cert_iter = rustls_pemfile::certs(&mut reader);
-
-        let der = cert_iter.next().ok_or(NoCertificatesFound)??;
+        let der = rustls_pemfile::certs(&mut reader)
+            .next()
+            .ok_or(NoCertificatesFound)??;
 
         let mut hasher = Sha256::new();
         hasher.update(der.as_ref());

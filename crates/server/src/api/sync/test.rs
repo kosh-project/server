@@ -138,18 +138,36 @@ async fn api_stream_path_traversal() -> anyhow::Result<()> {
     let (_tmp, state) = setup_env().await?;
     let user_id = 99;
 
-    let query = Query(pull::Params {
-        namespace: Namespace::Files,
-        file: Some("../../../etc/passwd".to_string()),
-        since_seq: None,
-        offset: Some(0),
-        limit: None,
-    });
+    let malicious_filenames = [
+        "../../../etc/passwd",
+        "..",
+        "..log",
+        "....log",
+        "nested/current.log",
+        "nested\\current.log",
+        "current.txt",
+        "evil;payload.log",
+        "",
+    ];
 
-    let res = stream_delta(State(state), Extension(user_id), query).await;
+    for malicious in malicious_filenames {
+        let query = Query(pull::Params {
+            namespace: Namespace::Files,
+            file: Some(malicious.to_string()),
+            since_seq: None,
+            offset: Some(0),
+            limit: None,
+        });
 
-    // Test: verify directory traversal attempt in stream delta filename returns BadRequest
-    assert!(matches!(res, Err(Error::BadRequest(_))));
+        let res =
+            stream_delta(State(state.clone()), Extension(user_id), query).await;
+
+        // Test: verify directory traversal attempt in stream delta filename returns BadRequest
+        assert!(
+            matches!(res, Err(Error::BadRequest(_))),
+            "Expected BadRequest for malicious filename: {malicious}"
+        );
+    }
 
     Ok(())
 }

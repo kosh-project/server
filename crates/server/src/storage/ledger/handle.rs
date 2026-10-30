@@ -135,8 +135,15 @@ impl Handle {
     where
         P: AsRef<Path>,
     {
-        if file_name.contains('\\')
+        if file_name.is_empty()
+            || file_name.contains("..")
             || file_name.contains('/')
+            || file_name.contains('\\')
+            || !file_name.chars().all(|c| {
+                c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.'
+            })
+            || Path::new(file_name).file_name().and_then(|f| f.to_str())
+                != Some(file_name)
             || !Path::new(file_name)
                 .extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("log"))
