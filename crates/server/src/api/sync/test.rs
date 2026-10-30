@@ -159,7 +159,8 @@ async fn api_stream_path_traversal() -> anyhow::Result<()> {
             limit: None,
         });
 
-        let res = stream_delta(State(state.clone()), Extension(user_id), query).await;
+        let res =
+            stream_delta(State(state.clone()), Extension(user_id), query).await;
 
         // Test: verify directory traversal attempt in stream delta filename returns BadRequest
         assert!(

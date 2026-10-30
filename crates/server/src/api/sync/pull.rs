@@ -42,10 +42,12 @@ pub async fn stream_delta(
         || file_name.contains("..")
         || file_name.contains('/')
         || file_name.contains('\\')
-        || !file_name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
-        || std::path::Path::new(file_name).file_name().and_then(|f| f.to_str())
+        || !file_name.chars().all(|c| {
+            c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.'
+        })
+        || std::path::Path::new(file_name)
+            .file_name()
+            .and_then(|f| f.to_str())
             != Some(file_name)
         || !std::path::Path::new(file_name)
             .extension()
