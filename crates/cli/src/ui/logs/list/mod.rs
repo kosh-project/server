@@ -111,6 +111,10 @@ impl EntryList {
         self.scroll_to_bottom();
     }
 
+    /// Appends a new structured log entry to the in-memory display ring buffer.
+    ///
+    /// This operates strictly on in-memory TUI state and does not persist
+    /// or write any data to disk or log files.
     pub fn add_log(&mut self, entry: logger::Entry) {
         let at_bottom = self.auto_scroll;
 
