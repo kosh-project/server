@@ -139,9 +139,9 @@ impl Handle {
             || file_name.contains("..")
             || file_name.contains('/')
             || file_name.contains('\\')
-            || !file_name
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+            || !file_name.chars().all(|c| {
+                c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.'
+            })
             || Path::new(file_name).file_name().and_then(|f| f.to_str())
                 != Some(file_name)
             || !Path::new(file_name)
