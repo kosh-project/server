@@ -8,7 +8,7 @@ use std::time::Duration;
 use boilerplate::{solve, with_sandbox_env};
 use hyper::StatusCode;
 use serde_json::{Value, json};
-use webdav_server::model::{session::Session, user::User};
+use server::model::{session::Session, user::User};
 
 async fn pace_auth() {
     tokio::time::sleep(Duration::from_millis(2100)).await;

@@ -4,8 +4,8 @@
 use anyhow::Context;
 use kosh_core::config::{Config, Mdns, Passkey};
 use kosh_core::tls;
+use server::{auth::Secret, logger, mdns, model::database, storage};
 use tmpdir::TmpDir;
-use webdav_server::{auth::Secret, logger, mdns, model::database, storage};
 
 #[tokio::test]
 async fn test_server_boot_helpers_pipeline() -> anyhow::Result<()> {
@@ -41,7 +41,7 @@ async fn test_server_boot_helpers_pipeline() -> anyhow::Result<()> {
     let reinit = logger::init(&config).await;
     assert!(matches!(
         reinit,
-        Err(webdav_server::error::boot::Error::AlreadyInitiated(_))
+        Err(server::error::boot::Error::AlreadyInitiated(_))
     ));
 
     // 2. Storage initialization: creates vault root directory
@@ -82,7 +82,7 @@ async fn test_server_boot_helpers_pipeline() -> anyhow::Result<()> {
     }
     pool.close().await;
 
-    webdav_server::shutdown!("Boot pipeline test teardown");
+    server::shutdown!("Boot pipeline test teardown");
     logger_handle.shutdown_with_grace(2).await;
 
     Ok(())
