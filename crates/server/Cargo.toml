@@ -40,6 +40,8 @@ tower_governor = "0.8.0"
 rand = "0.10.1"
 webauthn-rs = { version = "0.5.5", features = ["conditional-ui", "workaround-google-passkey-specific-issues"] }
 url = "2.5.8"
+mdns-sd = { workspace = true }
+local-ip-address = { workspace = true }
 
 
 [dev-dependencies]

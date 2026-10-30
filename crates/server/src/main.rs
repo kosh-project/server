@@ -1,27 +1,58 @@
+//! Main executable entry point for the Kosh server daemon.
+//!
+//! # Boot Pipeline
+//!
+//! The server boots through an explicit, ordered sequence of subsystem initializers:
+//!
+//! 1. **Crypto Provider** — Installs the `ring` cryptography backend for `rustls`.
+//! 2. **Configuration** — Loads `config.kdl` via [`Config::load_or_init`], validating mDNS and `WebAuthn` parameters.
+//! 3. **Telemetry Logger** — Spawns the background [`logger`](webdav_server::logger) worker and Unix socket broadcaster.
+//! 4. **Storage Vault** — Ensures `<vault_path>` directory exists via [`storage::init`].
+//! 5. **Database Pool** — Connects to SQLite at `<vault_path>/metadata.db`, applies PRAGMAs, and runs migrations via [`database::init`].
+//! 6. **Server Secret** — Loads or derives the HMAC authentication key via [`Secret::load_or_create`].
+//! 7. **TLS Identity** — Discovers LAN IPs and mDNS hostname, forging or loading X.509 certs via [`tls::init`].
+//! 8. **Application State** — Assembles the dependency graph using [`AppStateBuilder`] and mounts Axum routes.
+//! 9. **mDNS Broadcaster** — Starts local multicast service discovery on UDP 5353 via [`mdns::init`].
+//! 10. **HTTP/HTTPS Ingress** — Binds the listener port via [`Launcher`] and awaits OS termination signals.
+//!
+//! # Graceful Teardown
+//!
+//! When a `SIGINT` (Ctrl+C) or `SIGTERM` signal is captured:
+//! 1. Ingress listener stops accepting new connections and drains active HTTP requests.
+//! 2. The mDNS broadcaster unregisters service announcements, sending TTL=0 goodbye packets.
+//! 3. SQLite connection pool closes cleanly, committing pending WAL transactions.
+//! 4. Background storage ledger flushes outstanding mutation deltas.
+//! 5. Logger commits all buffered telemetry entries to disk before process exit.
+
 use kosh_core::config::Config;
 use kosh_core::tls;
 use rustls::crypto::ring;
-use std::str::FromStr;
 use tokio::io;
 use tokio::{signal, sync::watch};
 use webdav_server::auth::Secret;
 use webdav_server::error::boot;
 use webdav_server::error::boot::Error::AlreadyInitiated;
+use webdav_server::mdns;
+use webdav_server::model::database;
 use webdav_server::server::Launcher;
+use webdav_server::storage;
 use webdav_server::{
     api::route::route_main,
     app::AppStateBuilder,
     info,
-    logger::{self, GLOBAL_LOGGER, Module},
+    logger::{self, Module},
     shutdown,
     storage::ledger,
 };
 
-use sqlx::sqlite::{
-    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
-    SqliteSynchronous,
-};
-
+/// Listens for process termination signals across Unix and non-Unix platforms.
+///
+/// Resolves when either `SIGINT` (Ctrl+C) or `SIGTERM` (standard process termination)
+/// is received, triggering the graceful shutdown sequence.
+///
+/// # Errors
+///
+/// Returns [`std::io::Error`] if registering the OS signal listener fails.
 async fn shutdown_signal() -> io::Result<()> {
     type Err = io::Error;
     let ctrl_c = signal::ctrl_c();
@@ -52,6 +83,10 @@ async fn shutdown_signal() -> io::Result<()> {
     Ok(())
 }
 
+/// Daemon entry point.
+///
+/// Initializes the Tokio runtime, executes the [`boot`] sequence, and reports any startup
+/// or runtime fatal errors through `miette` formatted output.
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     boot().await?;
@@ -59,6 +94,12 @@ async fn main() -> miette::Result<()> {
     Ok(())
 }
 
+/// Orchestrates the server boot sequence and coordinated graceful shutdown.
+///
+/// # Errors
+///
+/// Returns [`boot::Error`] if any configuration, storage, database, cryptographic,
+/// or network binding step fails during startup.
 async fn boot() -> Result<(), boot::Error> {
     ring::default_provider()
         .install_default()
@@ -66,39 +107,11 @@ async fn boot() -> Result<(), boot::Error> {
 
     let config = Config::load_or_init().await?;
 
-    tokio::fs::create_dir_all(&config.vault_path).await?;
-    info!(
-        Module::Storage,
-        "Vault initialized at {}",
-        config.vault_path.display()
-    );
-
-    let db_path =
-        format!("sqlite://{}/metadata.db", config.vault_path.display());
-
+    let logger_handle = logger::init(&config).await?;
+    storage::init(&config).await?;
+    let pool = database::init(&config).await?;
     let secret = Secret::load_or_create(&config).await?;
-
-    let options = SqliteConnectOptions::from_str(&db_path)?
-        .journal_mode(SqliteJournalMode::Wal)
-        .synchronous(SqliteSynchronous::Normal)
-        .pragma("mmap_size", "30000000000")
-        .pragma("temp_store", "MEMORY")
-        .create_if_missing(true)
-        .foreign_keys(true);
-
-    let pool = SqlitePoolOptions::new()
-        .max_connections(50)
-        .connect_with(options)
-        .await?;
-
-    let (log_sender, logger_handle) = logger::Service::start(&config).await?;
-
-    GLOBAL_LOGGER
-        .set(log_sender)
-        .map_err(|_| AlreadyInitiated("Global Logger"))?;
-
-    sqlx::migrate!("./migrations").run(&pool).await?;
-    info!(Module::Database, "Applied all pending SQLite migrations");
+    let identity = tls::init(&config).await?;
 
     let app_state = AppStateBuilder::new()
         .db(pool.clone())
@@ -106,12 +119,10 @@ async fn boot() -> Result<(), boot::Error> {
         .secret(secret)
         .build();
 
-    let identity =
-        tls::Identity::load_or_create(app_state.vault_path().to_owned())
-            .await?;
-
     let ledger_sender = app_state.ledger.sender().clone();
     let app = route_main(app_state);
+
+    let broadcaster = mdns::init(&config);
 
     let (shutdown_tx, _rx) = watch::channel(false);
 
@@ -123,6 +134,11 @@ async fn boot() -> Result<(), boot::Error> {
         config.enable_tls,
     );
     launcher.run(shutdown_signal()).await?;
+
+    if let Some(b) = broadcaster {
+        b.shutdown();
+        info!(Module::Server, "mDNS broadcaster shut down cleanly");
+    }
 
     info!(
         Module::Database,

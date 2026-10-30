@@ -11,18 +11,42 @@
 //! ```kdl
 //! vault-path "./vault"
 //! host "0.0.0.0"
-//! port 6969
-//! enable-tls false
+//! port 23342
+//! enable-tls true
 //! socket-path "/tmp/kosh.sock"
+//!
+//! passkey {
+//!     id "localhost"
+//!     origin "https://localhost:23342"
+//!     name "Kosh Vault"
+//! }
+//!
+//! mdns {
+//!     enable true
+//!     hostname "kosh-nas"
+//!     interfaces "eth0" "wlan0"
+//!     txt {
+//!         property "vendor" "kosh"
+//!         property "version" "0.1.36"
+//!     }
+//! }
 //! ```
 
 mod error;
+mod mdns;
+mod passkey;
 
 #[cfg(test)]
 mod test;
 
 pub use error::{Error, Result};
 
+use knuffel::span::Span;
+pub use mdns::{
+    Diagnostic as MdnsDiagnostic, Mdns, Property as MdnsProperty,
+    Txt as MdnsTxt,
+};
+pub use passkey::Passkey;
 use std::{env, path::PathBuf};
 use tokio::fs;
 
@@ -31,6 +55,7 @@ use tokio::fs;
 /// All fields have defaults that produce a working server on a fresh install.
 /// The defaults can be overridden by editing the KDL configuration file.
 #[derive(knuffel::Decode, Debug)]
+#[knuffel(span_type = Span)]
 pub struct Config {
     /// Root directory where all server data is stored.
     ///
@@ -79,71 +104,14 @@ pub struct Config {
     /// on `localhost:23342` are used.
     #[knuffel(child, default)]
     pub passkey: Passkey,
-}
 
-/// Configuration settings for `WebAuthn` passkey authentication.
-///
-/// In the `WebAuthn` standard, the server acts as the **Relying Party (RP)**.
-/// Authenticating clients verify that the RP ID and Origin requested by the server
-/// match the domain where the user is browsing before allowing a credential to be
-/// created or signed.
-///
-/// # Example KDL configuration
-///
-/// ```kdl
-/// passkey {
-///     id "example.com"
-///     origin "https://example.com"
-///     name "Example Vault"
-/// }
-/// ```
-#[derive(knuffel::Decode, Debug, Clone, PartialEq, Eq)]
-pub struct Passkey {
-    /// Relying Party identifier (RP ID).
+    /// Configuration for Multicast DNS (mDNS) and DNS-SD zero-configuration discovery.
     ///
-    /// According to the `WebAuthn` specification, this must be a valid domain string
-    /// without a scheme, port, or path (e.g., `"example.com"` or `"localhost"`).
-    /// Browsers restrict credentials so that an authenticator registered under this
-    /// RP ID will only respond to origins matching or suffixing this domain.
-    ///
-    /// Defaults to `"localhost"`.
-    #[knuffel(child, unwrap(argument), default = "localhost".to_string())]
-    pub id: String,
-
-    /// Canonical origin URL where the client-side authentication ceremonies occur.
-    ///
-    /// Must include the scheme, hostname, and port (if non-standard), such as
-    /// `"http://localhost:23342"` or `"https://vault.example.com"`. Browsers strictly
-    /// validate that `window.location.origin` matches this URL during both registration
-    /// and login ceremonies to prevent cross-origin impersonation attacks.
-    ///
-    /// Defaults to `"http://localhost:23342"`.
-    #[knuffel(child, unwrap(argument), default = "http://localhost:23342".to_string())]
-    pub origin: String,
-
-    /// Human-friendly name of the Relying Party displayed by client authenticators.
-    ///
-    /// Platforms like iOS, macOS, Windows Hello, and Android show this label when
-    /// prompting the user to save or touch their passkey (e.g., `"Kosh Vault"`).
-    ///
-    /// Defaults to `"Kosh Vault"` when instantiated via [`Default::default`], or an
-    /// empty string (`""`) if the `name` node is omitted within an explicit `passkey` block in KDL.
-    #[knuffel(child, unwrap(argument), default)]
-    pub name: String,
-}
-
-impl Default for Passkey {
-    /// Constructs default `WebAuthn` Relying Party settings for local development.
-    ///
-    /// Sets `id` to `"localhost"`, `origin` to `"http://localhost:23342"`, and
-    /// `name` to `"Kosh Vault"`.
-    fn default() -> Self {
-        Self {
-            id: "localhost".to_string(),
-            origin: "http://localhost:23342".to_string(),
-            name: "Kosh Vault".to_string(),
-        }
-    }
+    /// Governs whether the server advertises its local `.local` hostname and service ports
+    /// over LAN interfaces, enabling client apps to discover the vault without manual IP entry.
+    /// If omitted in the configuration file, defaults to broadcasting as `"kosh.local"`.
+    #[knuffel(child, default)]
+    pub mdns: Mdns,
 }
 
 fn default_vault_path() -> PathBuf {
@@ -190,8 +158,10 @@ socket-path "/tmp/kosh.sock"
             eprintln!("Creating fresh config at {}", path.display());
         }
         let config_txt = fs::read_to_string(&path).await?;
-        let mut config: Self =
-            knuffel::parse(&path.to_string_lossy(), &config_txt)?;
+        let path_str = path.to_string_lossy();
+        let mut config: Self = knuffel::parse(&path_str, &config_txt)?;
+
+        config.mdns.validate(&path_str, &config_txt)?;
 
         if !config.vault_path.is_absolute()
             && let Some(parent) = path.parent()

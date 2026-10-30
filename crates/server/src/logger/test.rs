@@ -1,6 +1,8 @@
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::panic_in_result_fn)]
 
+use crate::logger;
+
 use super::*;
 use anyhow::Context;
 use bincode_next::config;
@@ -12,7 +14,7 @@ use tokio::{fs, net::UnixDatagram, time::timeout};
 
 async fn with_temp_env<F, Fut, T>(f: F) -> anyhow::Result<T>
 where
-    F: FnOnce(Config, Sender<Entry>, service::LoggerHandler) -> Fut,
+    F: FnOnce(Config, Sender<Entry>, logger::Handle) -> Fut,
     Fut: Future<Output = anyhow::Result<T>>,
 {
     let temp_dir = TmpDir::new("kosh-test")
@@ -30,6 +32,7 @@ where
             .to_string_lossy()
             .into(),
         passkey: kosh_core::config::Passkey::default(),
+        mdns: kosh_core::config::Mdns::default(),
     };
 
     let (sender, log_handler) = Service::start(&config)
@@ -229,4 +232,14 @@ async fn file_rotation_on_every_new_day() -> anyhow::Result<()> {
     .await?;
 
     Ok(())
+}
+
+#[tokio::test]
+async fn logger_handle_shutdown_with_grace_on_unresponsive_task() {
+    let join_handle = tokio::spawn(async {
+        tokio::time::sleep(Duration::from_secs(10)).await;
+    });
+
+    let handle = logger::Handle(join_handle);
+    handle.shutdown_with_grace(0).await;
 }

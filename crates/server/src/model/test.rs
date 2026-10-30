@@ -543,3 +543,71 @@ fn token_hash_conversions() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn database_init_creates_db_and_migrates() -> Result<()> {
+    let temp_dir = tmpdir::TmpDir::new("db-init-test")
+        .await
+        .context("failed to create temporary directory")?;
+    let vault_path = temp_dir.to_path_buf();
+
+    let config = kosh_core::config::Config {
+        vault_path: vault_path.clone(),
+        port: 23342,
+        host: "0.0.0.0".to_string(),
+        enable_tls: false,
+        socket_path: "/tmp/kosh.sock".to_string(),
+        passkey: kosh_core::config::Passkey::default(),
+        mdns: kosh_core::config::Mdns::default(),
+    };
+
+    let pool = crate::model::database::init(&config)
+        .await
+        .context("database::init should succeed")?;
+
+    // Verify metadata.db exists on disk
+    let db_file = vault_path.join("metadata.db");
+    assert!(db_file.exists());
+
+    // Verify migrations were applied by querying users table
+    let (count,): (i64,) = sqlx::query_as("SELECT count(*) FROM users")
+        .fetch_one(&pool)
+        .await
+        .context("querying users table after migrations should succeed")?;
+    assert_eq!(count, 0);
+
+    // Verify idempotency when called again on the existing db
+    let pool2 = crate::model::database::init(&config)
+        .await
+        .context("second database::init call should succeed")?;
+    let (count2,): (i64,) = sqlx::query_as("SELECT count(*) FROM users")
+        .fetch_one(&pool2)
+        .await
+        .context("querying users table from second pool should succeed")?;
+    assert_eq!(count2, 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn database_init_fails_on_invalid_path() -> Result<()> {
+    let config = kosh_core::config::Config {
+        vault_path: std::path::PathBuf::from(
+            "/nonexistent_forbidden_dir_abc/nested",
+        ),
+        port: 23342,
+        host: "0.0.0.0".to_string(),
+        enable_tls: false,
+        socket_path: "/tmp/kosh.sock".to_string(),
+        passkey: kosh_core::config::Passkey::default(),
+        mdns: kosh_core::config::Mdns::default(),
+    };
+
+    let result = crate::model::database::init(&config).await;
+    assert!(
+        result.is_err(),
+        "database::init must fail on invalid unwritable path"
+    );
+
+    Ok(())
+}

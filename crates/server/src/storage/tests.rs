@@ -374,3 +374,64 @@ async fn mismatch_content_fails_plus_cleans_up() -> anyhow::Result<()> {
     })
     .await
 }
+
+#[tokio::test]
+async fn storage_init_creates_vault_directory_if_missing() -> anyhow::Result<()>
+{
+    let temp_dir = TmpDir::new("vault-init-test")
+        .await
+        .context("failed to create temporary directory")?;
+    let new_vault_path = temp_dir.to_path_buf().join("nested").join("vault");
+
+    assert!(!new_vault_path.exists());
+
+    let config = kosh_core::config::Config {
+        vault_path: new_vault_path.clone(),
+        port: 23342,
+        host: "0.0.0.0".to_string(),
+        enable_tls: false,
+        socket_path: "/tmp/kosh.sock".to_string(),
+        passkey: kosh_core::config::Passkey::default(),
+        mdns: kosh_core::config::Mdns::default(),
+    };
+
+    crate::storage::init(&config)
+        .await
+        .context("storage::init should succeed")?;
+    assert!(new_vault_path.exists());
+
+    // Idempotency: Calling init again when directory exists
+    crate::storage::init(&config)
+        .await
+        .context("storage::init second call should succeed")?;
+    assert!(new_vault_path.exists());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn storage_init_fails_if_vault_path_is_file() -> anyhow::Result<()> {
+    let temp_dir = TmpDir::new("vault-init-err")
+        .await
+        .context("failed to create temporary directory")?;
+    let file_path = temp_dir.to_path_buf().join("vault_file");
+    tokio::fs::write(&file_path, "plain file content").await?;
+
+    let config = kosh_core::config::Config {
+        vault_path: file_path,
+        port: 23342,
+        host: "0.0.0.0".to_string(),
+        enable_tls: false,
+        socket_path: "/tmp/kosh.sock".to_string(),
+        passkey: kosh_core::config::Passkey::default(),
+        mdns: kosh_core::config::Mdns::default(),
+    };
+
+    let result = crate::storage::init(&config).await;
+    assert!(
+        result.is_err(),
+        "storage::init must fail when vault_path is a file"
+    );
+
+    Ok(())
+}

@@ -18,14 +18,10 @@ use tokio::{
     net::UnixDatagram,
     spawn,
     sync::mpsc::{Receiver, Sender, channel},
-    task::JoinHandle,
-    time::{MissedTickBehavior, interval, timeout},
+    time::{MissedTickBehavior, interval},
 };
 
-use crate::{
-    fatal,
-    logger::{Entry, Module, error::Result},
-};
+use crate::logger::{self, Entry, error::Result};
 
 /// The number of milliseconds in one calendar day (24 * 60 * 60 * 1000).
 ///
@@ -40,7 +36,7 @@ pub(crate) const DAY_MILLIS: i64 = 86_400_000;
 /// dedicated `tokio` task and never shares memory with the HTTP request threads.
 ///
 /// Callers interact with the service indirectly through the [`crate::logger::GLOBAL_LOGGER`]
-/// sender and the `LoggerHandler` returned by [`Service::start`]. The `Service` itself is
+/// sender and the [`logger::Handle`] returned by [`Service::start`]. The `Service` itself is
 /// consumed by the background task and is not accessible after startup.
 pub struct Service {
     /// The receive end of the bounded MPSC channel.
@@ -57,9 +53,10 @@ pub struct Service {
     /// Compared against each incoming entry's timestamp to detect when a day boundary
     /// has been crossed and a new log file must be opened.
     today: i64,
-    /// The absolute path to the `kosh/logs` directory.
+    /// The absolute path to the directory where daily log files are stored.
     ///
-    /// Derived from `dirs::state_dir()` at startup and used when opening new daily files
+    /// Derived from [`Config::log_path`](kosh_core::config::Config::log_path) at startup
+    /// (resolving to `<vault_path>/state/logs`) and used when opening new daily files
     /// during log rotation.
     log_path: PathBuf,
     /// An unbound Unix Datagram Socket used to broadcast entries to the admin CLI.
@@ -83,24 +80,27 @@ impl Service {
     ///
     /// This method must be called once during server startup. It:
     ///
-    /// 1. Creates a bounded MPSC channel with the specified `capacity`.
-    /// 2. Resolves the XDG state directory and creates `kosh/logs` if it does not exist.
+    /// 1. Creates a bounded MPSC channel with capacity 1000.
+    /// 2. Resolves the log directory via [`Config::log_path`](kosh_core::config::Config::log_path) and creates `<vault_path>/state/logs` if it does not exist.
     /// 3. Opens (or creates) the current day's log file in append mode.
     /// 4. Creates an unbound Unix Datagram Socket for broadcasting.
     /// 5. Spawns a dedicated `tokio` task that runs the `Service::run` loop.
     ///
     /// The returned `Sender` should be stored in [`crate::logger::GLOBAL_LOGGER`] immediately
-    /// after this call. The returned `LoggerHandler` should be kept alive and awaited
-    /// during graceful shutdown via `LoggerHandler::shutdown_with_grace`.
+    /// after this call. The returned [`logger::Handle`] should be kept alive and awaited
+    /// during graceful shutdown via [`logger::Handle::shutdown_with_grace`].
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Server configuration specifying log directories and Unix socket paths.
     ///
     /// # Errors
     ///
-    /// Returns `Error::LogDirectoryInitialization` if the XDG state directory
-    /// cannot be determined. Returns `Error::Io` if the log directory cannot be
-    /// created or the initial log file cannot be opened.
+    /// Returns [`crate::logger::Error::Io`] if the log directory cannot be created or the initial log file
+    /// cannot be opened.
     pub async fn start(
         config: &Config,
-    ) -> Result<(Sender<Entry>, LoggerHandler)> {
+    ) -> Result<(Sender<Entry>, logger::Handle)> {
         let (sender, receiver) = channel(1000);
 
         let log_path = config.log_path();
@@ -127,7 +127,7 @@ impl Service {
         };
 
         let task = spawn(async move { service.run().await });
-        Ok((sender, LoggerHandler(task)))
+        Ok((sender, logger::Handle(task)))
     }
 
     /// Returns the path to the directory where daily log files are written.
@@ -206,6 +206,7 @@ impl Service {
         Ok(())
     }
 
+    /// Broadcasts an asynchronous heartbeat pulse to the admin CLI socket.
     async fn send_hearbeat(&self) {
         let Ok(bytes) = encode_to_vec(Heartbeat, config::standard()) else {
             return;
@@ -223,37 +224,13 @@ impl Service {
 ///
 /// If the timestamp cannot be converted to a valid [`DateTime`], the function falls back
 /// to the Unix epoch (1970-01-01) via `unwrap_or_default`.
+///
+/// # Arguments
+///
+/// * `time_stamp_millis` - UTC epoch timestamp in milliseconds.
 #[must_use]
 pub fn format_date_time(time_stamp_millis: i64) -> String {
     let time =
         DateTime::from_timestamp_millis(time_stamp_millis).unwrap_or_default();
     format!("log_{}-{}-{}.bin", time.year(), time.month(), time.day())
-}
-
-/// A handle to the background logging task.
-///
-/// Returned by [`Service::start`] alongside the channel sender. The caller should
-/// retain this handle and use it during the server's graceful shutdown sequence to
-/// ensure that all buffered log entries are flushed to disk before the process exits.
-pub struct LoggerHandler(JoinHandle<()>);
-
-impl LoggerHandler {
-    /// Waits for the logging task to finish, with a timeout.
-    ///
-    /// Before calling this method, the caller must send a [`kosh_core::logger::Level::Shutdown`]
-    /// entry through the channel (typically via the [`crate::shutdown!`] macro) to signal the
-    /// service to exit its receive loop. This method then waits up to `secs` seconds for
-    /// the task to join.
-    ///
-    /// If the task does not finish within the grace period, a [`kosh_core::logger::Level::Fatal`]
-    /// log entry is emitted (which will itself be silently dropped if the sender is gone) and the
-    /// method returns, allowing the OS to clean up the task.
-    pub async fn shutdown_with_grace(self, secs: u64) {
-        if let Err(e) = timeout(Duration::from_secs(secs), self.0).await {
-            fatal!(
-                Module::Logger,
-                "Grace period of {secs} secs, timed out, forcefully terminating engine.\n{e}"
-            );
-        }
-    }
 }

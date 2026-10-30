@@ -22,4 +22,8 @@ kosh-core = { path = "../core" }
 qrcodegen = "1.8.0"
 bip39 = "3.0.0"
 base64 = "0.23.1"
-local-ip-address = "0.6.13"
+local-ip-address = { workspace = true }
+
+[dev-dependencies]
+tmpdir = "1.0.0"
+

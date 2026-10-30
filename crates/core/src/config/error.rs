@@ -1,3 +1,5 @@
+use crate::config::mdns;
+
 /// Errors that can occur while parsing or loading the server configuration.
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum Error {
@@ -14,6 +16,15 @@ pub enum Error {
     /// A filesystem I/O error occurred while reading or writing the configuration file.
     #[error("File system I/O error: {0}")]
     Io(#[from] std::io::Error),
+
+    /// An mDNS zero-configuration discovery validation rule failed.
+    ///
+    /// This variant wraps rich diagnostics from [`mdns::Diagnostic`], covering
+    /// hostname label length, invalid characters, interface name limits,
+    /// or TXT record payload size boundaries according to RFC 6762 and RFC 6763.
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Mdns(#[from] mdns::Diagnostic),
 }
 
 /// A type alias for `Result<T, config::Error>`.
