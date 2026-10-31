@@ -1,0 +1,146 @@
+// ==============================================================================
+// KOSH SERVER CONFIGURATION (KDL v2)
+// ==============================================================================
+// This file controls the runtime behavior, cryptography, network binding,
+// and hardware discovery of your Kosh instance.
+//
+// Read the comments and WARNINGS carefully before modifying existing fields.
+// ==============================================================================
+
+// ------------------------------------------------------------------------------
+// 1. STORAGE VAULT PATH
+// ------------------------------------------------------------------------------
+// The root filesystem directory where all state is stored:
+//   - metadata.db (SQLite asset catalogue, user accounts, synchronization logs)
+//   - server.secret (32-byte Ed25519 root server identity key)
+//   - tls/ (X.509 self-signed certificate and private key)
+//   - state/logs/ (Daily append-only structured binary logs)
+//   - Encrypted BLAKE3 content-addressable blobs
+//
+// CRITICAL DOCKER WARNING:
+// When running inside Docker, DO NOT CHANGE THIS VALUE! It MUST remain "/vault".
+// The docker container mounts your host directory to the internal "/vault" mount point.
+// If you change this path inside Docker, the server will write to an ephemeral
+// container layer, and ALL YOUR DATA WILL BE LOST when the container restarts.
+// To change where data lives on your host hard drive, edit 'KOSH_VAULT_PATH' in '.env'.
+//
+// PATH RESOLUTION NOTE:
+// If a relative path is given (e.g. "./vault"), it resolves relative to the
+// directory containing this config file.
+vault-path "/vault"
+
+// ------------------------------------------------------------------------------
+// 2. NETWORK BINDINGS
+// ------------------------------------------------------------------------------
+// The network interface and TCP port the server listens on.
+//
+// Defaults: host "0.0.0.0", port 23342
+//
+// WARNING (DOCKER HOST NETWORKING):
+// Because Kosh uses 'network_mode: host' for mDNS LAN discovery, changing 'port'
+// binds directly to that physical port on your host machine.
+//
+// WARNING (WEBAUTHN DEPENDENCY):
+// If you change 'port', you MUST also update 'passkey.origin' below to reflect
+// the new port number. Failing to do so will break all WebAuthn/Passkey handshakes.
+host "0.0.0.0"
+port 23342
+
+// ------------------------------------------------------------------------------
+// 3. TRANSPORT SECURITY (TLS)
+// ------------------------------------------------------------------------------
+// When 'true', the server automatically generates (or loads) a self-signed
+// ECDSA P-256 certificate in '<vault_path>/tls/' and serves HTTPS via Rustls.
+// When 'false', the server listens on plain, unencrypted HTTP.
+//
+// WARNING (WEBAUTHN REQUIREMENT ON REMOTE LANS):
+// The WebAuthn / Passkey specification requires a Secure Context (HTTPS or localhost).
+// If you access Kosh over your local network using an IP address (e.g. 192.168.1.50)
+// or custom domain without HTTPS, modern browsers (Chrome, Safari, Firefox) and
+// mobile platforms (Android Credential Manager, iOS) WILL REFUSE to register passkeys.
+// Set this to 'true' if accessing Kosh over a LAN IP or public domain.
+enable-tls false
+
+// ------------------------------------------------------------------------------
+// 4. ADMIN CLI UNIX SOCKET
+// ------------------------------------------------------------------------------
+// Path to the Unix Domain Socket used by 'kosh-cli' to receive real-time telemetry
+// and event streams from the running server daemon.
+//
+// DOCKER WARNING:
+// Inside Docker, this MUST remain in '/tmp' (default: "/tmp/kosh.sock") because
+// docker-compose shares the container's '/tmp' with the host's './run' directory.
+// Changing this path inside the container will prevent 'kosh-cli' from attaching.
+socket-path "/tmp/kosh.sock"
+
+// ------------------------------------------------------------------------------
+// 5. PASSKEY (FIDO2 / WEBAUTHN) RELYING PARTY
+// ------------------------------------------------------------------------------
+// Controls how hardware keys, TouchID, FaceID, and Android authenticators
+// register and authenticate with this Kosh instance.
+passkey {
+    // Relying Party Identifier (RP ID).
+    // Must be a valid domain string (e.g. "localhost", "kosh.local", or "nas.home.arpa").
+    // DO NOT include schemes ("https://") or port numbers in the 'id'.
+    //
+    // ==========================================================================
+    // CRITICAL WARNING: CHANGING THE HOSTNAME OR RP ID BREAKS ALL PASSKEYS!
+    // ==========================================================================
+    // WebAuthn authenticators (YubiKey, Apple Keychain, Google Password Manager, etc.)
+    // cryptographically bind credentials strictly to this RP ID.
+    //
+    // If you change this 'id' OR if you change your hostname / domain name later:
+    //   1. The authenticator will look up credentials matching the new RP ID,
+    //      find NONE, and fail to authenticate.
+    //   2. ALL REGISTERED PASSKEYS BECOME PERMANENTLY INOPERABLE.
+    //   3. All users will be completely locked out and MUST use their 24-word
+    //      BIP-39 recovery mnemonic to restore account access and re-register keys.
+    //
+    // DECIDE ON YOUR HOSTNAME / DOMAIN BEFORE CREATING ANY USER ACCOUNTS!
+    // ==========================================================================
+    id "localhost"
+
+    // The exact Origin URI that client browsers and mobile apps connect to.
+    // Must match the exact scheme, hostname/IP, and port used in the client.
+    //
+    // WARNING:
+    // If this does not match the URL in the client's address bar character-for-character
+    // (including http vs https and port), WebAuthn verification will fail with an Origin Mismatch error.
+    origin "http://localhost:23342"
+
+    // Human-readable name displayed on the user's authenticator prompt during registration.
+    name "Kosh Vault"
+}
+
+// ------------------------------------------------------------------------------
+// 6. MULTICAST DNS (mDNS / DNS-SD) ZERO-CONFIGURATION DISCOVERY
+// ------------------------------------------------------------------------------
+// Advertises the server over UDP port 5353 on your local network so that
+// client apps (desktop, Android, iOS) can automatically find the vault without
+// having to manually enter IP addresses.
+mdns {
+    // Enables or disables the mDNS background responder daemon.
+    enable true
+
+    // Advertised hostname prefix on the LAN.
+    // The server will respond to queries for '<hostname>.local' (e.g. "kosh.local").
+    //
+    // WARNING (HOST NAME CHANGE CAVEAT):
+    // If you change 'hostname' (e.g. from "kosh" to "mynas"), clients connecting
+    // to "mynas.local" will be accessing a different domain name. As stated in
+    // Section 5, changing the access domain requires updating 'passkey.id' and
+    // 'passkey.origin', which WILL INVALIDATE ALL PREVIOUSLY REGISTERED PASSKEYS.
+    // Choose your mDNS hostname once during initial deployment!
+    hostname "kosh"
+
+    // Optional list of physical network interfaces to bind (e.g. "eth0" "wlan0").
+    // When omitted or commented out, mDNS binds to all active network interfaces.
+    // interfaces "eth0" "wlan0"
+
+    // Key-value TXT metadata broadcast in the DNS-SD PTR/SRV records.
+    // Allows Kosh client apps to verify protocol compatibility before connecting.
+    txt {
+        property "vendor" "kosh"
+        property "version" "0.1.36"
+    }
+}

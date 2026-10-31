@@ -21,7 +21,7 @@ use crate::{
 /// # Example
 ///
 /// ```rust,no_run
-/// use webdav_server::app::AppStateBuilder;
+/// use server::app::AppStateBuilder;
 ///
 /// # let pool = todo!(); // SqlitePool — provided at startup
 /// let state = AppStateBuilder::new()

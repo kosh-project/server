@@ -4,8 +4,14 @@
 # temporary test files
 /test
 /vault
+/run
 .idea/
 skills/
 .idea/*
-# Ah yes
+
+# Environment and local configs
 .env
+.env.local
+config/config.kdl
+*.kdl
+!config/config.example.kdl

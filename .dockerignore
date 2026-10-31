@@ -1,0 +1,13 @@
+target/
+.git/
+.github/
+.agents/
+vault/
+vault_data/
+run/
+test/
+.env*
+*.sock
+*.log
+*.tmp
+*.md

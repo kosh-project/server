@@ -17,8 +17,8 @@ use ratatui::{
     text::Line,
     widgets::{Block, Paragraph, Widget},
 };
+use server::logger::format_date_time;
 use tokio::time::Instant;
-use webdav_server::logger::format_date_time;
 
 use crate::ui::{
     help::Help,

@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn test_viewport_scrolling_simulation() {
         use crate::ui::logs::Entry;
-        use webdav_server::logger::{Entry as LogEntry, Level, Module};
+        use server::logger::{Entry as LogEntry, Level, Module};
 
         let mut list = List {
             last_viewport_h: 5,

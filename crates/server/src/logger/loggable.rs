@@ -21,7 +21,7 @@ use crate::logger::{Level, Module};
 /// and placed into the response extension backpack for the logging middleware to pick up.
 ///
 /// ```rust
-/// use webdav_server::logger::{Level, Module, Loggable};
+/// use server::logger::{Level, Module, Loggable};
 ///
 /// struct MyError;
 ///

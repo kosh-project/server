@@ -2,8 +2,8 @@ mod boilerplate;
 use boilerplate::with_sandbox_env;
 use hyper::StatusCode;
 use serde_json::Value;
+use server::model::{session::Session, user::User};
 use uuid::Uuid;
-use webdav_server::model::{session::Session, user::User};
 
 #[tokio::test]
 #[serial_test::serial]

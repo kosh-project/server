@@ -3,7 +3,7 @@ use ratatui::{
     style::{Color, Style, Stylize},
     text::Span,
 };
-use webdav_server::logger::{Level, Module};
+use server::logger::{Level, Module};
 
 mod selected;
 use selected::Selected;
@@ -183,7 +183,7 @@ const fn lvl_str(lvl: Option<Level>) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use webdav_server::logger::Entry as LogEntry;
+    use server::logger::Entry as LogEntry;
 
     fn dummy_entry(module: Module, level: Level, msg: &str) -> Entry {
         Entry::from(LogEntry {
