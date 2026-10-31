@@ -3,9 +3,9 @@ name: Deploy documentation to GitHub Pages
 on:
   workflow_run:
     workflows: ["tests"]
-    types: 
+    types:
       - completed
-    branches: 
+    branches:
       - main
   workflow_dispatch:
 
@@ -39,7 +39,7 @@ jobs:
         with:
           # Cache cargo registry, target directory, and built documentation
           shared-key: "rust-docs"
-          
+
       - name: Build documentation
         # Generate docs in release mode without dependencies' docs (optional, but saves time if you don't need them)
         # Remove --no-deps if you want dependencies documentation included
@@ -48,7 +48,7 @@ jobs:
       - name: Setup redirect
         # Cargo doc outputs into target/doc, but the main crate docs are under target/doc/webdav_server
         # GitHub pages serves the root of target/doc, so we need a redirect.
-        run: echo '<meta http-equiv="refresh" content="0; url=webdav_server/index.html">' > target/doc/index.html
+        run: echo '<meta http-equiv="refresh" content="0; url=server/index.html">' > target/doc/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
