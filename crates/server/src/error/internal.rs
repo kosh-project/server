@@ -49,9 +49,9 @@ pub enum Error {
 /// ```rust
 /// use std::num::TryFromIntError;
 /// use std::time::SystemTimeError;
-/// // Assuming your crate is named `webdav_server`
-/// use webdav_server::error::internal::Error as InternalErr;
-/// use webdav_server::wrap_internal_err;
+/// // Assuming your crate is named `server`
+/// use server::error::internal::Error as InternalErr;
+/// use server::wrap_internal_err;
 ///
 /// #[derive(thiserror::Error, Debug)]
 /// pub enum StorageError {

@@ -8,7 +8,7 @@ use std::fmt::Display;
 /// # Examples
 ///
 /// ```rust
-/// use webdav_server::log;
+/// use server::log;
 ///
 /// // Simple message with no label
 /// log!("Server started");
@@ -47,7 +47,7 @@ macro_rules! log {
 /// # Examples
 ///
 /// ```rust
-/// use webdav_server::log::Color;
+/// use crate::server::log::Color;
 ///
 /// let msg = "something went wrong".error();
 /// let user = "user_42".bold();

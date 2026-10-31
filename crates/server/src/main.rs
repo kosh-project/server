@@ -6,7 +6,7 @@
 //!
 //! 1. **Crypto Provider** — Installs the `ring` cryptography backend for `rustls`.
 //! 2. **Configuration** — Loads `config.kdl` via [`Config::load_or_init`], validating mDNS and `WebAuthn` parameters.
-//! 3. **Telemetry Logger** — Spawns the background [`logger`](webdav_server::logger) worker and Unix socket broadcaster.
+//! 3. **Telemetry Logger** — Spawns the background [`logger`](server::logger) worker and Unix socket broadcaster.
 //! 4. **Storage Vault** — Ensures `<vault_path>` directory exists via [`storage::init`].
 //! 5. **Database Pool** — Connects to SQLite at `<vault_path>/metadata.db`, applies PRAGMAs, and runs migrations via [`database::init`].
 //! 6. **Server Secret** — Loads or derives the HMAC authentication key via [`Secret::load_or_create`].
