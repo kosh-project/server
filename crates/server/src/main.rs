@@ -1,3 +1,29 @@
+//! Main executable entry point for the Kosh server daemon.
+//!
+//! # Boot Pipeline
+//!
+//! The server boots through an explicit, ordered sequence of subsystem initializers:
+//!
+//! 1. **Crypto Provider** — Installs the `ring` cryptography backend for `rustls`.
+//! 2. **Configuration** — Loads `config.kdl` via [`Config::load_or_init`], validating mDNS and `WebAuthn` parameters.
+//! 3. **Telemetry Logger** — Spawns the background [`logger`](webdav_server::logger) worker and Unix socket broadcaster.
+//! 4. **Storage Vault** — Ensures `<vault_path>` directory exists via [`storage::init`].
+//! 5. **Database Pool** — Connects to SQLite at `<vault_path>/metadata.db`, applies PRAGMAs, and runs migrations via [`database::init`].
+//! 6. **Server Secret** — Loads or derives the HMAC authentication key via [`Secret::load_or_create`].
+//! 7. **TLS Identity** — Discovers LAN IPs and mDNS hostname, forging or loading X.509 certs via [`tls::init`].
+//! 8. **Application State** — Assembles the dependency graph using [`AppStateBuilder`] and mounts Axum routes.
+//! 9. **mDNS Broadcaster** — Starts local multicast service discovery on UDP 5353 via [`mdns::init`].
+//! 10. **HTTP/HTTPS Ingress** — Binds the listener port via [`Launcher`] and awaits OS termination signals.
+//!
+//! # Graceful Teardown
+//!
+//! When a `SIGINT` (Ctrl+C) or `SIGTERM` signal is captured:
+//! 1. Ingress listener stops accepting new connections and drains active HTTP requests.
+//! 2. The mDNS broadcaster unregisters service announcements, sending TTL=0 goodbye packets.
+//! 3. SQLite connection pool closes cleanly, committing pending WAL transactions.
+//! 4. Background storage ledger flushes outstanding mutation deltas.
+//! 5. Logger commits all buffered telemetry entries to disk before process exit.
+
 use kosh_core::config::Config;
 use kosh_core::tls;
 use rustls::crypto::ring;
