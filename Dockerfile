@@ -3,6 +3,9 @@
 # ==========================================
 FROM rust:slim-bookworm AS builder
 
+# Build profile: 'release' (default for production) or 'dev' (fast unoptimized for CI checks)
+ARG PROFILE=release
+
 WORKDIR /app
 
 # Install build dependencies for openssl-sys (required by webauthn-rs)
@@ -20,8 +23,21 @@ COPY crates ./crates
 # Tell sqlx to verify queries against .sqlx JSON metadata without hitting SQLite
 ENV SQLX_OFFLINE=true
 
-# Compile release binaries
-RUN cargo build --release --workspace
+# Compile binaries with BuildKit cargo cache mounts
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    if [ "$PROFILE" = "dev" ]; then \
+        cargo build --workspace && \
+        mkdir -p /app/bin && \
+        cp /app/target/debug/server /app/bin/server && \
+        cp /app/target/debug/cli /app/bin/cli; \
+    else \
+        cargo build --release --workspace && \
+        mkdir -p /app/bin && \
+        cp /app/target/release/server /app/bin/server && \
+        cp /app/target/release/cli /app/bin/cli; \
+    fi
 
 
 # ==========================================
@@ -44,10 +60,10 @@ RUN mkdir -p /vault /etc/kosh /tmp && \
     chown -R kosh:kosh /vault /etc/kosh
 
 # Copy compiled binaries from builder stage
-COPY --from=builder /app/target/release/server   /usr/local/bin/koshd
-COPY --from=builder /app/target/release/cli      /usr/local/bin/kosh-cli
+COPY --from=builder /app/bin/server /usr/local/bin/koshd
+COPY --from=builder /app/bin/cli    /usr/local/bin/kosh-cli
 
-# aliases
+# Aliases
 RUN ln -s /usr/local/bin/koshd /usr/local/bin/kosh-server && \
     ln -s /usr/local/bin/koshd /usr/local/bin/server
 
