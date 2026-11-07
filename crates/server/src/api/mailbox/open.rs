@@ -25,8 +25,8 @@ pub struct Response {
 ///
 /// # Errors
 ///
-/// - Returns [`BadRequest`](crate::api::Error::BadRequest) if `pub_temp` is not 64 hex characters (32 bytes).
-/// - Returns [`BadRequest`](crate::api::Error::BadRequest) if `pub_temp` contains invalid hex digits.
+/// - Returns [`BadRequest`] if `pub_temp` is not 64 hex characters (32 bytes).
+/// - Returns [`BadRequest`] if `pub_temp` contains invalid hex digits.
 pub async fn open(
     State(state): State<app::State>,
     Json(request): Json<Request>,
