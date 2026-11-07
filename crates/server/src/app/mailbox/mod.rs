@@ -1,3 +1,20 @@
+//! In-memory ephemeral mailbox domain service for bidirectional ECDH device pairing.
+//!
+//! This service manages short-lived pairing sessions stored in RAM using an asynchronous
+//! [`moka::future::Cache`]. To guarantee thread safety and prevent lock contention across
+//! `.await` boundaries, concurrency is split into two layers:
+//!
+//! 1. **Cache Layer ([`Mailbox`]):** Handles asynchronous cache lookups, insertions, and evictions.
+//! 2. **State Transition Layer ([`Entry`]):** Encapsulates internal state behind a standard
+//!    `std::sync::Mutex<Status>`. All transitions (`join`, `status`, `fulfill`, `pickup`)
+//!    execute synchronously within the lock and release it immediately before any async I/O.
+//!
+//! # Mailbox Identifiers
+//!
+//! Mailbox IDs are 8-character lowercase Crockford Base32 strings generated from 40 bits of
+//! cryptographically secure entropy. Crockford Base32 eliminates visually ambiguous characters
+//! (`i`, `l`, `o`, `u`), making codes safe for manual entry or optical QR recognition.
+
 use std::time::Duration;
 
 use moka::future::Cache;

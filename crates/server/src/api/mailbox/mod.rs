@@ -1,48 +1,73 @@
 //! Ephemeral ECDH key exchange mailbox endpoints for device pairing.
 //!
-//! This module provides HTTP route handlers that implement an ephemeral blind relay
-//! for out-of-band Elliptic Curve Diffie-Hellman (ECDH) key exchange between devices
-//! belonging to the same authenticated user account.
+//! This module provides HTTP route handlers that implement an in-memory blind relay
+//! for out-of-band Elliptic Curve Diffie-Hellman (ECDH) key agreement and device
+//! pairing between an existing authenticated device and a new unauthenticated client.
 //!
-//! # Protocol Overview
+//! # Protocol UX Flows
 //!
-//! When pairing a new device (e.g. mobile client) with an existing authenticated device
-//! (e.g. desktop client), the two endpoints establish end-to-end encrypted device keys
-//! without exposing secrets or key material to the server:
+//! Device pairing supports two bidirectional handshake flows depending on which device
+//! displays or scans the pairing code:
 //!
-//! 1. **Allocation (`POST /api/v1/devices/mailbox`):**
-//!    The receiving device invokes [`create`](crate::api::mailbox::create) to allocate a temporary mailbox. The server
-//!    generates an 8-character lowercase Crockford Base32 identifier and returns it
-//!    together with the expiration countdown in seconds (`expires_in: 300`).
-//! 2. **Out-of-band Transfer:**
-//!    The receiving device presents the 8-character code (or a QR code representing it)
-//!    to the user. The sending device scans or enters the code out-of-band.
-//! 3. **Fulfillment (`POST /api/v1/devices/mailbox/{id}/fulfill`):**
-//!    The sending device generates its ECDH public key or key agreement payload and
-//!    submits it as a hex string to [`fulfill`](crate::api::mailbox::fulfill). The payload must be between 120 and
-//!    8,192 hex characters (60 to 4,096 raw bytes). The server stores the raw bytes
-//!    in memory and marks the mailbox as fulfilled.
-//! 4. **Pickup & Burn (`GET /api/v1/devices/mailbox/{id}`):**
-//!    The receiving device polls [`pickup`](crate::api::mailbox::pickup). While pending, the server responds with
-//!    `{"status": "pending"}`. Once fulfilled, it returns the hex-encoded payload and
-//!    immediately deletes the mailbox from memory, guaranteeing single-use
-//!    "burn-after-reading" semantics.
+//! ## Flow A: Receiver Displays QR Code (e.g., Mobile Phone to Desktop)
 //!
-//! # Security Contract
+//! 1. **Open Mailbox (`POST /api/auth/mailbox/open`):**
+//!    The unauthenticated pairing device generates an ephemeral X25519 keypair and submits
+//!    its public key (`pub_temp`, 32 bytes / 64 hex chars) under Hashcash Proof-of-Work
+//!    ([`pow_guard`]). The server allocates an 8-character Crockford Base32 mailbox identifier
+//!    and a cryptographically secure 32-byte polling token (`polling_token`), initializing
+//!    the state to `Ready`.
+//! 2. **Out-of-band Display:**
+//!    The pairing device presents the mailbox identifier (or a QR code containing it)
+//!    to the user.
+//! 3. **Mint Registration Ticket (`POST /api/v1/devices/link-ticket`):**
+//!    The authenticated device scans the code, authenticates via session token ([`auth_guard`],
+//!    [`mac_guard`]), and requests an ephemeral registration ticket (`registration_ticket`,
+//!    valid for 300 seconds).
+//! 4. **Fulfillment (`POST /api/v1/devices/mailbox/{id}/fulfill`):**
+//!    The authenticated device derives the shared ECDH key agreement secret, encrypts
+//!    the registration ticket and initial vault envelope keys, and deposits the ciphertext
+//!    (120 to 8,192 hex characters). The mailbox transitions to `Fulfilled`.
+//! 5. **Pickup & Burn (`GET /api/auth/mailbox/{id}/pickup`):**
+//!    The pairing device polls the pickup endpoint using `Authorization: Bearer <polling_token>`.
+//!    Once fulfilled, the server returns the ciphertext and immediately burns the entry
+//!    from RAM. The pairing device decrypts the payload and completes passkey registration
+//!    using the registration ticket.
 //!
-//! - **Untrusted Blind Relay:** The server never inspects or decrypts the exchanged payload;
-//!   all cryptographic verification happens client-side between the pairing devices.
-//! - **Mutual Authentication:** All mailbox endpoints require authentication via [`auth_guard`]
-//!   and [`mac_guard`].
-//! - **Cross-Tenant Isolation & Anti-Enumeration:** Mailboxes are strictly bound to the
-//!   authenticated caller's [`UserId`]. Access attempts from a different account return
-//!   HTTP `404 Not Found`, denying attackers an oracle to probe or enumerate active mailbox IDs.
-//! - **Bounded Lifetime:** Mailboxes are stored in an in-memory [`moka::future::Cache`]
-//!   with a hard 300-second Time-To-Live ([`Mailbox::TTL_SECS`]). Expired mailboxes are
-//!   evicted automatically.
+//! ## Flow B: Sender Displays QR Code (e.g., Desktop to Mobile Phone)
+//!
+//! 1. **Offer Mailbox (`POST /api/v1/devices/mailbox`):**
+//!    The authenticated device allocates a pairing mailbox bound to its `user_id`. The server
+//!    returns the 8-character mailbox identifier with state `Waiting`.
+//! 2. **Poll Status (`GET /api/v1/devices/mailbox/{id}/status`):**
+//!    The authenticated device polls the status endpoint while displaying the pairing QR code.
+//!    While awaiting the receiver, it receives `{"status": "waiting"}`.
+//! 3. **Join Mailbox (`POST /api/auth/mailbox/{id}/join`):**
+//!    The unauthenticated pairing device scans the code and submits its ephemeral public key
+//!    under Hashcash Proof-of-Work. The server deposits the key, generates a polling token,
+//!    and transitions the state to `Ready`.
+//! 4. **Status Ready & Fulfillment:**
+//!    The authenticated device's next status poll returns `{"status": "ready", "pub_temp": "<hex>"}`.
+//!    It derives the shared secret, encrypts the pairing payload, and submits it to `fulfill`.
+//! 5. **Pickup & Burn (`GET /api/auth/mailbox/{id}/pickup`):**
+//!    The pairing device polls with its token, receives the ciphertext, and the mailbox is burned.
+//!
+//! # Security Invariants
+//!
+//! - **RAM-Only Ephemeral Storage:** Mailboxes exist exclusively in an in-memory
+//!   [`moka::future::Cache`] with a hard 300-second Time-To-Live ([`Mailbox::TTL_SECS`])
+//!   and a 1,000-entry capacity limit. No mailbox state is ever persisted to SQLite.
+//! - **Untrusted Blind Relay:** The server never inspects or decrypts the exchanged ciphertext;
+//!   all cryptographic verification happens end-to-end between client devices.
+//! - **Cross-Tenant Isolation & Anti-Enumeration:** Mailboxes created via Flow B are strictly
+//!   bound to the owner's [`UserId`]. In both `Waiting` and `Ready` states, access attempts from
+//!   different accounts return HTTP `404 Not Found`, denying attackers an enumeration oracle.
+//! - **Single-Use Burn-After-Reading:** A fulfilled mailbox is evicted immediately upon
+//!   first successful retrieval by the holder of the polling token.
 //!
 //! [`auth_guard`]: crate::api::middleware::auth_guard
 //! [`mac_guard`]: crate::api::middleware::mac_guard
+//! [`pow_guard`]: crate::api::auth::pow_guard
 //! [`UserId`]: crate::app::state::UserId
 //! [`Mailbox::TTL_SECS`]: crate::app::Mailbox::TTL_SECS
 
