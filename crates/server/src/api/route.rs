@@ -61,6 +61,9 @@ pub fn route_main(state: AppState) -> Router {
 /// | `GET`  | `/api/auth/challenge` | [`challenge::generate`] | Issues stateless Hashcash `PoW` challenge |
 /// | `POST` | `/api/auth/passkey/login/start` | [`passkey::login_start`] | Initiates discoverable passkey login ceremony |
 /// | `POST` | `/api/auth/passkey/login/finish` | [`passkey::login_finish`] | Completes passkey login and issues session token |
+/// | `POST` | `/api/auth/passkey/register` | [`passkey::register_finish`] | Alias for ticket-authorized passkey registration finish |
+/// | `POST` | `/api/auth/passkey/register/start` | [`passkey::register_start`] | Initiates ticket-authorized passkey registration |
+/// | `POST` | `/api/auth/passkey/register/finish` | [`passkey::register_finish`] | Completes ticket-authorized passkey registration |
 fn auth_route(state: &AppState) -> Router<AppState> {
     Router::new()
         // PoW-guarded unauthenticated actions
@@ -73,6 +76,9 @@ fn auth_route(state: &AppState) -> Router<AppState> {
         .route("/challenge", get(challenge::generate))
         .route("/passkey/login/start", post(passkey::login_start))
         .route("/passkey/login/finish", post(passkey::login_finish))
+        .route("/passkey/register", post(passkey::register_finish))
+        .route("/passkey/register/start", post(passkey::register_start))
+        .route("/passkey/register/finish", post(passkey::register_finish))
         // Ephemeral mailbox polling
         .route("/mailbox/{id}/pickup", get(mailbox::pickup))
         .with_auth_ip_limit()
@@ -106,6 +112,7 @@ fn auth_route(state: &AppState) -> Router<AppState> {
 /// | `POST` | `/api/v1/devices/mailbox` | [`mailbox::create`] | Allocates ephemeral ECDH mailbox |
 /// | `POST` | `/api/v1/devices/mailbox/{id}/fulfill` | [`mailbox::fulfill`] | Deposits payload into mailbox |
 /// | `GET` | `/api/v1/devices/mailbox/{id}` | [`mailbox::pickup`] | Polls or picks up mailbox payload |
+/// | `POST` | `/api/v1/devices/link-ticket` | [`mailbox::ticket`] | Mints short-lived registration ticket for pairing |
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/upload/{tag}", post(assets::upload))
@@ -132,6 +139,7 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .route("/devices/mailbox", post(mailbox::create))
         .route("/devices/mailbox/{id}/status", get(mailbox::status))
         .route("/devices/mailbox/{id}/fulfill", post(mailbox::fulfill))
+        .route("/devices/link-ticket", post(mailbox::ticket))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
         .with_device_limit()
         .route_layer(middleware::from_fn_with_state(state.clone(), mac_guard))

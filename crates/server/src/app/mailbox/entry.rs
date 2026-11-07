@@ -21,6 +21,7 @@ pub struct Entry {
     status: Arc<Mutex<Status>>,
 }
 
+#[allow(clippy::significant_drop_tightening)]
 impl Entry {
     pub fn new_waiting(user_id: UserId) -> Self {
         Self {

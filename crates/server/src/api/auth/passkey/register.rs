@@ -1,9 +1,11 @@
 use crate::Result;
 use axum::{Extension, Json, extract::State};
-use hyper::StatusCode;
+use hyper::{HeaderMap, StatusCode};
 
 use crate::{
-    api::auth::passkey::user_id_to_handle, app, error::JsonResult,
+    api::{Error::Unauthorized, auth::passkey::user_id_to_handle},
+    app::{self, state::UserId},
+    error::JsonResult,
     model::passkey,
 };
 
@@ -42,6 +44,9 @@ pub mod finish {
         pub credential: RegisterPublicKeyCredential,
         /// Client-encrypted device label or metadata, hex-encoded (up to 2048 hex chars / 1024 raw bytes).
         pub encrypted_metadata: String,
+        /// Optional registration ticket when authorization header is omitted.
+        #[serde(default, alias = "registration_ticket")]
+        pub ticket: Option<String>,
     }
 
     impl Request {
@@ -70,25 +75,82 @@ pub mod finish {
     }
 }
 
-/// Initiates a `WebAuthn` passkey registration ceremony for an authenticated user.
+/// Resolves the target user ID for passkey registration.
 ///
-/// Route: `POST /api/v1/auth/passkey/register/start` (protected by `mac_guard` and `auth_guard`).
+/// Accepts either an active session via `auth_guard` (`Extension<i64>`) or an ephemeral
+/// registration ticket passed via `Authorization: Bearer <ticket>` (or request payload).
 ///
-/// 1. Queries existing passkeys for the caller to populate `excludeCredentials`, preventing
-///    the authenticator from creating duplicate credentials for this account on the same device.
-/// 2. Converts the caller's `user_id` into a deterministic `WebAuthn` user handle [`uuid::Uuid`].
-/// 3. Generates a registration challenge and caches intermediate registration state with a 60-second `TTL`.
-/// 4. Returns the challenge options and ephemeral `challenge_id` to the client.
+/// If `consume` is false, the ticket is inspected without burning it (`peek`).
+/// If `consume` is true, the ticket is atomically removed from memory (`consume`).
+async fn resolve_user(
+    state: &app::State,
+    user_ext: Option<Extension<i64>>,
+    headers: &HeaderMap,
+    body_ticket: Option<&str>,
+    consume: bool,
+) -> crate::api::Result<UserId> {
+    if let Some(Extension(user_id)) = user_ext {
+        return Ok(user_id);
+    }
+
+    let auth_token = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| {
+            h.strip_prefix("Bearer ")
+                .or_else(|| h.strip_prefix("bearer "))
+        })
+        .map(str::trim);
+
+    let token = auth_token
+        .or_else(|| {
+            headers
+                .get("X-Registration-Ticket")
+                .and_then(|h| h.to_str().ok())
+                .map(str::trim)
+        })
+        .or_else(|| {
+            headers
+                .get("Registration-Ticket")
+                .and_then(|h| h.to_str().ok())
+                .map(str::trim)
+        })
+        .or_else(|| body_ticket.map(str::trim))
+        .ok_or(Unauthorized("Missing or invalid Authorization header"))?;
+
+    let user_id = if consume {
+        state.ticket.consume(token).await
+    } else {
+        state.ticket.peek(token).await
+    };
+
+    user_id.ok_or(Unauthorized("Invalid or expired registration ticket"))
+}
+
+/// Initiates a `WebAuthn` passkey registration ceremony.
+///
+/// Route: `POST /api/v1/auth/passkey/register/start` (protected by `mac_guard` and `auth_guard`)
+/// or `POST /api/auth/passkey/register/start` (unauthenticated, authorized via `registration_ticket`).
+///
+/// 1. Resolves caller `user_id` from session extension or validates registration ticket (`peek`).
+/// 2. Queries existing passkeys for the user to populate `excludeCredentials`.
+/// 3. Converts `user_id` into a deterministic `WebAuthn` user handle [`uuid::Uuid`].
+/// 4. Generates a registration challenge and caches intermediate ceremony state.
+/// 5. Returns the challenge options and ephemeral `challenge_id` to the client.
 ///
 /// # Errors
 ///
+/// - Returns [`crate::api::Error::Unauthorized`] if not authenticated and no valid registration ticket is provided.
 /// - Returns [`crate::api::Error::IntegerConversion`] if the caller's `user_id` is negative.
 /// - Returns [`crate::api::Error::WebAuthn`] if challenge generation fails.
 /// - Returns [`crate::model::Error::Database`] if querying existing credentials from `SQLite` fails.
 pub async fn register_start(
     State(state): State<app::State>,
-    Extension(user_id): Extension<i64>,
+    user_ext: Option<Extension<i64>>,
+    headers: HeaderMap,
 ) -> JsonResult<start::Response> {
+    let user_id = resolve_user(&state, user_ext, &headers, None, false).await?;
+
     let exclude_credentials =
         passkey::Record::exclude_list_for_user(&state.db, user_id).await?;
 
@@ -112,17 +174,20 @@ pub async fn register_start(
 
 /// Completes a `WebAuthn` passkey registration ceremony and stores the credential.
 ///
-/// Route: `POST /api/v1/auth/passkey/register/finish` (protected by `mac_guard` and `auth_guard`).
+/// Route: `POST /api/v1/auth/passkey/register/finish` (protected by `mac_guard` and `auth_guard`)
+/// or `POST /api/auth/passkey/register/finish` (unauthenticated, authorized via `registration_ticket`).
 ///
-/// 1. Retrieves and atomically consumes the cached registration state associated with `challenge_id`,
+/// 1. Resolves caller `user_id` from session extension or atomically consumes registration ticket (`consume`).
+/// 2. Retrieves and consumes the cached registration state associated with `challenge_id`,
 ///    verifying that the user ID completing the ceremony matches the user ID that started it.
-/// 2. Validates and hex-decodes the client-encrypted metadata payload.
-/// 3. Cryptographically verifies the authenticator's attestation response against the cached challenge.
-/// 4. Persists the verified credential record to `webauthn_credentials`.
-/// 5. Returns HTTP `201 Created` upon success.
+/// 3. Validates and hex-decodes the client-encrypted metadata payload.
+/// 4. Cryptographically verifies the authenticator's attestation response against the cached challenge.
+/// 5. Persists the verified credential record to `webauthn_credentials`.
+/// 6. Returns HTTP `201 Created` upon success.
 ///
 /// # Errors
 ///
+/// - Returns [`crate::api::Error::Unauthorized`] if not authenticated and no valid registration ticket is provided.
 /// - Returns [`crate::api::Error::BadRequest`] if the challenge ID is invalid or expired.
 /// - Returns [`crate::api::Error::Unauthorized`] if the ceremony was started by a different user.
 /// - Returns [`crate::api::Error::BadRequest`] if `encrypted_metadata` is malformed hex or exceeds 1024 bytes.
@@ -132,9 +197,19 @@ pub async fn register_start(
 /// - Returns [`crate::model::Error::Database`] if database persistence fails.
 pub async fn register_finish(
     State(state): State<app::State>,
-    Extension(user_id): Extension<i64>,
+    user_ext: Option<Extension<i64>>,
+    headers: HeaderMap,
     Json(request): Json<finish::Request>,
 ) -> Result<StatusCode> {
+    let user_id = resolve_user(
+        &state,
+        user_ext,
+        &headers,
+        request.ticket.as_deref(),
+        true,
+    )
+    .await?;
+
     let reg_state = state
         .passkey
         .take_registration(&request.challenge_id, user_id)

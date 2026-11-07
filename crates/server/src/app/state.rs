@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 use webauthn_rs::Webauthn;
 
 use crate::{
-    app::{Mailbox, Passkey},
+    app::{Mailbox, Passkey, Ticket},
     auth::Secret,
     model::session::TokenHash,
     storage::{self, ledger},
@@ -69,6 +69,9 @@ pub struct State {
     /// Stores short-lived, blind relay envelopes indexed by 8-character Crockford Base32
     /// identifiers with automatic 300-second TTL expiration and single-use burn semantics.
     pub mailbox: Mailbox,
+
+    /// In-memory cache holding ephemeral registration tickets for device pairing.
+    pub ticket: Ticket,
 }
 
 impl State {

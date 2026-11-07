@@ -56,7 +56,7 @@ impl Mailbox {
         id
     }
 
-    async fn generate_unique_id(&self) -> String {
+    fn generate_unique_id(&self) -> String {
         loop {
             let id = Self::generate_id();
             if !self.cache.contains_key(&id) {
@@ -67,7 +67,7 @@ impl Mailbox {
 
     /// Flow A: Receiver opens a mailbox, submits ephemeral public key, gets 8-char ID and polling token.
     pub async fn open(&self, pub_temp: Vec<u8>) -> Receipt {
-        let id = self.generate_unique_id().await;
+        let id = self.generate_unique_id();
         let token = Token::new();
         let entry = Entry::new_ready(pub_temp, token.hash);
         self.cache.insert(id.clone(), entry).await;
@@ -76,7 +76,7 @@ impl Mailbox {
 
     /// Flow B: Authenticated device offers a pairing mailbox waiting for a new device to join.
     pub async fn offer(&self, user_id: UserId) -> String {
-        let id = self.generate_unique_id().await;
+        let id = self.generate_unique_id();
         let entry = Entry::new_waiting(user_id);
         self.cache.insert(id.clone(), entry).await;
         id

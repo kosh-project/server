@@ -52,6 +52,7 @@ mod join;
 mod open;
 mod pickup;
 mod status;
+mod ticket;
 
 pub use create::create;
 pub use fulfill::fulfill;
@@ -59,6 +60,7 @@ pub use join::join;
 pub use open::open;
 pub use pickup::pickup;
 pub use status::status;
+pub use ticket::ticket;
 
 #[cfg(test)]
 mod test;

@@ -15,12 +15,16 @@ pub use state::State;
 mod builder;
 pub mod mailbox;
 mod passkey;
+pub mod ticket;
 
 /// In-memory ephemeral mailbox cache for device-pairing ECDH key exchange.
 pub use mailbox::Mailbox;
 
 /// In-memory challenge cache for multi-step passkey registration and login ceremonies.
 pub use passkey::Passkey;
+
+/// In-memory ticket cache for device-pairing passkey registration.
+pub use ticket::Ticket;
 
 pub use builder::AppStateBuilder;
 
