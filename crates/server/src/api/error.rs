@@ -4,7 +4,8 @@ use axum::response::IntoResponse;
 use hyper::{StatusCode, header::InvalidHeaderValue};
 use tokio::io;
 
-use crate::api::Error::WebAuthn;
+use crate::api::Error::{Mailbox, WebAuthn};
+use crate::app::mailbox;
 use crate::storage::ledger;
 use crate::{error::internal, logger::Loggable};
 
@@ -74,6 +75,9 @@ pub enum Error {
     #[error(transparent)]
     Ledger(#[from] ledger::Error),
 
+    #[error(transparent)]
+    Mailbox(#[from] mailbox::Error),
+
     /// An error originating from a `WebAuthn` ceremony or cryptographic verification.
     ///
     /// Wraps [`webauthn_rs::prelude::WebauthnError`], which includes conditions like
@@ -107,6 +111,8 @@ impl IntoResponse for Error {
             WebAuthn(_) => (StatusCode::BAD_REQUEST, "Passkey ceremony failed"),
 
             Ledger(e) => return e.into_response(),
+            Mailbox(e) => return e.into_response(),
+
             MalformedMultipart => {
                 (StatusCode::BAD_REQUEST, "Malformed Multipart Payload")
             }
