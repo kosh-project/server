@@ -221,7 +221,10 @@ async fn mailbox_state_integration_lifecycle() -> anyhow::Result<()> {
     assert_eq!(receipt.id.len(), 8);
 
     // Initial state is pending
-    let initial = state.mailbox.pickup(&receipt.id, &receipt.token.hex).await?;
+    let initial = state
+        .mailbox
+        .pickup(&receipt.id, &receipt.token.hex)
+        .await?;
     assert_eq!(initial, None);
 
     // Fulfill via app state
@@ -232,7 +235,10 @@ async fn mailbox_state_integration_lifecycle() -> anyhow::Result<()> {
         .await?;
 
     // Pickup via app state
-    let picked = state.mailbox.pickup(&receipt.id, &receipt.token.hex).await?;
+    let picked = state
+        .mailbox
+        .pickup(&receipt.id, &receipt.token.hex)
+        .await?;
     assert_eq!(picked, Some(test_payload));
 
     // Consumed: second pickup returns NotFound

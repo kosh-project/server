@@ -339,4 +339,3 @@ fn status_response_serialization() {
         })
     );
 }
-

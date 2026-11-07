@@ -82,9 +82,8 @@ async fn test_flow_a_lifecycle() {
     assert!(fulfill_res.is_ok());
 
     // 5. Double fulfill returns AlreadyFulfilled
-    let double_fulfill = mailbox
-        .fulfill(&receipt.id, caller_id, vec![1, 2, 3])
-        .await;
+    let double_fulfill =
+        mailbox.fulfill(&receipt.id, caller_id, vec![1, 2, 3]).await;
     assert!(matches!(double_fulfill, Err(AlreadyFulfilled)));
 
     // 6. Receiver picks up payload and burns cache entry
@@ -96,9 +95,8 @@ async fn test_flow_a_lifecycle() {
     assert!(matches!(second_pickup, Err(NotFound)));
 
     // 8. Fulfill after burn returns NotFound
-    let post_fulfill = mailbox
-        .fulfill(&receipt.id, caller_id, vec![4, 5, 6])
-        .await;
+    let post_fulfill =
+        mailbox.fulfill(&receipt.id, caller_id, vec![4, 5, 6]).await;
     assert!(matches!(post_fulfill, Err(NotFound)));
 }
 
@@ -123,9 +121,8 @@ async fn test_flow_b_lifecycle() {
     assert!(matches!(cross_status, Err(NotFound)));
 
     // 4. Early fulfill before join returns NotReady
-    let early_fulfill = mailbox
-        .fulfill(&id, owner_id, ciphertext.clone())
-        .await;
+    let early_fulfill =
+        mailbox.fulfill(&id, owner_id, ciphertext.clone()).await;
     assert!(matches!(early_fulfill, Err(NotReady)));
 
     // 5. Unauthenticated device joins
@@ -147,9 +144,8 @@ async fn test_flow_b_lifecycle() {
     assert!(matches!(cross_status_2, Err(NotFound)));
 
     // 9. Cross-tenant fulfill returns NotFound (anti-enumeration)
-    let cross_fulfill = mailbox
-        .fulfill(&id, attacker_id, ciphertext.clone())
-        .await;
+    let cross_fulfill =
+        mailbox.fulfill(&id, attacker_id, ciphertext.clone()).await;
     assert!(matches!(cross_fulfill, Err(NotFound)));
 
     // 10. Owner fulfills successfully
@@ -157,9 +153,8 @@ async fn test_flow_b_lifecycle() {
     assert!(fulfill_res.is_ok());
 
     // 11. Double fulfill returns AlreadyFulfilled
-    let double_fulfill = mailbox
-        .fulfill(&id, owner_id, ciphertext.clone())
-        .await;
+    let double_fulfill =
+        mailbox.fulfill(&id, owner_id, ciphertext.clone()).await;
     assert!(matches!(double_fulfill, Err(AlreadyFulfilled)));
 
     // 12. Pickup with wrong token returns Unauthorized
@@ -328,7 +323,10 @@ async fn test_concurrent_mailbox_id_uniqueness() {
     for task in tasks {
         let id = task.await.unwrap();
         assert_eq!(id.len(), 8);
-        assert!(ids.insert(id), "Duplicate mailbox ID generated concurrently");
+        assert!(
+            ids.insert(id),
+            "Duplicate mailbox ID generated concurrently"
+        );
     }
     assert_eq!(ids.len(), 50);
 }

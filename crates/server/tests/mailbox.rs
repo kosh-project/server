@@ -39,21 +39,15 @@ async fn get_pow_header(
 async fn test_mailbox_auth_guard_and_unauthorized_access_e2e()
 -> anyhow::Result<()> {
     with_sandbox_env("webdav_mailbox_auth_guard_test", async move |ctx| {
-        let offer_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let offer_endpoint = format!("{}/api/v1/devices/mailbox", ctx.base_url);
         let link_ticket_endpoint =
             format!("{}/api/v1/devices/link-ticket", ctx.base_url);
-        let status_endpoint = format!(
-            "{}/api/v1/devices/mailbox/01234567/status",
-            ctx.base_url
-        );
-        let fulfill_endpoint = format!(
-            "{}/api/v1/devices/mailbox/01234567/fulfill",
-            ctx.base_url
-        );
+        let status_endpoint =
+            format!("{}/api/v1/devices/mailbox/01234567/status", ctx.base_url);
+        let fulfill_endpoint =
+            format!("{}/api/v1/devices/mailbox/01234567/fulfill", ctx.base_url);
 
-        let open_endpoint =
-            format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
         let join_endpoint =
             format!("{}/api/auth/mailbox/01234567/join", ctx.base_url);
         let pickup_endpoint =
@@ -168,8 +162,7 @@ async fn test_e2e_flow_a_mobile_opens_desktop_scans() -> anyhow::Result<()> {
             Session::create(&ctx.db, user_id, &ctx.secret).await?;
         let desktop_auth = format!("Bearer {desktop_token}");
 
-        let open_endpoint =
-            format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
         let link_ticket_endpoint =
             format!("{}/api/v1/devices/link-ticket", ctx.base_url);
 
@@ -199,10 +192,8 @@ async fn test_e2e_flow_a_mobile_opens_desktop_scans() -> anyhow::Result<()> {
         assert_eq!(polling_token.len(), 64);
         assert_eq!(open_body["expires_in"], 300);
 
-        let pickup_endpoint = format!(
-            "{}/api/auth/mailbox/{mailbox_id}/pickup",
-            ctx.base_url
-        );
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
         let fulfill_endpoint = format!(
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
@@ -231,9 +222,7 @@ async fn test_e2e_flow_a_mobile_opens_desktop_scans() -> anyhow::Result<()> {
             .await?;
         assert_eq!(ticket_resp.status(), StatusCode::OK);
         let ticket_body: Value = ticket_resp.json().await?;
-        let ticket = ticket_body["ticket"]
-            .as_str()
-            .expect("ticket is string");
+        let ticket = ticket_body["ticket"].as_str().expect("ticket is string");
         assert_eq!(ticket.len(), 64);
         assert_eq!(ticket_body["expires_in"], 300);
 
@@ -353,8 +342,7 @@ async fn test_e2e_flow_b_desktop_offers_phone_joins() -> anyhow::Result<()> {
             Session::create(&ctx.db, user_id, &ctx.secret).await?;
         let desktop_auth = format!("Bearer {desktop_token}");
 
-        let offer_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let offer_endpoint = format!("{}/api/v1/devices/mailbox", ctx.base_url);
 
         // 1. Desktop allocates pairing mailbox
         pace().await;
@@ -380,14 +368,10 @@ async fn test_e2e_flow_b_desktop_offers_phone_joins() -> anyhow::Result<()> {
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
-        let join_endpoint = format!(
-            "{}/api/auth/mailbox/{mailbox_id}/join",
-            ctx.base_url
-        );
-        let pickup_endpoint = format!(
-            "{}/api/auth/mailbox/{mailbox_id}/pickup",
-            ctx.base_url
-        );
+        let join_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/join", ctx.base_url);
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
 
         // 2. Desktop polls status while waiting for receiver: 200 {"status": "waiting"}
         pace().await;
@@ -427,9 +411,7 @@ async fn test_e2e_flow_b_desktop_offers_phone_joins() -> anyhow::Result<()> {
             .await?;
         assert_eq!(join_resp.status(), StatusCode::OK);
         let join_body: Value = join_resp.json().await?;
-        let token = join_body["token"]
-            .as_str()
-            .expect("token is string");
+        let token = join_body["token"].as_str().expect("token is string");
         assert_eq!(token.len(), 64);
 
         // 5. Double join rejection: subsequent join returns 400 Bad Request ("Mailbox already joined")
@@ -536,8 +518,7 @@ async fn test_mailbox_cross_tenant_isolation_e2e() -> anyhow::Result<()> {
         let u2_token = Session::create(&ctx.db, 2, &ctx.secret).await?;
         let u2_auth = format!("Bearer {u2_token}");
 
-        let offer_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let offer_endpoint = format!("{}/api/v1/devices/mailbox", ctx.base_url);
 
         // User 1 creates mailbox
         pace().await;
@@ -559,14 +540,10 @@ async fn test_mailbox_cross_tenant_isolation_e2e() -> anyhow::Result<()> {
             "{}/api/v1/devices/mailbox/{u1_mailbox_id}/fulfill",
             ctx.base_url
         );
-        let join_endpoint = format!(
-            "{}/api/auth/mailbox/{u1_mailbox_id}/join",
-            ctx.base_url
-        );
-        let pickup_endpoint = format!(
-            "{}/api/auth/mailbox/{u1_mailbox_id}/pickup",
-            ctx.base_url
-        );
+        let join_endpoint =
+            format!("{}/api/auth/mailbox/{u1_mailbox_id}/join", ctx.base_url);
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{u1_mailbox_id}/pickup", ctx.base_url);
 
         let valid_payload = json!({
             "payload": "1234".repeat(30)
@@ -674,8 +651,7 @@ async fn test_mailbox_payload_validation_e2e() -> anyhow::Result<()> {
         let token = Session::create(&ctx.db, 1, &ctx.secret).await?;
         let auth = format!("Bearer {token}");
 
-        let open_endpoint =
-            format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
         let join_endpoint_mock =
             format!("{}/api/auth/mailbox/01234567/join", ctx.base_url);
 
@@ -893,8 +869,7 @@ async fn test_mailbox_boundary_max_payload_e2e() -> anyhow::Result<()> {
         let token = Session::create(&ctx.db, 1, &ctx.secret).await?;
         let auth = format!("Bearer {token}");
 
-        let open_endpoint =
-            format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
 
         pace_auth().await;
         let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
@@ -915,10 +890,8 @@ async fn test_mailbox_boundary_max_payload_e2e() -> anyhow::Result<()> {
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
-        let pickup_endpoint = format!(
-            "{}/api/auth/mailbox/{mailbox_id}/pickup",
-            ctx.base_url
-        );
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
 
         // Exactly 8192 hex characters (4096 bytes)
         let max_payload = "0a".repeat(4096);
@@ -965,8 +938,7 @@ async fn test_mailbox_concurrent_pickup_e2e() -> anyhow::Result<()> {
         let token = Session::create(&ctx.db, user_id, &ctx.secret).await?;
         let auth = format!("Bearer {token}");
 
-        let open_endpoint =
-            format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
 
         pace_auth().await;
         let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
@@ -987,10 +959,8 @@ async fn test_mailbox_concurrent_pickup_e2e() -> anyhow::Result<()> {
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
-        let pickup_endpoint = format!(
-            "{}/api/auth/mailbox/{mailbox_id}/pickup",
-            ctx.base_url
-        );
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
 
         let payload = "42".repeat(60);
         pace().await;
@@ -1047,8 +1017,7 @@ async fn test_mailbox_concurrent_fulfill_e2e() -> anyhow::Result<()> {
         let auth_a = format!("Bearer {token_a}");
         let auth_b = format!("Bearer {token_b}");
 
-        let open_endpoint =
-            format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
 
         pace_auth().await;
         let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
@@ -1069,10 +1038,8 @@ async fn test_mailbox_concurrent_fulfill_e2e() -> anyhow::Result<()> {
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
-        let pickup_endpoint = format!(
-            "{}/api/auth/mailbox/{mailbox_id}/pickup",
-            ctx.base_url
-        );
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
 
         let payload_a = "11".repeat(60);
         let payload_b = "22".repeat(60);
@@ -1128,8 +1095,7 @@ async fn test_mailbox_uppercase_hex_payload_e2e() -> anyhow::Result<()> {
         let token = Session::create(&ctx.db, 1, &ctx.secret).await?;
         let auth = format!("Bearer {token}");
 
-        let open_endpoint =
-            format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
 
         pace_auth().await;
         let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
@@ -1150,10 +1116,8 @@ async fn test_mailbox_uppercase_hex_payload_e2e() -> anyhow::Result<()> {
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
-        let pickup_endpoint = format!(
-            "{}/api/auth/mailbox/{mailbox_id}/pickup",
-            ctx.base_url
-        );
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
 
         // Fulfill with UPPERCASE hexadecimal string (120 chars)
         let upper_payload = "DEADBEEF".repeat(15);
@@ -1208,18 +1172,13 @@ async fn test_mailbox_tampered_token_returns_unauthorized_e2e()
 
         let tampered_auth = format!("Bearer {tampered_token}");
 
-        let offer_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let offer_endpoint = format!("{}/api/v1/devices/mailbox", ctx.base_url);
         let link_ticket_endpoint =
             format!("{}/api/v1/devices/link-ticket", ctx.base_url);
-        let status_endpoint = format!(
-            "{}/api/v1/devices/mailbox/01234567/status",
-            ctx.base_url
-        );
-        let fulfill_endpoint = format!(
-            "{}/api/v1/devices/mailbox/01234567/fulfill",
-            ctx.base_url
-        );
+        let status_endpoint =
+            format!("{}/api/v1/devices/mailbox/01234567/status", ctx.base_url);
+        let fulfill_endpoint =
+            format!("{}/api/v1/devices/mailbox/01234567/fulfill", ctx.base_url);
 
         let r1 = ctx
             .client

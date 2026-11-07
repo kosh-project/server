@@ -163,4 +163,3 @@ impl Mailbox {
 
 #[cfg(test)]
 mod test;
-
