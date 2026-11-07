@@ -4,13 +4,34 @@
 #![allow(clippy::expect_used)]
 
 mod boilerplate;
-use boilerplate::with_sandbox_env;
+use boilerplate::{solve, with_sandbox_env};
 use hyper::StatusCode;
 use serde_json::{Value, json};
 use server::model::{session::Session, user::User};
 
 async fn pace() {
-    tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+}
+
+async fn pace_auth() {
+    tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+}
+
+async fn get_pow_header(
+    client: &reqwest::Client,
+    base_url: &str,
+) -> anyhow::Result<String> {
+    let chal_resp = client
+        .get(format!("{base_url}/api/auth/challenge?action=register"))
+        .send()
+        .await?;
+    assert_eq!(chal_resp.status(), StatusCode::OK);
+    let chal_body: Value = chal_resp.json().await?;
+    let challenge = chal_body["challenge"]
+        .as_str()
+        .expect("challenge is string");
+    let identity_hash = hex::encode([0x55u8; 32]);
+    Ok(solve(challenge, &identity_hash))
 }
 
 #[tokio::test]
@@ -18,59 +39,111 @@ async fn pace() {
 async fn test_mailbox_auth_guard_and_unauthorized_access_e2e()
 -> anyhow::Result<()> {
     with_sandbox_env("webdav_mailbox_auth_guard_test", async move |ctx| {
-        let create_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let offer_endpoint = format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let link_ticket_endpoint =
+            format!("{}/api/v1/devices/link-ticket", ctx.base_url);
+        let status_endpoint =
+            format!("{}/api/v1/devices/mailbox/01234567/status", ctx.base_url);
         let fulfill_endpoint =
             format!("{}/api/v1/devices/mailbox/01234567/fulfill", ctx.base_url);
+
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let join_endpoint =
+            format!("{}/api/auth/mailbox/01234567/join", ctx.base_url);
         let pickup_endpoint =
-            format!("{}/api/v1/devices/mailbox/01234567", ctx.base_url);
+            format!("{}/api/auth/mailbox/01234567/pickup", ctx.base_url);
 
         let valid_payload = json!({
             "payload": "ab".repeat(60)
         });
 
-        // 1. Missing Authorization header returns 401 Unauthorized
-        let r1 = ctx.client.post(&create_endpoint).send().await?;
+        // 1. Missing Authorization header on protected routes returns 401 Unauthorized
+        let r1 = ctx.client.post(&offer_endpoint).send().await?;
         assert_eq!(r1.status(), StatusCode::UNAUTHORIZED);
 
-        let r2 = ctx
-            .client
-            .post(&fulfill_endpoint)
-            .json(&valid_payload)
-            .send()
-            .await?;
+        let r2 = ctx.client.post(&link_ticket_endpoint).send().await?;
         assert_eq!(r2.status(), StatusCode::UNAUTHORIZED);
 
-        let r3 = ctx.client.get(&pickup_endpoint).send().await?;
+        let r3 = ctx.client.get(&status_endpoint).send().await?;
         assert_eq!(r3.status(), StatusCode::UNAUTHORIZED);
-
-        // 2. Invalid / forged Bearer token returns 401 Unauthorized
-        let forged_header = "Bearer forged_invalid_session_token";
 
         let r4 = ctx
             .client
-            .post(&create_endpoint)
-            .header("Authorization", forged_header)
+            .post(&fulfill_endpoint)
+            .json(&valid_payload)
             .send()
             .await?;
         assert_eq!(r4.status(), StatusCode::UNAUTHORIZED);
 
+        // 2. Invalid / forged Bearer token returns 401 Unauthorized
+        let forged_header = "Bearer forged_invalid_session_token";
+
         let r5 = ctx
             .client
-            .post(&fulfill_endpoint)
+            .post(&offer_endpoint)
             .header("Authorization", forged_header)
-            .json(&valid_payload)
             .send()
             .await?;
         assert_eq!(r5.status(), StatusCode::UNAUTHORIZED);
 
         let r6 = ctx
             .client
-            .get(&pickup_endpoint)
+            .post(&link_ticket_endpoint)
             .header("Authorization", forged_header)
             .send()
             .await?;
         assert_eq!(r6.status(), StatusCode::UNAUTHORIZED);
+
+        let r7 = ctx
+            .client
+            .get(&status_endpoint)
+            .header("Authorization", forged_header)
+            .send()
+            .await?;
+        assert_eq!(r7.status(), StatusCode::UNAUTHORIZED);
+
+        let r8 = ctx
+            .client
+            .post(&fulfill_endpoint)
+            .header("Authorization", forged_header)
+            .json(&valid_payload)
+            .send()
+            .await?;
+        assert_eq!(r8.status(), StatusCode::UNAUTHORIZED);
+
+        // 3. PoW-guarded unauthenticated routes reject requests missing X-Hashcash header
+        pace_auth().await;
+        let r9 = ctx
+            .client
+            .post(&open_endpoint)
+            .json(&json!({ "pub_temp": "aa".repeat(32) }))
+            .send()
+            .await?;
+        assert_eq!(r9.status(), StatusCode::UNAUTHORIZED);
+
+        pace_auth().await;
+        let r10 = ctx
+            .client
+            .post(&join_endpoint)
+            .json(&json!({ "pub_temp": "bb".repeat(32) }))
+            .send()
+            .await?;
+        assert_eq!(r10.status(), StatusCode::UNAUTHORIZED);
+
+        // 4. Pickup requires Authorization header
+        pace_auth().await;
+        let r11 = ctx.client.get(&pickup_endpoint).send().await?;
+        assert_eq!(r11.status(), StatusCode::UNAUTHORIZED);
+
+        // 5. Pickup with forged or unknown polling token returns 404 (anti-enumeration)
+        pace_auth().await;
+        let r12 = ctx
+            .client
+            .get(&pickup_endpoint)
+            .header("Authorization", "Bearer invalid_polling_token")
+            .send()
+            .await?;
+        assert_eq!(r12.status(), StatusCode::NOT_FOUND);
 
         Ok(())
     })
@@ -79,49 +152,56 @@ async fn test_mailbox_auth_guard_and_unauthorized_access_e2e()
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_mailbox_full_lifecycle_and_burn_after_reading_e2e()
--> anyhow::Result<()> {
-    with_sandbox_env("webdav_mailbox_lifecycle_test", async move |ctx| {
-        // Create user 1 with two active device sessions: Receiver and Sender
+async fn test_e2e_flow_a_mobile_opens_desktop_scans() -> anyhow::Result<()> {
+    with_sandbox_env("webdav_mailbox_flow_a_test", async move |ctx| {
+        // Setup authenticated desktop session for User 1
         User::create(&ctx.db, &[1u8; 32], "test_verifier".into(), &[0u8; 60])
             .await?;
         let user_id = 1;
-        let receiver_token =
+        let desktop_token =
             Session::create(&ctx.db, user_id, &ctx.secret).await?;
-        let sender_token =
-            Session::create(&ctx.db, user_id, &ctx.secret).await?;
+        let desktop_auth = format!("Bearer {desktop_token}");
 
-        let receiver_auth = format!("Bearer {receiver_token}");
-        let sender_auth = format!("Bearer {sender_token}");
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let link_ticket_endpoint =
+            format!("{}/api/v1/devices/link-ticket", ctx.base_url);
 
-        let create_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        // 1. Mobile fetches PoW and opens an ephemeral mailbox
+        pace_auth().await;
+        let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
 
-        // 1. Receiver creates mailbox
-        let create_resp = ctx
+        pace_auth().await;
+        let pub_temp_receiver = "aa".repeat(32);
+        let open_resp = ctx
             .client
-            .post(&create_endpoint)
-            .header("Authorization", &receiver_auth)
+            .post(&open_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": pub_temp_receiver }))
             .send()
             .await?;
-        assert_eq!(create_resp.status(), StatusCode::OK);
+        assert_eq!(open_resp.status(), StatusCode::OK);
 
-        let create_body: Value = create_resp.json().await?;
-        let mailbox_id = create_body["mailbox_id"]
+        let open_body: Value = open_resp.json().await?;
+        let mailbox_id = open_body["mailbox_id"]
             .as_str()
             .expect("mailbox_id is string");
-        assert_eq!(mailbox_id.len(), 8, "Mailbox ID must be 8 chars");
-        assert_eq!(create_body["expires_in"], 300);
+        let polling_token = open_body["polling_token"]
+            .as_str()
+            .expect("polling_token is string");
+        assert_eq!(mailbox_id.len(), 8);
+        assert_eq!(polling_token.len(), 64);
+        assert_eq!(open_body["expires_in"], 300);
 
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
         let fulfill_endpoint = format!(
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
-        let pickup_endpoint =
-            format!("{}/api/v1/devices/mailbox/{mailbox_id}", ctx.base_url);
+        let receiver_auth = format!("Bearer {polling_token}");
 
-        // 2. Receiver polls pending mailbox before fulfillment
-        pace().await;
+        // 2. Mobile polls pending mailbox before fulfillment: 200 {"status": "pending"}
+        pace_auth().await;
         let poll_resp = ctx
             .client
             .get(&pickup_endpoint)
@@ -132,45 +212,48 @@ async fn test_mailbox_full_lifecycle_and_burn_after_reading_e2e()
         let poll_body: Value = poll_resp.json().await?;
         assert_eq!(poll_body, json!({ "status": "pending" }));
 
-        // 3. Subsequent poll while still pending is non-destructive
+        // 3. Desktop scans QR code and mints registration ticket
         pace().await;
-        let poll_resp2 = ctx
+        let ticket_resp = ctx
             .client
-            .get(&pickup_endpoint)
-            .header("Authorization", &receiver_auth)
+            .post(&link_ticket_endpoint)
+            .header("Authorization", &desktop_auth)
             .send()
             .await?;
-        assert_eq!(poll_resp2.status(), StatusCode::OK);
-        let poll_body2: Value = poll_resp2.json().await?;
-        assert_eq!(poll_body2, json!({ "status": "pending" }));
+        assert_eq!(ticket_resp.status(), StatusCode::OK);
+        let ticket_body: Value = ticket_resp.json().await?;
+        let ticket = ticket_body["ticket"].as_str().expect("ticket is string");
+        assert_eq!(ticket.len(), 64);
+        assert_eq!(ticket_body["expires_in"], 300);
 
-        // 4. Sender fulfills mailbox with valid hex payload (128 hex chars / 64 bytes)
-        let hex_payload = "cafe".repeat(32);
-        assert_eq!(hex_payload.len(), 128);
+        // 4. Desktop deposits encrypted ECDH ciphertext containing registration ticket
+        // Ciphertext payload >= 120 hex chars
+        let ciphertext = format!("{ticket}{}", "ff".repeat(32));
+        assert!(ciphertext.len() >= 120);
 
         pace().await;
         let fulfill_resp = ctx
             .client
             .post(&fulfill_endpoint)
-            .header("Authorization", &sender_auth)
-            .json(&json!({ "payload": hex_payload }))
+            .header("Authorization", &desktop_auth)
+            .json(&json!({ "payload": ciphertext }))
             .send()
             .await?;
         assert_eq!(fulfill_resp.status(), StatusCode::NO_CONTENT);
 
         // 5. Double fulfill rejection: fulfilling again returns 400 Bad Request
         pace().await;
-        let double_fulfill_resp = ctx
+        let double_fulfill = ctx
             .client
             .post(&fulfill_endpoint)
-            .header("Authorization", &sender_auth)
-            .json(&json!({ "payload": hex_payload }))
+            .header("Authorization", &desktop_auth)
+            .json(&json!({ "payload": ciphertext }))
             .send()
             .await?;
-        assert_eq!(double_fulfill_resp.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(double_fulfill.status(), StatusCode::BAD_REQUEST);
 
-        // 6. Receiver picks up fulfilled payload
-        pace().await;
+        // 6. Mobile picks up payload
+        pace_auth().await;
         let pickup_resp = ctx
             .client
             .get(&pickup_endpoint)
@@ -183,30 +266,238 @@ async fn test_mailbox_full_lifecycle_and_burn_after_reading_e2e()
             pickup_body,
             json!({
                 "status": "fulfilled",
-                "payload": hex_payload
+                "payload": ciphertext
             })
         );
 
-        // 7. Single-use burn-after-reading: polling again returns 404 Not Found
-        pace().await;
-        let burn_resp = ctx
+        // 7. Single-use burn-after-reading: subsequent pickup returns 404 Not Found
+        pace_auth().await;
+        let post_burn = ctx
             .client
             .get(&pickup_endpoint)
             .header("Authorization", &receiver_auth)
             .send()
             .await?;
-        assert_eq!(burn_resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(post_burn.status(), StatusCode::NOT_FOUND);
 
-        // 8. Fulfill after consumption returns 404 Not Found
-        pace().await;
-        let post_burn_fulfill = ctx
+        // 8. Mobile uses registration ticket to initiate passkey registration ceremony
+        let reg_start_endpoint =
+            format!("{}/api/auth/passkey/register/start", ctx.base_url);
+        let reg_finish_endpoint =
+            format!("{}/api/auth/passkey/register/finish", ctx.base_url);
+
+        pace_auth().await;
+        let start_resp = ctx
             .client
-            .post(&fulfill_endpoint)
-            .header("Authorization", &sender_auth)
-            .json(&json!({ "payload": hex_payload }))
+            .post(&reg_start_endpoint)
+            .header("Authorization", format!("Bearer {ticket}"))
             .send()
             .await?;
-        assert_eq!(post_burn_fulfill.status(), StatusCode::NOT_FOUND);
+        assert_eq!(start_resp.status(), StatusCode::OK);
+        let start_body: Value = start_resp.json().await?;
+        assert!(start_body.get("challenge_id").is_some());
+        assert!(start_body.get("challenge").is_some());
+
+        // Calling finish with invalid/unknown challenge demonstrates ticket authorized entry
+        pace_auth().await;
+        let fake_challenge = uuid::Uuid::new_v4().to_string();
+        let finish_payload = json!({
+            "challenge_id": fake_challenge,
+            "credential": {
+                "id": "mock_id",
+                "rawId": "mock_id",
+                "response": {
+                    "attestationObject": "AAAA",
+                    "clientDataJSON": "AAAA"
+                },
+                "type": "public-key"
+            },
+            "encrypted_metadata": "aabbccdd"
+        });
+
+        let finish_resp = ctx
+            .client
+            .post(&reg_finish_endpoint)
+            .header("Authorization", format!("Bearer {ticket}"))
+            .json(&finish_payload)
+            .send()
+            .await?;
+        // Handler accepted the ticket; rejection is due to invalid WebAuthn credential payload
+        assert_ne!(finish_resp.status(), StatusCode::UNAUTHORIZED);
+
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn test_e2e_flow_b_desktop_offers_phone_joins() -> anyhow::Result<()> {
+    with_sandbox_env("webdav_mailbox_flow_b_test", async move |ctx| {
+        // Desktop user (User 1)
+        User::create(&ctx.db, &[2u8; 32], "test_verifier".into(), &[0u8; 60])
+            .await?;
+        let user_id = 1;
+        let desktop_token =
+            Session::create(&ctx.db, user_id, &ctx.secret).await?;
+        let desktop_auth = format!("Bearer {desktop_token}");
+
+        let offer_endpoint = format!("{}/api/v1/devices/mailbox", ctx.base_url);
+
+        // 1. Desktop allocates pairing mailbox
+        pace().await;
+        let offer_resp = ctx
+            .client
+            .post(&offer_endpoint)
+            .header("Authorization", &desktop_auth)
+            .send()
+            .await?;
+        assert_eq!(offer_resp.status(), StatusCode::OK);
+        let offer_body: Value = offer_resp.json().await?;
+        let mailbox_id = offer_body["mailbox_id"]
+            .as_str()
+            .expect("mailbox_id is string");
+        assert_eq!(mailbox_id.len(), 8);
+        assert_eq!(offer_body["expires_in"], 300);
+
+        let status_endpoint = format!(
+            "{}/api/v1/devices/mailbox/{mailbox_id}/status",
+            ctx.base_url
+        );
+        let fulfill_endpoint = format!(
+            "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
+            ctx.base_url
+        );
+        let join_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/join", ctx.base_url);
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
+
+        // 2. Desktop polls status while waiting for receiver: 200 {"status": "waiting"}
+        pace().await;
+        let status_resp = ctx
+            .client
+            .get(&status_endpoint)
+            .header("Authorization", &desktop_auth)
+            .send()
+            .await?;
+        assert_eq!(status_resp.status(), StatusCode::OK);
+        let status_body: Value = status_resp.json().await?;
+        assert_eq!(status_body, json!({ "status": "waiting" }));
+
+        // 3. Early fulfill before join returns 400 Bad Request ("Mailbox not ready")
+        pace().await;
+        let early_fulfill = ctx
+            .client
+            .post(&fulfill_endpoint)
+            .header("Authorization", &desktop_auth)
+            .json(&json!({ "payload": "ab".repeat(60) }))
+            .send()
+            .await?;
+        assert_eq!(early_fulfill.status(), StatusCode::BAD_REQUEST);
+
+        // 4. Phone solves PoW and joins with ephemeral public key
+        pace_auth().await;
+        let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
+
+        let phone_pub_temp = "bb".repeat(32);
+        pace_auth().await;
+        let join_resp = ctx
+            .client
+            .post(&join_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": phone_pub_temp }))
+            .send()
+            .await?;
+        assert_eq!(join_resp.status(), StatusCode::OK);
+        let join_body: Value = join_resp.json().await?;
+        let token = join_body["token"].as_str().expect("token is string");
+        assert_eq!(token.len(), 64);
+
+        // 5. Double join rejection: subsequent join returns 400 Bad Request ("Mailbox already joined")
+        pace_auth().await;
+        let double_join = ctx
+            .client
+            .post(&join_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": phone_pub_temp }))
+            .send()
+            .await?;
+        assert_eq!(double_join.status(), StatusCode::BAD_REQUEST);
+
+        // 6. Desktop polls status again: 200 {"status": "ready", "pub_temp": "<hex>"}
+        pace().await;
+        let ready_status = ctx
+            .client
+            .get(&status_endpoint)
+            .header("Authorization", &desktop_auth)
+            .send()
+            .await?;
+        assert_eq!(ready_status.status(), StatusCode::OK);
+        let ready_body: Value = ready_status.json().await?;
+        assert_eq!(
+            ready_body,
+            json!({
+                "status": "ready",
+                "pub_temp": phone_pub_temp
+            })
+        );
+
+        // 7. Desktop fulfills mailbox with ciphertext
+        let payload = "cafe".repeat(30);
+        pace().await;
+        let fulfill_resp = ctx
+            .client
+            .post(&fulfill_endpoint)
+            .header("Authorization", &desktop_auth)
+            .json(&json!({ "payload": payload }))
+            .send()
+            .await?;
+        assert_eq!(fulfill_resp.status(), StatusCode::NO_CONTENT);
+
+        // 8. Double fulfill rejection: fulfilling again returns 400 Bad Request
+        let desktop_auth_2 = format!(
+            "Bearer {}",
+            Session::create(&ctx.db, user_id, &ctx.secret).await?
+        );
+        pace().await;
+        let double_fulfill = ctx
+            .client
+            .post(&fulfill_endpoint)
+            .header("Authorization", &desktop_auth_2)
+            .json(&json!({ "payload": payload }))
+            .send()
+            .await?;
+        assert_eq!(double_fulfill.status(), StatusCode::BAD_REQUEST);
+
+        // 9. Phone picks up payload
+        let phone_auth = format!("Bearer {token}");
+        pace_auth().await;
+        let pickup_resp = ctx
+            .client
+            .get(&pickup_endpoint)
+            .header("Authorization", &phone_auth)
+            .send()
+            .await?;
+        assert_eq!(pickup_resp.status(), StatusCode::OK);
+        let pickup_body: Value = pickup_resp.json().await?;
+        assert_eq!(
+            pickup_body,
+            json!({
+                "status": "fulfilled",
+                "payload": payload
+            })
+        );
+
+        // 10. Single-use burn-after-reading: subsequent pickup returns 404 Not Found
+        pace_auth().await;
+        let post_burn = ctx
+            .client
+            .get(&pickup_endpoint)
+            .header("Authorization", &phone_auth)
+            .send()
+            .await?;
+        assert_eq!(post_burn.status(), StatusCode::NOT_FOUND);
 
         Ok(())
     })
@@ -227,13 +518,13 @@ async fn test_mailbox_cross_tenant_isolation_e2e() -> anyhow::Result<()> {
         let u2_token = Session::create(&ctx.db, 2, &ctx.secret).await?;
         let u2_auth = format!("Bearer {u2_token}");
 
-        let create_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let offer_endpoint = format!("{}/api/v1/devices/mailbox", ctx.base_url);
 
         // User 1 creates mailbox
+        pace().await;
         let create_resp = ctx
             .client
-            .post(&create_endpoint)
+            .post(&offer_endpoint)
             .header("Authorization", &u1_auth)
             .send()
             .await?;
@@ -241,26 +532,32 @@ async fn test_mailbox_cross_tenant_isolation_e2e() -> anyhow::Result<()> {
         let body: Value = create_resp.json().await?;
         let u1_mailbox_id = body["mailbox_id"].as_str().unwrap();
 
+        let status_endpoint = format!(
+            "{}/api/v1/devices/mailbox/{u1_mailbox_id}/status",
+            ctx.base_url
+        );
         let fulfill_endpoint = format!(
             "{}/api/v1/devices/mailbox/{u1_mailbox_id}/fulfill",
             ctx.base_url
         );
+        let join_endpoint =
+            format!("{}/api/auth/mailbox/{u1_mailbox_id}/join", ctx.base_url);
         let pickup_endpoint =
-            format!("{}/api/v1/devices/mailbox/{u1_mailbox_id}", ctx.base_url);
+            format!("{}/api/auth/mailbox/{u1_mailbox_id}/pickup", ctx.base_url);
 
         let valid_payload = json!({
-            "payload": "1234".repeat(30) // 120 hex chars
+            "payload": "1234".repeat(30)
         });
 
-        // 1. User 2 attempts to poll User 1's pending mailbox -> 404 Not Found
+        // 1. User 2 attempts to check status of User 1's mailbox -> 404 Not Found
         pace().await;
-        let u2_poll = ctx
+        let u2_status = ctx
             .client
-            .get(&pickup_endpoint)
+            .get(&status_endpoint)
             .header("Authorization", &u2_auth)
             .send()
             .await?;
-        assert_eq!(u2_poll.status(), StatusCode::NOT_FOUND);
+        assert_eq!(u2_status.status(), StatusCode::NOT_FOUND);
 
         // 2. User 2 attempts to fulfill User 1's mailbox -> 404 Not Found
         pace().await;
@@ -273,19 +570,54 @@ async fn test_mailbox_cross_tenant_isolation_e2e() -> anyhow::Result<()> {
             .await?;
         assert_eq!(u2_fulfill.status(), StatusCode::NOT_FOUND);
 
-        // 3. User 1's mailbox was untouched: User 1 polls and still sees Pending
+        // 3. User 1 checks status: Untouched and Waiting
         pace().await;
-        let u1_poll = ctx
+        let u1_status = ctx
             .client
-            .get(&pickup_endpoint)
+            .get(&status_endpoint)
             .header("Authorization", &u1_auth)
             .send()
             .await?;
-        assert_eq!(u1_poll.status(), StatusCode::OK);
-        let u1_poll_body: Value = u1_poll.json().await?;
-        assert_eq!(u1_poll_body, json!({ "status": "pending" }));
+        assert_eq!(u1_status.status(), StatusCode::OK);
+        let u1_body: Value = u1_status.json().await?;
+        assert_eq!(u1_body, json!({ "status": "waiting" }));
 
-        // 4. User 1 fulfills their mailbox -> 204 No Content
+        // 4. Device joins User 1's mailbox
+        pace_auth().await;
+        let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
+        pace_auth().await;
+        let join_resp = ctx
+            .client
+            .post(&join_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": "cc".repeat(32) }))
+            .send()
+            .await?;
+        assert_eq!(join_resp.status(), StatusCode::OK);
+        let join_body: Value = join_resp.json().await?;
+        let token = join_body["token"].as_str().unwrap();
+
+        // 5. User 2 still cannot check status or fulfill after join
+        pace().await;
+        let u2_status_post_join = ctx
+            .client
+            .get(&status_endpoint)
+            .header("Authorization", &u2_auth)
+            .send()
+            .await?;
+        assert_eq!(u2_status_post_join.status(), StatusCode::NOT_FOUND);
+
+        pace().await;
+        let u2_fulfill_post_join = ctx
+            .client
+            .post(&fulfill_endpoint)
+            .header("Authorization", &u2_auth)
+            .json(&valid_payload)
+            .send()
+            .await?;
+        assert_eq!(u2_fulfill_post_join.status(), StatusCode::NOT_FOUND);
+
+        // 6. User 1 fulfills normally
         pace().await;
         let u1_fulfill = ctx
             .client
@@ -296,43 +628,15 @@ async fn test_mailbox_cross_tenant_isolation_e2e() -> anyhow::Result<()> {
             .await?;
         assert_eq!(u1_fulfill.status(), StatusCode::NO_CONTENT);
 
-        // 5. User 2 attempts to pickup User 1's fulfilled mailbox -> 404 Not Found
-        pace().await;
-        let u2_pickup = ctx
+        // 7. Receiver picks up payload
+        pace_auth().await;
+        let pickup_resp = ctx
             .client
             .get(&pickup_endpoint)
-            .header("Authorization", &u2_auth)
+            .header("Authorization", format!("Bearer {token}"))
             .send()
             .await?;
-        assert_eq!(u2_pickup.status(), StatusCode::NOT_FOUND);
-
-        // 6. User 1 picks up their payload successfully
-        pace().await;
-        let u1_pickup = ctx
-            .client
-            .get(&pickup_endpoint)
-            .header("Authorization", &u1_auth)
-            .send()
-            .await?;
-        assert_eq!(u1_pickup.status(), StatusCode::OK);
-        let u1_pickup_body: Value = u1_pickup.json().await?;
-        assert_eq!(
-            u1_pickup_body,
-            json!({
-                "status": "fulfilled",
-                "payload": "1234".repeat(30)
-            })
-        );
-
-        // 7. Mailbox is burned
-        pace().await;
-        let u1_post_burn = ctx
-            .client
-            .get(&pickup_endpoint)
-            .header("Authorization", &u1_auth)
-            .send()
-            .await?;
-        assert_eq!(u1_post_burn.status(), StatusCode::NOT_FOUND);
+        assert_eq!(pickup_resp.status(), StatusCode::OK);
 
         Ok(())
     })
@@ -347,27 +651,65 @@ async fn test_mailbox_payload_validation_e2e() -> anyhow::Result<()> {
         let token = Session::create(&ctx.db, 1, &ctx.secret).await?;
         let auth = format!("Bearer {token}");
 
-        let create_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
+        let join_endpoint_mock =
+            format!("{}/api/auth/mailbox/01234567/join", ctx.base_url);
 
-        let create_resp = ctx
+        pace_auth().await;
+        let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
+
+        // 1. Open validation: pub_temp != 64 hex chars -> 400 Bad Request
+        pace_auth().await;
+        let open_short = ctx
             .client
-            .post(&create_endpoint)
-            .header("Authorization", &auth)
+            .post(&open_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": "aa".repeat(31) })) // 62 chars
             .send()
             .await?;
-        assert_eq!(create_resp.status(), StatusCode::OK);
-        let body: Value = create_resp.json().await?;
-        let mailbox_id = body["mailbox_id"].as_str().unwrap();
+        assert_eq!(open_short.status(), StatusCode::BAD_REQUEST);
+
+        // 2. Open validation: pub_temp invalid hex -> 400 Bad Request
+        pace_auth().await;
+        let open_bad_hex = ctx
+            .client
+            .post(&open_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": format!("{}zz", "aa".repeat(31)) }))
+            .send()
+            .await?;
+        assert_eq!(open_bad_hex.status(), StatusCode::BAD_REQUEST);
+
+        // 3. Join validation: pub_temp != 64 hex chars -> 400 Bad Request
+        pace_auth().await;
+        let join_short = ctx
+            .client
+            .post(&join_endpoint_mock)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": "bb".repeat(33) })) // 66 chars
+            .send()
+            .await?;
+        assert_eq!(join_short.status(), StatusCode::BAD_REQUEST);
+
+        // 4. Open valid mailbox to test fulfill validation
+        pace_auth().await;
+        let open_valid = ctx
+            .client
+            .post(&open_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": "aa".repeat(32) }))
+            .send()
+            .await?;
+        assert_eq!(open_valid.status(), StatusCode::OK);
+        let open_body: Value = open_valid.json().await?;
+        let mailbox_id = open_body["mailbox_id"].as_str().unwrap();
 
         let fulfill_endpoint = format!(
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
-        let pickup_endpoint =
-            format!("{}/api/v1/devices/mailbox/{mailbox_id}", ctx.base_url);
 
-        // 1. Payload under min length (118 hex chars) -> 400 Bad Request
+        // 5. Fulfill under min length (118 hex chars) -> 400 Bad Request
         pace().await;
         let too_short = ctx
             .client
@@ -378,7 +720,7 @@ async fn test_mailbox_payload_validation_e2e() -> anyhow::Result<()> {
             .await?;
         assert_eq!(too_short.status(), StatusCode::BAD_REQUEST);
 
-        // 2. Payload over max length (8194 hex chars) -> 400 Bad Request
+        // 6. Fulfill over max length (8194 hex chars) -> 400 Bad Request
         pace().await;
         let too_long = ctx
             .client
@@ -389,7 +731,7 @@ async fn test_mailbox_payload_validation_e2e() -> anyhow::Result<()> {
             .await?;
         assert_eq!(too_long.status(), StatusCode::BAD_REQUEST);
 
-        // 3. Odd length hex characters (121 chars) -> 400 Bad Request
+        // 7. Fulfill odd length hex characters (121 chars) -> 400 Bad Request
         pace().await;
         let mut odd_hex = "cc".repeat(60);
         odd_hex.push('c');
@@ -403,7 +745,7 @@ async fn test_mailbox_payload_validation_e2e() -> anyhow::Result<()> {
             .await?;
         assert_eq!(odd_resp.status(), StatusCode::BAD_REQUEST);
 
-        // 4. Invalid hex characters (120 chars with 'zz') -> 400 Bad Request
+        // 8. Fulfill invalid hex characters (120 chars with 'zz') -> 400 Bad Request
         let auth2 = format!(
             "Bearer {}",
             Session::create(&ctx.db, 1, &ctx.secret).await?
@@ -421,7 +763,7 @@ async fn test_mailbox_payload_validation_e2e() -> anyhow::Result<()> {
             .await?;
         assert_eq!(invalid_resp.status(), StatusCode::BAD_REQUEST);
 
-        // 5. Empty payload -> 400 Bad Request
+        // 9. Fulfill empty payload -> 400 Bad Request
         pace().await;
         let empty_resp = ctx
             .client
@@ -432,7 +774,7 @@ async fn test_mailbox_payload_validation_e2e() -> anyhow::Result<()> {
             .await?;
         assert_eq!(empty_resp.status(), StatusCode::BAD_REQUEST);
 
-        // 6. Exactly min boundary length (120 hex chars / 60 bytes) -> succeeds (204)
+        // 10. Exactly min boundary length (120 hex chars / 60 bytes) -> succeeds (204)
         let exact_min = "ee".repeat(60);
         assert_eq!(exact_min.len(), 120);
         pace().await;
@@ -444,24 +786,6 @@ async fn test_mailbox_payload_validation_e2e() -> anyhow::Result<()> {
             .send()
             .await?;
         assert_eq!(min_resp.status(), StatusCode::NO_CONTENT);
-
-        // 7. Pickup retrieves exact payload
-        pace().await;
-        let pickup_resp = ctx
-            .client
-            .get(&pickup_endpoint)
-            .header("Authorization", &auth2)
-            .send()
-            .await?;
-        assert_eq!(pickup_resp.status(), StatusCode::OK);
-        let pickup_body: Value = pickup_resp.json().await?;
-        assert_eq!(
-            pickup_body,
-            json!({
-                "status": "fulfilled",
-                "payload": exact_min
-            })
-        );
 
         Ok(())
     })
@@ -476,28 +800,61 @@ async fn test_mailbox_nonexistent_mailbox_e2e() -> anyhow::Result<()> {
         let token = Session::create(&ctx.db, 1, &ctx.secret).await?;
         let auth = format!("Bearer {token}");
 
-        let nonexistent_pickup =
-            format!("{}/api/v1/devices/mailbox/00000000", ctx.base_url);
-        let nonexistent_fulfill =
-            format!("{}/api/v1/devices/mailbox/00000000/fulfill", ctx.base_url);
+        let fake_id = "00000000";
+        let status_endpoint =
+            format!("{}/api/v1/devices/mailbox/{fake_id}/status", ctx.base_url);
+        let fulfill_endpoint = format!(
+            "{}/api/v1/devices/mailbox/{fake_id}/fulfill",
+            ctx.base_url
+        );
+        let pickup_endpoint =
+            format!("{}/api/auth/mailbox/{fake_id}/pickup", ctx.base_url);
+        let join_endpoint =
+            format!("{}/api/auth/mailbox/{fake_id}/join", ctx.base_url);
 
-        let missing_get = ctx
+        // Status returns 404
+        pace().await;
+        let missing_status = ctx
             .client
-            .get(&nonexistent_pickup)
+            .get(&status_endpoint)
             .header("Authorization", &auth)
             .send()
             .await?;
-        assert_eq!(missing_get.status(), StatusCode::NOT_FOUND);
+        assert_eq!(missing_status.status(), StatusCode::NOT_FOUND);
 
+        // Fulfill returns 404
         pace().await;
-        let missing_post = ctx
+        let missing_fulfill = ctx
             .client
-            .post(&nonexistent_fulfill)
+            .post(&fulfill_endpoint)
             .header("Authorization", &auth)
             .json(&json!({ "payload": "ff".repeat(60) }))
             .send()
             .await?;
-        assert_eq!(missing_post.status(), StatusCode::NOT_FOUND);
+        assert_eq!(missing_fulfill.status(), StatusCode::NOT_FOUND);
+
+        // Pickup returns 404
+        pace_auth().await;
+        let missing_pickup = ctx
+            .client
+            .get(&pickup_endpoint)
+            .header("Authorization", "Bearer mock_token")
+            .send()
+            .await?;
+        assert_eq!(missing_pickup.status(), StatusCode::NOT_FOUND);
+
+        // Join returns 404
+        pace_auth().await;
+        let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
+        pace_auth().await;
+        let missing_join = ctx
+            .client
+            .post(&join_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": "aa".repeat(32) }))
+            .send()
+            .await?;
+        assert_eq!(missing_join.status(), StatusCode::NOT_FOUND);
 
         Ok(())
     })
@@ -512,25 +869,29 @@ async fn test_mailbox_boundary_max_payload_e2e() -> anyhow::Result<()> {
         let token = Session::create(&ctx.db, 1, &ctx.secret).await?;
         let auth = format!("Bearer {token}");
 
-        let create_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
 
-        let create_resp = ctx
+        pace_auth().await;
+        let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
+        pace_auth().await;
+        let open_resp = ctx
             .client
-            .post(&create_endpoint)
-            .header("Authorization", &auth)
+            .post(&open_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": "aa".repeat(32) }))
             .send()
             .await?;
-        assert_eq!(create_resp.status(), StatusCode::OK);
-        let body: Value = create_resp.json().await?;
-        let mailbox_id = body["mailbox_id"].as_str().unwrap();
+        assert_eq!(open_resp.status(), StatusCode::OK);
+        let open_body: Value = open_resp.json().await?;
+        let mailbox_id = open_body["mailbox_id"].as_str().unwrap();
+        let polling_token = open_body["polling_token"].as_str().unwrap();
 
         let fulfill_endpoint = format!(
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
         let pickup_endpoint =
-            format!("{}/api/v1/devices/mailbox/{mailbox_id}", ctx.base_url);
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
 
         // Exactly 8192 hex characters (4096 bytes)
         let max_payload = "0a".repeat(4096);
@@ -546,11 +907,11 @@ async fn test_mailbox_boundary_max_payload_e2e() -> anyhow::Result<()> {
             .await?;
         assert_eq!(fulfill_resp.status(), StatusCode::NO_CONTENT);
 
-        pace().await;
+        pace_auth().await;
         let pickup_resp = ctx
             .client
             .get(&pickup_endpoint)
-            .header("Authorization", &auth)
+            .header("Authorization", format!("Bearer {polling_token}"))
             .send()
             .await?;
         assert_eq!(pickup_resp.status(), StatusCode::OK);
@@ -574,52 +935,56 @@ async fn test_mailbox_concurrent_pickup_e2e() -> anyhow::Result<()> {
     with_sandbox_env("webdav_mailbox_concurrent_pickup", async move |ctx| {
         User::create(&ctx.db, &[77u8; 32], "v".into(), &[0u8; 60]).await?;
         let user_id = 1;
-        let token_a = Session::create(&ctx.db, user_id, &ctx.secret).await?;
-        let token_b = Session::create(&ctx.db, user_id, &ctx.secret).await?;
-        let auth_a = format!("Bearer {token_a}");
-        let auth_b = format!("Bearer {token_b}");
+        let token = Session::create(&ctx.db, user_id, &ctx.secret).await?;
+        let auth = format!("Bearer {token}");
 
-        let create_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
-        let create_resp = ctx
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
+
+        pace_auth().await;
+        let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
+        pace_auth().await;
+        let open_resp = ctx
             .client
-            .post(&create_endpoint)
-            .header("Authorization", &auth_a)
+            .post(&open_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": "aa".repeat(32) }))
             .send()
             .await?;
-        assert_eq!(create_resp.status(), StatusCode::OK);
-        let body: Value = create_resp.json().await?;
-        let mailbox_id = body["mailbox_id"].as_str().unwrap();
+        assert_eq!(open_resp.status(), StatusCode::OK);
+        let open_body: Value = open_resp.json().await?;
+        let mailbox_id = open_body["mailbox_id"].as_str().unwrap();
+        let polling_token = open_body["polling_token"].as_str().unwrap();
 
         let fulfill_endpoint = format!(
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
         let pickup_endpoint =
-            format!("{}/api/v1/devices/mailbox/{mailbox_id}", ctx.base_url);
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
 
         let payload = "42".repeat(60);
         pace().await;
         let fulfill_resp = ctx
             .client
             .post(&fulfill_endpoint)
-            .header("Authorization", &auth_a)
+            .header("Authorization", &auth)
             .json(&json!({ "payload": payload }))
             .send()
             .await?;
         assert_eq!(fulfill_resp.status(), StatusCode::NO_CONTENT);
 
-        // Concurrently attempt pickup from two distinct sessions
-        pace().await;
+        // Concurrently attempt pickup with valid token
+        let token_auth = format!("Bearer {polling_token}");
+        pace_auth().await;
         let req1 = ctx
             .client
             .get(&pickup_endpoint)
-            .header("Authorization", &auth_a)
+            .header("Authorization", &token_auth)
             .send();
         let req2 = ctx
             .client
             .get(&pickup_endpoint)
-            .header("Authorization", &auth_b)
+            .header("Authorization", &token_auth)
             .send();
 
         let (res1, res2) = tokio::join!(req1, req2);
@@ -652,24 +1017,29 @@ async fn test_mailbox_concurrent_fulfill_e2e() -> anyhow::Result<()> {
         let auth_a = format!("Bearer {token_a}");
         let auth_b = format!("Bearer {token_b}");
 
-        let create_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
-        let create_resp = ctx
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
+
+        pace_auth().await;
+        let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
+        pace_auth().await;
+        let open_resp = ctx
             .client
-            .post(&create_endpoint)
-            .header("Authorization", &auth_a)
+            .post(&open_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": "aa".repeat(32) }))
             .send()
             .await?;
-        assert_eq!(create_resp.status(), StatusCode::OK);
-        let body: Value = create_resp.json().await?;
-        let mailbox_id = body["mailbox_id"].as_str().unwrap();
+        assert_eq!(open_resp.status(), StatusCode::OK);
+        let open_body: Value = open_resp.json().await?;
+        let mailbox_id = open_body["mailbox_id"].as_str().unwrap();
+        let polling_token = open_body["polling_token"].as_str().unwrap();
 
         let fulfill_endpoint = format!(
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
         let pickup_endpoint =
-            format!("{}/api/v1/devices/mailbox/{mailbox_id}", ctx.base_url);
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
 
         let payload_a = "11".repeat(60);
         let payload_b = "22".repeat(60);
@@ -703,11 +1073,11 @@ async fn test_mailbox_concurrent_fulfill_e2e() -> anyhow::Result<()> {
         );
 
         // Verification: Pickup retrieves the payload that won the race
-        pace().await;
+        pace_auth().await;
         let pickup_resp = ctx
             .client
             .get(&pickup_endpoint)
-            .header("Authorization", &auth_a)
+            .header("Authorization", format!("Bearer {polling_token}"))
             .send()
             .await?;
         assert_eq!(pickup_resp.status(), StatusCode::OK);
@@ -725,24 +1095,29 @@ async fn test_mailbox_uppercase_hex_payload_e2e() -> anyhow::Result<()> {
         let token = Session::create(&ctx.db, 1, &ctx.secret).await?;
         let auth = format!("Bearer {token}");
 
-        let create_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
-        let create_resp = ctx
+        let open_endpoint = format!("{}/api/auth/mailbox/open", ctx.base_url);
+
+        pace_auth().await;
+        let pow = get_pow_header(&ctx.client, &ctx.base_url).await?;
+        pace_auth().await;
+        let open_resp = ctx
             .client
-            .post(&create_endpoint)
-            .header("Authorization", &auth)
+            .post(&open_endpoint)
+            .header("X-Hashcash", &pow)
+            .json(&json!({ "pub_temp": "AA".repeat(32) }))
             .send()
             .await?;
-        assert_eq!(create_resp.status(), StatusCode::OK);
-        let body: Value = create_resp.json().await?;
-        let mailbox_id = body["mailbox_id"].as_str().unwrap();
+        assert_eq!(open_resp.status(), StatusCode::OK);
+        let open_body: Value = open_resp.json().await?;
+        let mailbox_id = open_body["mailbox_id"].as_str().unwrap();
+        let polling_token = open_body["polling_token"].as_str().unwrap();
 
         let fulfill_endpoint = format!(
             "{}/api/v1/devices/mailbox/{mailbox_id}/fulfill",
             ctx.base_url
         );
         let pickup_endpoint =
-            format!("{}/api/v1/devices/mailbox/{mailbox_id}", ctx.base_url);
+            format!("{}/api/auth/mailbox/{mailbox_id}/pickup", ctx.base_url);
 
         // Fulfill with UPPERCASE hexadecimal string (120 chars)
         let upper_payload = "DEADBEEF".repeat(15);
@@ -759,11 +1134,11 @@ async fn test_mailbox_uppercase_hex_payload_e2e() -> anyhow::Result<()> {
         assert_eq!(fulfill_resp.status(), StatusCode::NO_CONTENT);
 
         // Pickup returns normalized lowercase hexadecimal string
-        pace().await;
+        pace_auth().await;
         let pickup_resp = ctx
             .client
             .get(&pickup_endpoint)
-            .header("Authorization", &auth)
+            .header("Authorization", format!("Bearer {polling_token}"))
             .send()
             .await?;
         assert_eq!(pickup_resp.status(), StatusCode::OK);
@@ -789,8 +1164,7 @@ async fn test_mailbox_tampered_token_returns_unauthorized_e2e()
         User::create(&ctx.db, &[33u8; 32], "v".into(), &[0u8; 60]).await?;
         let valid_token = Session::create(&ctx.db, 1, &ctx.secret).await?;
 
-        // Session token format: {session_id}.{expires_at}.{blake3_mac}
-        // Tamper with the MAC portion at the end
+        // Tamper with the MAC portion at the end of the session token
         let mut tampered_token = valid_token.clone();
         let last_char = tampered_token.pop().unwrap();
         let replacement = if last_char == '0' { '1' } else { '0' };
@@ -798,38 +1172,46 @@ async fn test_mailbox_tampered_token_returns_unauthorized_e2e()
 
         let tampered_auth = format!("Bearer {tampered_token}");
 
-        let create_endpoint =
-            format!("{}/api/v1/devices/mailbox", ctx.base_url);
-        let resp = ctx
+        let offer_endpoint = format!("{}/api/v1/devices/mailbox", ctx.base_url);
+        let link_ticket_endpoint =
+            format!("{}/api/v1/devices/link-ticket", ctx.base_url);
+        let status_endpoint =
+            format!("{}/api/v1/devices/mailbox/01234567/status", ctx.base_url);
+        let fulfill_endpoint =
+            format!("{}/api/v1/devices/mailbox/01234567/fulfill", ctx.base_url);
+
+        let r1 = ctx
             .client
-            .post(&create_endpoint)
+            .post(&offer_endpoint)
             .header("Authorization", &tampered_auth)
             .send()
             .await?;
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(r1.status(), StatusCode::UNAUTHORIZED);
 
-        pace().await;
-        let fulfill_endpoint =
-            format!("{}/api/v1/devices/mailbox/01234567/fulfill", ctx.base_url);
-        let resp_fulfill = ctx
+        let r2 = ctx
+            .client
+            .post(&link_ticket_endpoint)
+            .header("Authorization", &tampered_auth)
+            .send()
+            .await?;
+        assert_eq!(r2.status(), StatusCode::UNAUTHORIZED);
+
+        let r3 = ctx
+            .client
+            .get(&status_endpoint)
+            .header("Authorization", &tampered_auth)
+            .send()
+            .await?;
+        assert_eq!(r3.status(), StatusCode::UNAUTHORIZED);
+
+        let r4 = ctx
             .client
             .post(&fulfill_endpoint)
             .header("Authorization", &tampered_auth)
             .json(&json!({ "payload": "aa".repeat(60) }))
             .send()
             .await?;
-        assert_eq!(resp_fulfill.status(), StatusCode::UNAUTHORIZED);
-
-        pace().await;
-        let pickup_endpoint =
-            format!("{}/api/v1/devices/mailbox/01234567", ctx.base_url);
-        let resp_pickup = ctx
-            .client
-            .get(&pickup_endpoint)
-            .header("Authorization", &tampered_auth)
-            .send()
-            .await?;
-        assert_eq!(resp_pickup.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(r4.status(), StatusCode::UNAUTHORIZED);
 
         Ok(())
     })

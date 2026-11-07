@@ -7,6 +7,7 @@ use hyper::StatusCode;
 use webauthn_rs::prelude::WebauthnError;
 
 use crate::api;
+use crate::app::mailbox;
 use crate::logger::{Loggable, logging_enabled};
 use crate::storage;
 use crate::{model, wrap_internal_err};
@@ -80,6 +81,12 @@ impl From<storage::ledger::Error> for Error {
 impl From<WebauthnError> for Error {
     fn from(e: WebauthnError) -> Self {
         Self::ApiError(api::Error::WebAuthn(e))
+    }
+}
+
+impl From<mailbox::Error> for Error {
+    fn from(err: crate::app::mailbox::Error) -> Self {
+        Self::ApiError(api::Error::Mailbox(err))
     }
 }
 

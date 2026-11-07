@@ -17,12 +17,14 @@ pub struct Response {
     pub expires_in: u64,
 }
 
-/// Creates a new ephemeral mailbox for out-of-band ECDH key exchange.
+/// Offers a new ephemeral mailbox for out-of-band ECDH key exchange (Flow B).
 ///
 /// Route: `POST /api/v1/devices/mailbox` (protected by [`mac_guard`] and [`auth_guard`]).
 ///
 /// Allocates a unique 8-character Crockford Base32 mailbox identifier bound to the caller's
-/// `user_id` with an initial `Pending` status and a 300-second Time-To-Live ([`Mailbox::TTL_SECS`]).
+/// `user_id` with an initial `Waiting` status and a 300-second Time-To-Live ([`Mailbox::TTL_SECS`]).
+/// The caller subsequently polls `GET /api/v1/devices/mailbox/{id}/status` while displaying
+/// a pairing QR code for the new device to scan.
 ///
 /// # Errors
 ///
@@ -34,7 +36,7 @@ pub async fn create(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
 ) -> JsonResult<Response> {
-    let mailbox_id = state.mailbox.create(user_id).await;
+    let mailbox_id = state.mailbox.offer(user_id).await;
 
     Ok(Json(Response {
         mailbox_id,

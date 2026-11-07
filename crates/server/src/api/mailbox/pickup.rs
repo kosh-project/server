@@ -1,14 +1,15 @@
 //! Route handler for polling and picking up payload from an ephemeral ECDH mailbox.
 
 use axum::{
-    Extension, Json,
+    Json,
     extract::{Path, State},
 };
+use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{app, error::JsonResult};
+use crate::{api::Error::Unauthorized, app, error::JsonResult};
 
-/// Response payload returned by `GET /api/v1/devices/mailbox/{id}`.
+/// Response payload returned by `GET /api/auth/mailbox/{id}/pickup`.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "status", rename_all = "lowercase")]
 pub enum Response {
@@ -23,29 +24,34 @@ pub enum Response {
 
 use Response::{Fulfilled, Pending};
 
-/// Polls status or retrieves the deposited payload from an ephemeral mailbox.
+/// Polls status or retrieves the deposited payload from an ephemeral mailbox (Flow A & B).
 ///
-/// Route: `GET /api/v1/devices/mailbox/{id}` (protected by [`mac_guard`] and [`auth_guard`]).
+/// Route: `GET /api/auth/mailbox/{id}/pickup` (unauthenticated, rate-limited by `with_auth_ip_limit`).
 ///
-/// 1. Verifies that the mailbox exists and belongs to the authenticated caller.
-/// 2. If the mailbox is still in `Pending` state, returns `{"status": "pending"}` without eviction.
-/// 3. If fulfilled, atomically transitions status to `Consumed`, evicts the mailbox from cache
+/// 1. Extracts `polling_token` from the `Authorization: Bearer <token>` header.
+/// 2. Verifies the token against the constant-time BLAKE3 hash stored in the mailbox entry.
+/// 3. If the mailbox is still in `Ready` state, returns `{"status": "pending"}` without eviction.
+/// 4. If fulfilled, atomically transitions status to `Consumed`, evicts the mailbox from cache
 ///    (single-use "burn-after-reading" semantics), and returns `{"status": "fulfilled", "payload": "<hex>"}`.
 ///
 /// # Errors
 ///
-/// - Returns [`NotFound`](crate::api::Error::NotFound) if the mailbox does not exist, has expired,
-///   belongs to a different user, or has already been picked up.
+/// - Returns [`Unauthorized`] if the `Authorization` header is missing or malformed.
+/// - Returns [`NotFound`](crate::app::mailbox::Error::NotFound) if the mailbox does not exist, has expired,
+///   the polling token is invalid, or the payload has already been picked up (anti-enumeration).
 /// - Returns [`crate::error::internal::Error`] if the internal mailbox lock is poisoned.
-///
-/// [`auth_guard`]: crate::api::middleware::auth_guard
-/// [`mac_guard`]: crate::api::middleware::mac_guard
 pub async fn pickup(
     State(state): State<app::State>,
-    Extension(user_id): Extension<i64>,
     Path(mailbox_id): Path<String>,
+    headers: HeaderMap,
 ) -> JsonResult<Response> {
-    if let Some(payload) = state.mailbox.pickup(&mailbox_id, user_id).await? {
+    let token = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or(Unauthorized("Missing or invalid Authorization header"))?;
+
+    if let Some(payload) = state.mailbox.pickup(&mailbox_id, token).await? {
         return Ok(Json(Fulfilled {
             payload: hex::encode(payload),
         }));

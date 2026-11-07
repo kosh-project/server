@@ -6,7 +6,7 @@ use url::Url;
 use webauthn_rs::{Webauthn, WebauthnBuilder};
 
 use crate::{
-    app::{Mailbox, Passkey, State as AppState, state::UserId},
+    app::{Mailbox, Passkey, State as AppState, Ticket, state::UserId},
     auth::Secret,
     model::session::TokenHash,
     storage::{self, ledger},
@@ -160,6 +160,7 @@ impl AppStateBuilder {
             webauthn,
 
             mailbox: Mailbox::default(),
+            ticket: Ticket::default(),
         }
     }
 }

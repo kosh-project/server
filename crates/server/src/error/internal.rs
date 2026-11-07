@@ -36,6 +36,9 @@ pub enum Error {
     /// an internal condition without defining a new strongly-typed variant.
     #[error("{}", .0)]
     Message(&'static str),
+
+    #[error("Poisoned Mutex")]
+    MutexPoisoned,
 }
 
 /// Wires up low-level standard library errors directly into your domain-specific error enums.
