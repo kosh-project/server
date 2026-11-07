@@ -16,6 +16,16 @@ pub struct Response {
     pub token: String,
 }
 
+/// Joins an existing offered mailbox with an ephemeral public key (Flow B).
+///
+/// Route: `POST /api/auth/mailbox/{id}/join` (guarded by `pow_guard`).
+///
+/// # Errors
+///
+/// - Returns [`BadRequest`](crate::api::Error::BadRequest) if `pub_temp` is not 64 hex characters (32 bytes).
+/// - Returns [`BadRequest`](crate::api::Error::BadRequest) if `pub_temp` contains invalid hex digits.
+/// - Returns [`NotFound`](crate::app::mailbox::Error::NotFound) if the mailbox does not exist.
+/// - Returns [`AlreadyJoined`](crate::app::mailbox::Error::AlreadyJoined) if already joined.
 pub async fn join(
     State(state): State<app::State>,
     Path(mailbox_id): Path<String>,

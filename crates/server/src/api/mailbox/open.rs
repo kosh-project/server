@@ -19,6 +19,14 @@ pub struct Response {
     pub expires_in: u64,
 }
 
+/// Opens a new ephemeral ECDH key exchange mailbox for device pairing (Flow A).
+///
+/// Route: `POST /api/auth/mailbox/open` (guarded by `pow_guard`).
+///
+/// # Errors
+///
+/// - Returns [`BadRequest`](crate::api::Error::BadRequest) if `pub_temp` is not 64 hex characters (32 bytes).
+/// - Returns [`BadRequest`](crate::api::Error::BadRequest) if `pub_temp` contains invalid hex digits.
 pub async fn open(
     State(state): State<app::State>,
     Json(request): Json<Request>,

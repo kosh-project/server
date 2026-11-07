@@ -83,12 +83,21 @@ impl Mailbox {
     }
 
     /// Flow B: Unauthenticated device joins offered mailbox with ephemeral public key.
+    ///
+    /// # Errors
+    ///
+    /// - Returns [`NotFound`] if the mailbox ID does not exist in cache.
+    /// - Returns [`AlreadyJoined`](Error::AlreadyJoined) if already joined.
     pub async fn join(&self, id: &str, pub_temp: Vec<u8>) -> Result<String> {
         let entry = self.cache.get(id).await.ok_or(NotFound)?;
         entry.join(pub_temp)
     }
 
     /// Flow B: Authenticated device polls status to check if receiver has joined.
+    ///
+    /// # Errors
+    ///
+    /// - Returns [`NotFound`] if the mailbox does not exist or caller is unauthorized.
     pub async fn status(
         &self,
         id: &str,
@@ -99,6 +108,12 @@ impl Mailbox {
     }
 
     /// Flow A & B: Authenticated device deposits encrypted payload into the mailbox.
+    ///
+    /// # Errors
+    ///
+    /// - Returns [`NotFound`] if the mailbox does not exist or caller is unauthorized.
+    /// - Returns [`NotReady`](Error::NotReady) if the mailbox is still waiting for a join.
+    /// - Returns [`AlreadyFulfilled`](Error::AlreadyFulfilled) if already fulfilled.
     pub async fn fulfill(
         &self,
         id: &str,
@@ -110,6 +125,11 @@ impl Mailbox {
     }
 
     /// Flow A & B: Receiver polls with polling token. On fulfillment, burns and evicts from RAM.
+    ///
+    /// # Errors
+    ///
+    /// - Returns [`NotFound`] if the mailbox does not exist or has expired.
+    /// - Returns [`Unauthorized`](Error::Unauthorized) if polling token is invalid.
     pub async fn pickup(
         &self,
         id: &str,
@@ -123,3 +143,7 @@ impl Mailbox {
         Ok(payload)
     }
 }
+
+#[cfg(test)]
+mod test;
+

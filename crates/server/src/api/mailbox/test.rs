@@ -291,3 +291,52 @@ fn fulfill_request_invalid_json_types() {
             .is_err()
     );
 }
+
+#[test]
+fn open_request_deserialization_and_validation() {
+    // Valid 64-character hex
+    let valid_json = json!({
+        "pub_temp": "aa".repeat(32)
+    });
+    let req: open::Request = serde_json::from_value(valid_json).unwrap();
+    assert_eq!(req.pub_temp.len(), 64);
+    assert!(hex::decode(&req.pub_temp).is_ok());
+
+    // Missing pub_temp field
+    assert!(serde_json::from_value::<open::Request>(json!({})).is_err());
+}
+
+#[test]
+fn join_request_deserialization_and_validation() {
+    // Valid 64-character hex
+    let valid_json = json!({
+        "pub_temp": "bb".repeat(32)
+    });
+    let req: join::Request = serde_json::from_value(valid_json).unwrap();
+    assert_eq!(req.pub_temp.len(), 64);
+    assert!(hex::decode(&req.pub_temp).is_ok());
+
+    // Missing pub_temp field
+    assert!(serde_json::from_value::<join::Request>(json!({})).is_err());
+}
+
+#[test]
+fn status_response_serialization() {
+    let waiting = status::Response::Waiting;
+    assert_eq!(
+        serde_json::to_value(&waiting).unwrap(),
+        json!({ "status": "waiting" })
+    );
+
+    let ready = status::Response::Ready {
+        pub_temp: "11223344".to_string(),
+    };
+    assert_eq!(
+        serde_json::to_value(&ready).unwrap(),
+        json!({
+            "status": "ready",
+            "pub_temp": "11223344"
+        })
+    );
+}
+

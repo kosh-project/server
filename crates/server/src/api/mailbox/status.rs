@@ -13,6 +13,14 @@ pub enum Response {
     Ready { pub_temp: String },
 }
 
+/// Polls the status of an offered pairing mailbox (Flow B).
+///
+/// Route: `GET /api/v1/devices/mailbox/{id}/status` (protected by `mac_guard` and `auth_guard`).
+///
+/// # Errors
+///
+/// - Returns [`NotFound`](crate::app::mailbox::Error::NotFound) if the mailbox does not exist or caller is unauthorized.
+/// - Returns [`AlreadyFulfilled`](crate::app::mailbox::Error::AlreadyFulfilled) if the mailbox has already been fulfilled.
 pub async fn status(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,

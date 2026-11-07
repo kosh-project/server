@@ -32,7 +32,7 @@ pub enum Error {
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-pub(crate) use Error::{
+pub use Error::{
     AlreadyFulfilled, AlreadyJoined, Internal, NotFound, NotReady, NotWaiting,
     Unauthorized,
 };
@@ -53,7 +53,7 @@ impl IntoResponse for Error {
                 (StatusCode::BAD_REQUEST, "Mailbox not ready for fulfillment")
             }
             NotWaiting => {
-                (StatusCode::BAD_REQUEST, "Mailbox not wiating for join")
+                (StatusCode::BAD_REQUEST, "Mailbox not waiting for join")
             }
             Internal(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
@@ -63,8 +63,8 @@ impl IntoResponse for Error {
     }
 }
 
-impl Into<Error> for PoisonError<MutexGuard<'_, Status>> {
-    fn into(self) -> Error {
-        Error::Internal(internal::Error::MutexPoisoned)
+impl From<PoisonError<MutexGuard<'_, Status>>> for Error {
+    fn from(_: PoisonError<MutexGuard<'_, Status>>) -> Self {
+        Self::Internal(internal::Error::MutexPoisoned)
     }
 }
