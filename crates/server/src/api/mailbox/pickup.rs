@@ -1,12 +1,13 @@
 //! Route handler for polling and picking up payload from an ephemeral ECDH mailbox.
 
 use axum::{
-    Extension, Json,
+    Json,
     extract::{Path, State},
 };
+use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{app, error::JsonResult};
+use crate::{api::Error::Unauthorized, app, error::JsonResult};
 
 /// Response payload returned by `GET /api/v1/devices/mailbox/{id}`.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -42,10 +43,16 @@ use Response::{Fulfilled, Pending};
 /// [`mac_guard`]: crate::api::middleware::mac_guard
 pub async fn pickup(
     State(state): State<app::State>,
-    Extension(user_id): Extension<i64>,
     Path(mailbox_id): Path<String>,
+    headers: HeaderMap,
 ) -> JsonResult<Response> {
-    if let Some(payload) = state.mailbox.pickup(&mailbox_id, user_id).await? {
+    let token = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or(Unauthorized("Missing or invalid Authorization header"))?;
+
+    if let Some(payload) = state.mailbox.pickup(&mailbox_id, token).await? {
         return Ok(Json(Fulfilled {
             payload: hex::encode(payload),
         }));

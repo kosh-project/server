@@ -63,12 +63,18 @@ pub fn route_main(state: AppState) -> Router {
 /// | `POST` | `/api/auth/passkey/login/finish` | [`passkey::login_finish`] | Completes passkey login and issues session token |
 fn auth_route(state: &AppState) -> Router<AppState> {
     Router::new()
+        // PoW-guarded unauthenticated actions
         .route("/register", post(api::auth::register))
         .route("/login", post(api::auth::login))
+        .route("/mailbox/open", post(mailbox::open))
+        .route("/mailbox/{id}/join", post(mailbox::join))
         .route_layer(middleware::from_fn_with_state(state.clone(), pow_guard))
+        // Open unauthenticated actions
         .route("/challenge", get(challenge::generate))
         .route("/passkey/login/start", post(passkey::login_start))
         .route("/passkey/login/finish", post(passkey::login_finish))
+        // Ephemeral mailbox polling
+        .route("/mailbox/{id}/pickup", get(mailbox::pickup))
         .with_auth_ip_limit()
 }
 
@@ -124,8 +130,8 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .route("/auth/passkey", get(passkey::list))
         // Ephemeral blind ECDH mailbox relay for device pairing
         .route("/devices/mailbox", post(mailbox::create))
+        .route("/devices/mailbox/{id}/status", get(mailbox::status))
         .route("/devices/mailbox/{id}/fulfill", post(mailbox::fulfill))
-        .route("/devices/mailbox/{id}", get(mailbox::pickup))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_guard))
         .with_device_limit()
         .route_layer(middleware::from_fn_with_state(state.clone(), mac_guard))

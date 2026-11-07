@@ -48,11 +48,17 @@
 
 mod create;
 mod fulfill;
+mod join;
+mod open;
 mod pickup;
+mod status;
 
 pub use create::create;
 pub use fulfill::fulfill;
+pub use join::join;
+pub use open::open;
 pub use pickup::pickup;
+pub use status::status;
 
 #[cfg(test)]
 mod test;

@@ -34,7 +34,7 @@ pub async fn create(
     State(state): State<app::State>,
     Extension(user_id): Extension<i64>,
 ) -> JsonResult<Response> {
-    let mailbox_id = state.mailbox.create(user_id).await;
+    let mailbox_id = state.mailbox.offer(user_id).await;
 
     Ok(Json(Response {
         mailbox_id,
