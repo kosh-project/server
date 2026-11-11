@@ -14,7 +14,7 @@ use tokio::io::AsyncReadExt;
 use crate::storage::{
     Error::{CreateTempFile, InvalidFileName, NotFound},
     Payload,
-    service::Service,
+    service::{self, Service},
     transaction::Transaction,
 };
 
@@ -121,8 +121,7 @@ async fn concurrent_write_collisions_dont_panic() -> Result<()> {
         // Test: verify concurrent writes of identical content yield identical hash
         assert_eq!(metadata_a.hash.to_string(), metadata_b.hash.to_string());
 
-        let expected_path =
-            service.vault_path.join(metadata_a.hash.to_string());
+        let expected_path = service.blob_path(&metadata_a.hash.to_string())?;
         // Test: verify final blob file exists in storage vault
         assert!(expected_path.exists());
 
@@ -191,7 +190,7 @@ async fn service_delete_blob_success() -> Result<()> {
             .context("failed to save ephemeral blob")?;
 
         let hash_str = metadata.hash.to_string();
-        let file_path = service.vault_path.join(&hash_str);
+        let file_path = service.blob_path(&hash_str)?;
         assert!(file_path.exists());
 
         service
@@ -236,7 +235,8 @@ async fn successful_commit_and_hash() -> anyhow::Result<()> {
 
         let metadata = result.context("failed to commit transaction")?;
 
-        let target_path = vault_path.join(metadata.hash.to_string());
+        let target_path =
+            service::blob_path(&vault_path, &metadata.hash.to_string())?;
 
         let mut hasher = Hasher::new();
         let bytes = tokio::fs::read(target_path)
@@ -269,7 +269,8 @@ async fn zero_byte_stream_creates_empty_file() -> anyhow::Result<()> {
         // Test: verify empty payload commits with size 0
         assert_eq!(metadata.size, 0);
 
-        let target_path = vault_path.join(metadata.hash.to_string());
+        let target_path =
+            service::blob_path(&vault_path, &metadata.hash.to_string())?;
 
         assert!(target_path.exists());
 

@@ -16,7 +16,8 @@ use tokio::{fs, net::TcpListener};
 #[allow(
     clippy::panic_in_result_fn,
     clippy::unwrap_used,
-    clippy::indexing_slicing
+    clippy::indexing_slicing,
+    clippy::string_slice
 )]
 async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
     let tmp = TmpDir::new("webdav").await?;
@@ -82,7 +83,13 @@ async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
     let hash_str = response_json["hash"].as_str().unwrap();
 
     // eprintln!("Fails??");
-    let written_bytes = fs::read(vault_dir.join(hash_str)).await?;
+    let written_bytes = fs::read(
+        vault_dir
+            .join(&hash_str[0..2])
+            .join(&hash_str[2..4])
+            .join(hash_str),
+    )
+    .await?;
 
     assert_eq!(
         written_bytes.len(),
