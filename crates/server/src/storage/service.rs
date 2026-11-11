@@ -156,7 +156,7 @@ impl Service {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidFileName`] if `hash_str` has fewer than 4 characters
+    /// Returns [`InvalidFileName`] if `hash_str` has fewer than 4 characters
     /// or contains non-hexadecimal characters.
     pub fn blob_path(&self, hash_str: &str) -> Result<PathBuf> {
         blob_path(self.vault_path.as_ref(), hash_str)
@@ -167,7 +167,7 @@ impl Service {
 ///
 /// # Errors
 ///
-/// Returns [`Error::InvalidFileName`] if `hash_str` has fewer than 4 characters
+/// Returns [`InvalidFileName`] if `hash_str` has fewer than 4 characters
 /// or contains non-hexadecimal characters.
 pub(crate) fn blob_path(vault_path: &Path, hash_str: &str) -> Result<PathBuf> {
     let p1 = hash_str.get(0..2).ok_or(InvalidFileName)?;
