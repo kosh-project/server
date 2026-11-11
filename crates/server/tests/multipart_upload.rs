@@ -16,7 +16,8 @@ use tokio::{fs, net::TcpListener};
 #[allow(
     clippy::panic_in_result_fn,
     clippy::unwrap_used,
-    clippy::indexing_slicing
+    clippy::indexing_slicing,
+    clippy::string_slice
 )]
 async fn test_multipart_upload_integrity() -> anyhow::Result<()> {
     let tmp = TmpDir::new("webdav").await?;

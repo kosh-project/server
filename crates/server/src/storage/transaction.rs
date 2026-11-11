@@ -1,12 +1,9 @@
 use crate::{
     storage::{
-        Error::{
-            CreateTempFile, InvalidFileName, InvalidPath, RenameError,
-            WriteChunkFailure,
-        },
+        Error::{CreateTempFile, InvalidPath, RenameError, WriteChunkFailure},
         Payload, Result,
         file::Metadata,
-        service, transaction,
+        service,
     },
     warn,
 };
@@ -18,7 +15,7 @@ use kosh_core::logger::Module;
 use std::{
     error::Error as StdErr,
     io::{Error as IoErr, ErrorKind::UnexpectedEof},
-    path::{self, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 use tokio::{
     fs::{self, File, remove_file, rename},

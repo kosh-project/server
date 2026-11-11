@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use chrono::format::ParseErrorKind::Invalid;
 use futures::Stream;
 use kosh_core::logger::Module;
 use std::error::Error as StdErr;
@@ -98,6 +97,7 @@ impl Service {
     }
 
     #[deprecated]
+    #[allow(unused)]
     pub(crate) fn flat_path(&self, hash_str: &str) -> PathBuf {
         self.vault_path.join(hash_str)
     }
@@ -149,11 +149,26 @@ impl Service {
         File::open(file_path).await.map_err(|_| NotFound)
     }
 
+    /// Resolves the 2-level sharded path for a content-addressed blob in the vault.
+    ///
+    /// Computes `<vault_path>/<p1>/<p2>/<hash>` using the first 4 hexadecimal
+    /// characters of the BLAKE3 hash as directory prefix shards.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidFileName`] if `hash_str` has fewer than 4 characters
+    /// or contains non-hexadecimal characters.
     pub fn blob_path(&self, hash_str: &str) -> Result<PathBuf> {
         blob_path(self.vault_path.as_ref(), hash_str)
     }
 }
 
+/// Computes the 2-level sharded path `<vault_path>/<p1>/<p2>/<hash>` for a BLAKE3 content hash.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidFileName`] if `hash_str` has fewer than 4 characters
+/// or contains non-hexadecimal characters.
 pub(crate) fn blob_path(vault_path: &Path, hash_str: &str) -> Result<PathBuf> {
     let p1 = hash_str.get(0..2).ok_or(InvalidFileName)?;
     let p2 = hash_str.get(2..4).ok_or(InvalidFileName)?;
