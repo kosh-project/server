@@ -102,7 +102,7 @@ impl RateLimitExt for Router<app::State> {
         let config = Arc::new(
             GovernorConfigBuilder::default()
                 .period(Duration::from_millis(200))
-                .burst_size(2)
+                .burst_size(10)
                 .finish()
                 .expect("Failed to build auth IP governor"),
         );
@@ -113,7 +113,7 @@ impl RateLimitExt for Router<app::State> {
     fn with_device_limit(self) -> Self {
         let config = Arc::new(
             GovernorConfigBuilder::default()
-                .per_second(15)
+                .period(Duration::from_millis(66))
                 .burst_size(5)
                 .key_extractor(TokenExtractor)
                 .finish()
