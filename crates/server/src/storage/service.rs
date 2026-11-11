@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use chrono::format::ParseErrorKind::Invalid;
 use futures::Stream;
 use kosh_core::logger::Module;
 use std::error::Error as StdErr;
@@ -12,7 +13,7 @@ use crate::storage::{
     Error::{InvalidFileName, NotFound},
     Payload, Result,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Default, Clone)]
 /// The high-level interface to the storage vault.
@@ -95,6 +96,11 @@ impl Service {
 
         Ok(Transaction::new(&self.vault_path))
     }
+
+    #[deprecated]
+    pub(crate) fn flat_path(&self, hash_str: &str) -> PathBuf {
+        self.vault_path.join(hash_str)
+    }
 }
 
 impl Service {
@@ -108,7 +114,9 @@ impl Service {
     /// - Returns [`crate::storage::Error::Internal`] if the filesystem returns any error other than
     ///   `NotFound` (e.g., permission denied).
     pub async fn delete_blob(&self, hash_str: &str) -> Result<()> {
-        let file_path = self.vault_path.join(hash_str);
+        let Ok(file_path) = self.blob_path(hash_str) else {
+            return Ok(());
+        };
 
         match fs::remove_file(&file_path).await {
             Ok(()) => {
@@ -136,8 +144,19 @@ impl Service {
     ///
     /// [`ReaderStream`]: tokio_util::io::ReaderStream
     pub async fn get_blob(&self, hash_str: &str) -> Result<File> {
-        let file_path = self.vault_path.join(hash_str);
+        let file_path = self.blob_path(hash_str)?;
 
         File::open(file_path).await.map_err(|_| NotFound)
     }
+
+    pub fn blob_path(&self, hash_str: &str) -> Result<PathBuf> {
+        blob_path(self.vault_path.as_ref(), hash_str)
+    }
+}
+
+pub(crate) fn blob_path(vault_path: &Path, hash_str: &str) -> Result<PathBuf> {
+    let p1 = hash_str.get(0..2).ok_or(InvalidFileName)?;
+    let p2 = hash_str.get(2..4).ok_or(InvalidFileName)?;
+
+    Ok(vault_path.join(p1).join(p2).join(hash_str))
 }

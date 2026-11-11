@@ -1,8 +1,12 @@
 use crate::{
     storage::{
-        Error::{CreateTempFile, InvalidPath, RenameError, WriteChunkFailure},
+        Error::{
+            CreateTempFile, InvalidFileName, InvalidPath, RenameError,
+            WriteChunkFailure,
+        },
         Payload, Result,
         file::Metadata,
+        service, transaction,
     },
     warn,
 };
@@ -14,10 +18,10 @@ use kosh_core::logger::Module;
 use std::{
     error::Error as StdErr,
     io::{Error as IoErr, ErrorKind::UnexpectedEof},
-    path::{Path, PathBuf},
+    path::{self, Path, PathBuf},
 };
 use tokio::{
-    fs::{File, remove_file, rename},
+    fs::{self, File, remove_file, rename},
     io::AsyncWriteExt,
 };
 use uuid::Uuid;
@@ -160,20 +164,36 @@ impl Transaction {
             .into());
         }
 
-        let target = self
-            .temp
-            .parent()
-            .ok_or_else(|| InvalidPath {
-                path: self.temp.clone(),
-            })?
-            .join(self.hasher.finalize().to_string());
+        self.write(&file).await
+    }
+
+    async fn write(&self, file: &File) -> Result<Metadata> {
+        let hash = self.hasher.finalize();
+        let hash_str = hash.to_string();
+
+        let vault_path = self.temp.parent().ok_or_else(|| InvalidPath {
+            path: self.temp.clone(),
+        })?;
+
+        let target = service::blob_path(vault_path, &hash_str)?;
+
+        let target_dir = target.parent().ok_or_else(|| InvalidPath {
+            path: self.temp.clone(),
+        })?;
+
+        fs::create_dir_all(target_dir)
+            .await
+            .map_err(|e| CreateTempFile {
+                path: target_dir.to_path_buf(),
+                source: e,
+            })?;
 
         rename(&self.temp, &target).await.map_err(|e| RenameError {
             path: target,
             source: e,
         })?;
 
-        Metadata::try_new(&file.metadata().await?, self.hasher.finalize())
+        Metadata::try_new(&file.metadata().await?, hash)
     }
 
     /// Reads all chunks from the stream, writes them to disk, and returns the total bytes written.
