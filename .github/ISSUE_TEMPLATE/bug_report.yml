@@ -1,18 +1,18 @@
 name: Bug Report
-description: File a bug report to help us improve Kosh
+description: Report a bug or unintended behavior in Kosh
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for reporting an issue! Please provide as much detail as possible to help us diagnose and resolve the bug.
+        Provide concrete reproduction steps, environment details, and terminal logs to help diagnose the issue.
 
   - type: textarea
     id: description
     attributes:
       label: Bug Description
-      description: A clear and concise description of what the bug is.
+      description: A clear and concise description of the observed behavior.
       placeholder: What went wrong?
     validations:
       required: true
@@ -21,9 +21,9 @@ body:
     id: reproduction
     attributes:
       label: Steps to Reproduce
-      description: Exact steps to reproduce the behavior.
+      description: Exact commands and steps to reproduce the behavior.
       placeholder: |
-        1. Start the server with `cargo run -p webdav-server`
+        1. Start the server: `cargo run -p server`
         2. Send request to ...
         3. Observe error ...
     validations:
@@ -33,7 +33,7 @@ body:
     id: expected
     attributes:
       label: Expected Behavior
-      description: A clear and concise description of what you expected to happen.
+      description: What should have happened under expected operation.
     validations:
       required: true
 
@@ -41,17 +41,27 @@ body:
     id: environment
     attributes:
       label: Environment Info
-      description: Provide information about your operating system, Rust version, and hardware target.
+      description: Operating system, Rust version, and hardware target.
       placeholder: |
-        - OS: Linux (Ubuntu 24.04 / Debian 12 / Arch)
-        - Rust version: rustc --version output
-        - Target hardware: CPU / RAM (e.g., x86_64, aarch64, Raspberry Pi 4)
+        - OS: Linux (Arch / Debian 12 / Ubuntu 24.04)
+        - Rust version: rustc 1.97.1 (or output of `rustc --version`)
+        - Target hardware: CPU / RAM / Disk (e.g. Intel i5-2400, 2 GB RAM, spinning HDD)
     validations:
       required: true
 
   - type: textarea
     id: logs
     attributes:
-      label: Logs / Backtraces
-      description: If applicable, add server or CLI logs (scrub any sensitive secret keys before pasting).
+      label: Logs and Backtraces
+      description: Relevant server or CLI logs. Scrub any sensitive keys or tokens before pasting.
       render: shell
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched existing issues and verified this behavior is not already tracked.
+          required: true
+        - label: This issue does not contain private security vulnerabilities (report via SECURITY.md instead).
+          required: true

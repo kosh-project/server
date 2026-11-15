@@ -1,19 +1,19 @@
 name: Feature Request
-description: Suggest an idea or enhancement for Kosh
+description: Propose an architecture enhancement or capability for Kosh
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for suggesting an enhancement! Please describe your idea and how it aligns with Kosh's zero-knowledge and low-resource principles.
+        Describe your proposal and how it aligns with Kosh's zero-knowledge and low-resource principles.
 
   - type: textarea
     id: problem
     attributes:
-      label: Is your feature request related to a problem?
-      description: A clear and concise description of the problem or limitation you are addressing.
-      placeholder: I'm always frustrated when [...]
+      label: Problem Statement
+      description: What limitation or operational pain point does this proposal address?
+      placeholder: Describe the current limitation or problem...
     validations:
       required: true
 
@@ -21,8 +21,8 @@ body:
     id: solution
     attributes:
       label: Proposed Solution
-      description: A detailed description of the feature or behavior you would like to see.
-      placeholder: Describe your proposed design or API changes [...]
+      description: Proposed architectural design, API changes, or subsystem modifications.
+      placeholder: Describe the technical implementation in detail...
     validations:
       required: true
 
@@ -30,10 +30,22 @@ body:
     id: alternatives
     attributes:
       label: Alternatives Considered
-      description: Describe any alternative solutions or workarounds you have evaluated.
+      description: Alternative approaches or workarounds evaluated and why they were rejected.
 
   - type: textarea
     id: hardware_impact
     attributes:
       label: Low-Resource Hardware Impact
-      description: How will this feature perform on low-power hardware (e.g. 2GB RAM, mechanical HDD)? Does it introduce unbounded allocations or random disk seeks?
+      description: How will this perform on low-power hardware (2 GB RAM, single mechanical HDD)? Does it introduce unbounded memory allocations or random disk seeks?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Proposal Requirements
+      options:
+        - label: I searched existing issues and discussions to confirm this feature has not been proposed or rejected.
+          required: true
+        - label: This proposal preserves zero-knowledge invariants (plaintext bytes and filenames never visible to the server).
+          required: true

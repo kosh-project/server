@@ -1,37 +1,50 @@
-<div align="center">
-
 # Kosh
 
-**High-performance, zero-knowledge storage and sync vault daemon engineered for bare-metal hardware.**
+Zero-knowledge storage and synchronization daemon engineered for low-power bare metal.
 
 [![CI Status](https://github.com/kosh-project/server/actions/workflows/tests.yaml/badge.svg)](https://github.com/kosh-project/server/actions/workflows/tests.yaml)
 [![Docker Builds](https://github.com/kosh-project/server/actions/workflows/docker.yaml/badge.svg)](https://github.com/kosh-project/server/actions/workflows/docker.yaml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Rust Edition](https://img.shields.io/badge/Rust-2024%20Edition-orange.svg)](https://www.rust-lang.org)
-[![Target: Low-Power Systems](https://img.shields.io/badge/Target-Low--Power%20%7C%20Sandy%20Bridge%20%7C%20ARM64-brightgreen.svg)](#hardware-philosophy)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
 
-[Architecture](#architecture-the-dumb-bucket-vs-the-brain) • [Key Primitives](#core-architectural-primitives) • [Hardware Philosophy](#hardware-philosophy) • [Quickstart](#quickstart) • [Configuration](#configuration-configkdl) • [Contributing](CONTRIBUTING.md)
-
-</div>
+[Overview](#what-is-kosh) • [Hardware Target](#hardware-target) • [Architecture](#architecture-the-dumb-bucket-vs-the-brain) • [Ingress Shield](#memory-first-ingress-defense) • [Storage Engine](#storage-and-wal-physics) • [Quickstart](#quickstart) • [Docker](#docker-deployment) • [Configuration](#configuration) • [Community](#community)
 
 ---
 
-## What is Kosh?
+## What is Kosh
 
-**Kosh** is an end-to-end encrypted, zero-knowledge personal storage and synchronization engine written in Rust. It functions as an autonomous, self-hosted vault daemon that safeguards your digital memory, media, and documents across multiple client devices.
+Kosh is an end-to-end encrypted, zero-knowledge storage vault and synchronization engine written in Rust. It runs as an autonomous, self-hosted daemon that stores, deduplicates, and synchronizes encrypted digital memory and files across client devices.
 
-Most private cloud solutions assume elastic cloud infrastructure: gigabytes of idle RAM, multi-core virtual machines, and fast NVMe solid-state storage. When deployed on personal hardware, they often choke under high memory consumption and constant database locks.
+Most private cloud backends assume modern cloud infrastructure: multi-gigabyte memory footprints, multi-core virtual machines, and fast NVMe storage. When deployed on personal commodity hardware, random I/O from unbuffered writes and database locks frequently thrash disk heads, leading to high latency and resource exhaustion.
 
-**Kosh takes the opposite approach.** It is engineered specifically to deliver sub-millisecond local network response times on minimal hardware: a ten-year-old Intel Core i5 Sandy Bridge machine with 2 GB of RAM and a single mechanical hard drive, or a low-power ARM single-board computer.
+Kosh is designed from the physical disk layer up for resource-constrained bare metal: a 2nd-generation Intel Core i5 Sandy Bridge machine with 2 GB of RAM and a single mechanical hard drive, or a low-power ARM single-board computer.
 
-The server operates strictly as an untrusted, blind **"Dumb Bucket of Bits"**. It stores, deduplicates, and coordinates opaque ciphertext without ever seeing your filenames, directory hierarchies, file contents, or personal identity.
+The server operates strictly as an untrusted, blind **"Dumb Bucket of Bits"**. It stores and streams opaque ciphertext without ever observing filenames, directory structures, MIME types, or personal identity. All encryption, key derivation, and metadata operations execute strictly client-side.
+
+---
+
+## Hardware Target
+
+Kosh is tested against physical commodity hardware rather than elastic cloud instances:
+
+- **Intel Core i5-2400 (Sandy Bridge):** 4 cores @ 3.1 GHz, 2 GB DDR3 RAM, 1x 7200 RPM mechanical HDD (ext4)
+- **MediaTek MT8183 (ARM64):** 8 cores, 4 GB LPDDR4X RAM, eMMC 5.1 storage
+
+### Systems-Level Invariants
+
+Mechanical drives degrade severely under random seeks. To ensure sustained throughput on rotational media:
+
+- **Pre-Allocated Disk Sectors:** The server calls `posix_fallocate` via Tokio before streaming payload bytes to reserve contiguous physical disk blocks. Chunked transfers lacking a valid `Content-Length` header are rejected immediately with HTTP 400.
+- **RAM-First Defense Funnel:** Volumetric traffic, forged Bearer tokens, and unauthenticated brute-force requests are dropped in RAM before triggering database queries or disk seeks.
+- **Two-Level Directory Prefix Sharding:** Stored blobs are partitioned across 65,536 leaf directories (`vault/ab/cd/<hash>`), eliminating ext4 HTree index depth degradation and directory inode lock (`i_rwsem`) contention.
+- **Keyset Cursor Pagination:** Query paths use indexed keyset seeking (`WHERE (last_modified, id) < (?, ?)`) instead of SQL `OFFSET` scans.
+- **Zero-Heap Error Paths:** Transient errors use compile-time static strings (`&'static str`) to avoid memory allocator churn under high load.
 
 ---
 
 ## Architecture: "The Dumb Bucket" vs. "The Brain"
 
-Kosh establishes a rigid cryptographic trust boundary between client applications and the backend storage daemon:
+Kosh enforces a strict cryptographic trust boundary between client applications and the storage daemon:
 
 ```text
 [ Client Applications: "The Brain" ]
@@ -39,19 +52,31 @@ Kosh establishes a rigid cryptographic trust boundary between client application
   • Retains the root master vault key (K_vault) strictly client-side
   • Encrypts and decrypts all payload bytes, EXIF metadata, and directory trees
   • Solves Hashcash Proof-of-Work challenges and conducts WebAuthn biometric assertions
-                              │
-                              │ HTTPS / TLS (Out-of-Band Fingerprint Pinning)
-                              ▼
+                               │
+                               │ HTTPS / TLS (Out-of-Band Fingerprint Pinning)
+                               ▼
 [ Kosh Server Daemon: "The Dumb Bucket" ]
-  • Zero Hardware Trust: treated as a hostile, untrusted remote store
+  • Zero Hardware Trust: treated as an untrusted, potentially compromised remote store
   • Never inspects filenames, MIME types, or unencrypted bytes
   • Multi-stage memory-first ingress shield drops abuse in RAM within nanoseconds
-  • Coordinates atomic Content-Addressable Storage (CAS) and append-only WAL ledgers
+  • Coordinates 2-level sharded CAS storage and append-only WAL ledgers
 ```
 
-### Memory-First Ingress Defense Funnel
+### Responsibility Split
 
-Spinning hard drives degrade rapidly under random I/O operations. To protect physical disk heads and async Tokio worker threads from starvation, every incoming request passes through an in-memory ingress filter:
+| Responsibility | Client Application ("The Brain") | Kosh Server ("The Dumb Bucket") |
+|---|---|---|
+| **Runtime** | Android (Kotlin / Jetpack) / Desktop client | Headless Linux, Axum 0.8, Tokio async runtime |
+| **Trust Boundary** | Trusted edge; holds private master keys | Untrusted remote store; zero plaintext visibility |
+| **Storage Semantics** | Relational metadata index, Delta-CRDT action log | Content-Addressable Storage (CAS), append-only WAL segments |
+| **Data Visibility** | Plaintext files, EXIF tags, directory hierarchies | Opaque ciphertext blobs and encrypted delta frames |
+| **Cryptography** | Argon2id KDF, ChaCha20-Poly1305, AES-GCM, Tink AEAD | Stateless BLAKE3 MAC verification, Hashcash verification |
+
+---
+
+## Memory-First Ingress Defense
+
+Every incoming TCP connection passes through an in-memory defense pipeline before any disk or database resource is allocated:
 
 ```text
 [ Incoming TCP / TLS Connection ]
@@ -98,50 +123,75 @@ Spinning hard drives degrade rapidly under random I/O operations. To protect phy
 
 ---
 
+## Storage and WAL Physics
+
+### Content-Addressable Storage (CAS)
+Files uploaded to the storage engine are indexed by their BLAKE3 cryptographic hash:
+
+- **Two-Level Sharding:** Blobs are written to `vault/<hash[0..2]>/<hash[2..4]>/<hash>` (e.g. `vault/3f/8a/3f8a4b...`). This guarantees no single directory exceeds a few hundred entries, keeping filesystem lookups in O(1) on ext4 and Btrfs.
+- **Upload Transaction Lifecycle:**
+  1. Incoming byte stream writes to a temporary staging file: `vault/<uuid>.tmp`.
+  2. `posix_fallocate` reserves contiguous disk sectors on the filesystem.
+  3. Bytes are streamed in 64 KB chunks through `blake3::Hasher`.
+  4. Stream completion verifies total bytes match `Content-Length`.
+  5. The file is atomically renamed to its destination sharded path via `rename(2)`.
+  6. SQLite metadata registers user ownership.
+- **Abort Cleanliness:** Disconnections, short reads, or hash mismatches immediately unlink the staging `.tmp` file. Partial writes never accumulate.
+
+### Write-Ahead Log (WAL) Ledgers
+Client synchronization uses append-only WAL segments under `vault/ledgers/<user_id>/`:
+
+- **Single-Writer Actor:** Mutating actions are serialized through a dedicated Tokio actor channel (`mpsc::Sender<Action>`), avoiding file locking overhead.
+- **Stateless Zero-Copy Reads:** Reading delta segments bypasses the writer actor. Sync clients open segment descriptors directly, seek past the 500-byte header, and stream frames concurrently.
+- **Rotation:** Segments automatically rotate at 5 MB boundaries, updating the atomic `CURRENT` pointer.
+
+---
 
 ## Quickstart
 
-### Option 1: Build from source
+### Prerequisites
 
-#### Prerequisites
 - [Rust 1.97.1+](https://rustup.rs/) (Stable toolchain, 2024 edition compatible)
 - SQLite 3
-- `sqlx-cli` (for compiling migrations offline):
+- `sqlx-cli` (optional, for compiling database migrations offline):
   ```bash
   cargo install sqlx-cli --no-default-features --features sqlite
   ```
 
-#### Build and Run
+### Build from Source
+
 ```bash
 # Clone the repository
 git clone https://github.com/kosh-project/server.git
 cd server
 
-# Build the workspace
+# Build the workspace in release mode
 cargo build --workspace --release
-```
-```bash
-# Launch the server daemon
+
+# Run the server daemon
 cargo run -p server
 
-# Or see the logs via tui
+# Run the administrative Ratatui TUI monitor
 cargo run -p cli
 ```
-#### Or Install them
+
+### Local Cargo Installation
+
 ```bash
+# Install the server daemon binary (installed as 'server')
 cargo install --path crates/server
 
+# Install the admin CLI binary (installed as 'cli')
 cargo install --path crates/cli
-
-# and run them with `kosd` or `kosh-cli`
 ```
-On initial startup, Kosh generates the default configuration file (`config/config.kdl` or `kosh.kdl`), provisions the `vault/` storage directory, generates an X.509 self-signed TLS certificate, and seeds an internal server secret.
+
+On initial launch, Kosh creates default configurations, provisions the `vault/` hierarchy, generates self-signed TLS certificates, and seeds the root cryptographic secrets.
 
 ---
 
-### Option 2: Docker / Container Deployment
+## Docker Deployment
 
-Kosh provides multi-arch container images running under an unprivileged service account (`UID 10001`):
+Pre-built multi-architecture container images are available on GitHub Container Registry:
 
 ```bash
 # Run with host networking for mDNS LAN discovery
@@ -154,13 +204,13 @@ docker run -d \
   ghcr.io/kosh-project/server:latest
 ```
 
-Using Docker Compose (pre-configured in the repository via [`docker-compose.yml`](docker-compose.yml)):
+### Docker Compose
+
+Run using the repository [`docker-compose.yml`](docker-compose.yml):
 
 ```bash
 docker compose up -d
 ```
-
-Compose configuration :
 
 ```yaml
 services:
@@ -180,12 +230,12 @@ services:
 
 ---
 
-## Configuration (`config.kdl`)
+## Configuration
 
-Kosh uses [KDL](https://kdl.dev) for config, (see [example.]):
+Kosh is configured via [KDL](https://kdl.dev). See the complete documented reference in [`config/config.example.kdl`](config/config.example.kdl).
 
 ```kdl
-// Storage vault directory
+// Storage vault root path
 vault-path "./vault"
 
 // Network bindings
@@ -215,17 +265,16 @@ mdns {
 ```
 
 ---
+
 ## Community
 
-We are committed to building an open, welcoming, and high-performance engineering environment:
-
-- **Contributing Guide:** Read [CONTRIBUTING.md](CONTRIBUTING.md) for full architectural specifications, database migration workflows, and development guidelines.
-- **Code of Conduct:** Read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for our community standards and enforcement policies.
-- **Security Policy:** Read [SECURITY.md](SECURITY.md) to report vulnerabilities privately.
-- **Support:** Visit [SUPPORT.md](SUPPORT.md) for technical assistance and architecture discussions.
+- **Contributing Guide:** [CONTRIBUTING.md](CONTRIBUTING.md) details architectural patterns, coding standards, and testing workflows.
+- **Security Policy:** [SECURITY.md](SECURITY.md) provides instructions for reporting vulnerabilities privately.
+- **Code of Conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) outlines our community standards.
+- **Support:** [SUPPORT.md](SUPPORT.md) covers diagnostics, deployment questions, and issue reporting.
 
 ---
 
 ## License
 
-This project is licensed under the [Apache License, Version 2.0](LICENSE).
+Kosh is distributed under the [Apache License, Version 2.0](LICENSE).
