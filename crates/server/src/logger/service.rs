@@ -4,7 +4,6 @@ use std::{
 };
 
 use bincode_next::{config, encode_to_vec};
-use chrono::{DateTime, Datelike};
 use kosh_core::{
     config::Config,
     logger::{
@@ -12,10 +11,15 @@ use kosh_core::{
         Telemetry::{Heartbeat, Log},
     },
 };
+#[cfg(unix)]
+use tokio::net::UnixDatagram;
+
+#[cfg(not(unix))]
+use tokio::net::UdpSocket;
+
 use tokio::{
     fs::{self, File, create_dir_all},
     io::AsyncWriteExt,
-    net::UnixDatagram,
     spawn,
     sync::mpsc::{Receiver, Sender, channel},
     time::{MissedTickBehavior, interval},
@@ -29,10 +33,59 @@ use crate::logger::{self, Entry, error::Result};
 /// `entry.timestamp_ms / DAY_MILLIS` against the service's `today` field.
 pub(crate) const DAY_MILLIS: i64 = 86_400_000;
 
+#[cfg(unix)]
+struct Broadcaster {
+    socket: UnixDatagram,
+    socket_path: PathBuf,
+}
+
+#[cfg(unix)]
+impl Broadcaster {
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
+    async fn new(config: &Config) -> Result<Self> {
+        let socket = UnixDatagram::unbound()?;
+        Ok(Self {
+            socket,
+            socket_path: PathBuf::from(&config.socket_path),
+        })
+    }
+
+    async fn send(&self, bytes: &[u8]) {
+        let _ = self.socket.send_to(bytes, &self.socket_path).await;
+    }
+}
+
+#[cfg(not(unix))]
+struct Broadcaster {
+    socket: UdpSocket,
+    target_addr: std::net::SocketAddr,
+}
+
+#[cfg(not(unix))]
+impl Broadcaster {
+    async fn new(config: &Config) -> Result<Self> {
+        let socket = UdpSocket::bind("127.0.0.1:0").await?;
+        let target_addr = config
+            .socket_path
+            .parse::<std::net::SocketAddr>()
+            .unwrap_or_else(|_| {
+                std::net::SocketAddr::from(([127, 0, 0, 1], 23343))
+            });
+        Ok(Self {
+            socket,
+            target_addr,
+        })
+    }
+
+    async fn send(&self, bytes: &[u8]) {
+        let _ = self.socket.send_to(bytes, self.target_addr).await;
+    }
+}
+
 /// The background logging service.
 ///
 /// `Service` owns the receive end of the MPSC channel, the currently active log file,
-/// and the unbound Unix Datagram Socket used for broadcasting. It runs entirely on a
+/// and the broadcaster socket used for live telemetry streaming. It runs entirely on a
 /// dedicated `tokio` task and never shares memory with the HTTP request threads.
 ///
 /// Callers interact with the service indirectly through the [`crate::logger::GLOBAL_LOGGER`]
@@ -59,20 +112,8 @@ pub struct Service {
     /// (resolving to `<vault_path>/state/logs`) and used when opening new daily files
     /// during log rotation.
     log_path: PathBuf,
-    /// An unbound Unix Datagram Socket used to broadcast entries to the admin CLI.
-    ///
-    /// Unbound means the socket has no address of its own; it can only send, not receive.
-    /// Each entry is sent to `socket_path` after being written to disk. Errors are
-    /// silently ignored so that the absence of the admin CLI has no impact on the server.
-    socket: UnixDatagram,
-
-    /// The filesystem path of the Unix Datagram Socket that the admin CLI is bound to.
-    ///
-    /// Derived from [`kosh_core::config::Config::socket_path`] at startup. The server
-    /// sends each serialised [`kosh_core::logger::Telemetry`] frame to this address after
-    /// writing the raw [`Entry`] to disk. If no CLI process is bound to the path, the
-    /// `send_to` call fails silently.
-    socket_path: PathBuf,
+    /// Cross-platform broadcaster socket for admin CLI telemetry.
+    broadcaster: Broadcaster,
 }
 
 impl Service {
@@ -115,15 +156,14 @@ impl Service {
             .open(&log_path.join(format_date_time(time)))
             .await?;
 
-        let socket = UnixDatagram::unbound()?;
+        let broadcaster = Broadcaster::new(config).await?;
 
         let service = Self {
             receiver,
             log_path,
             today: time / DAY_MILLIS,
             active_file,
-            socket,
-            socket_path: PathBuf::from(&config.socket_path),
+            broadcaster,
         };
 
         let task = spawn(async move { service.run().await });
@@ -199,8 +239,8 @@ impl Service {
         let disk_bytes = encode_to_vec(&entry, config::standard())?;
         self.active_file.write_all(&disk_bytes).await?;
 
-        if let Ok(uds_bytes) = encode_to_vec(Log(entry), config::standard()) {
-            let _ = self.socket.send_to(&uds_bytes, &self.socket_path).await;
+        if let Ok(bytes) = encode_to_vec(Log(entry), config::standard()) {
+            self.broadcaster.send(&bytes).await;
         }
 
         Ok(())
@@ -212,25 +252,8 @@ impl Service {
             return;
         };
 
-        let _ = self.socket.send_to(bytes.as_ref(), &self.socket_path).await;
+        self.broadcaster.send(bytes.as_ref()).await;
     }
 }
 
-/// Produces the filename for a daily log file given a Unix timestamp in milliseconds.
-///
-/// The filename takes the form `log_YYYY-M-D.bin`. It is derived entirely from the
-/// provided timestamp rather than from `Utc::now()`, ensuring that entries processed
-/// after midnight due to channel queue lag are still written to the correct file.
-///
-/// If the timestamp cannot be converted to a valid [`DateTime`], the function falls back
-/// to the Unix epoch (1970-01-01) via `unwrap_or_default`.
-///
-/// # Arguments
-///
-/// * `time_stamp_millis` - UTC epoch timestamp in milliseconds.
-#[must_use]
-pub fn format_date_time(time_stamp_millis: i64) -> String {
-    let time =
-        DateTime::from_timestamp_millis(time_stamp_millis).unwrap_or_default();
-    format!("log_{}-{}-{}.bin", time.year(), time.month(), time.day())
-}
+pub use kosh_core::logger::format_date_time;

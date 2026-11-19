@@ -1,6 +1,4 @@
-use std::{
-    fs::Metadata as StdMeta, os::unix::fs::MetadataExt, time::UNIX_EPOCH,
-};
+use std::{fs::Metadata as StdMeta, time::UNIX_EPOCH};
 
 use blake3::Hash;
 
@@ -29,7 +27,7 @@ impl Metadata {
                 .duration_since(UNIX_EPOCH)?
                 .as_secs()
                 .try_into()?,
-            size: metadata.size().try_into()?,
+            size: metadata.len().try_into()?,
         })
     }
 }

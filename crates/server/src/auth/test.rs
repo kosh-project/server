@@ -5,7 +5,9 @@
 use super::*;
 use anyhow::Context;
 use kosh_core::config::Config;
-use std::{os::unix::fs::PermissionsExt, path::PathBuf};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use tmpdir::TmpDir;
 
 fn dummy_config(vault_path: PathBuf) -> Config {
@@ -64,14 +66,18 @@ async fn secret_load_or_create_fresh_and_permissions() -> anyhow::Result<()> {
     // Test: verify secret file is created on disk
     assert!(secret_file.exists());
 
-    let metadata = std::fs::metadata(&secret_file).context("file metadata")?;
-    let permissions = metadata.permissions();
-    let mode = permissions.mode() & 0o777;
-    // Test: verify secret file is restricted to owner-only read/write (0o600)
-    assert_eq!(
-        mode, 0o600,
-        "Secret file must have strict 0o600 permissions"
-    );
+    #[cfg(unix)]
+    {
+        let metadata =
+            std::fs::metadata(&secret_file).context("file metadata")?;
+        let permissions = metadata.permissions();
+        let mode = permissions.mode() & 0o777;
+        // Test: verify secret file is restricted to owner-only read/write (0o600)
+        assert_eq!(
+            mode, 0o600,
+            "Secret file must have strict 0o600 permissions"
+        );
+    }
 
     let bytes = std::fs::read(&secret_file).context("read secret file")?;
     // Test: verify secret file length and content match created secret

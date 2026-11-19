@@ -85,15 +85,15 @@ pub struct Config {
     #[knuffel(child, unwrap(argument), default = false)]
     pub enable_tls: bool,
 
-    /// Filesystem path of the Unix Datagram Socket the admin CLI binds to.
+    /// Filesystem path or loopback address for the telemetry socket the admin CLI binds to.
     ///
     /// The server's logger background task sends structured telemetry to this path after
     /// writing each log entry to disk. The admin CLI (`kosh-cli`) binds a socket at this
     /// path to receive the live log stream. If the CLI is not running, send errors are
     /// silently ignored — the absence of the CLI never affects server performance.
     ///
-    /// Defaults to `"/tmp/kosh.sock"`.
-    #[knuffel(child, unwrap(argument), default = "/tmp/kosh.sock".to_string())]
+    /// Defaults to `"/tmp/kosh.sock"` on Unix, and `"127.0.0.1:23343"` on Windows.
+    #[knuffel(child, unwrap(argument), default = default_socket_path())]
     pub socket_path: String,
 
     /// Configuration for `WebAuthn` / Passkey Relying Party parameters.
@@ -118,6 +118,16 @@ fn default_vault_path() -> PathBuf {
     PathBuf::from("./vault")
 }
 
+#[cfg(unix)]
+fn default_socket_path() -> String {
+    "/tmp/kosh.sock".to_string()
+}
+
+#[cfg(not(unix))]
+fn default_socket_path() -> String {
+    "127.0.0.1:23343".to_string()
+}
+
 impl Config {
     /// Loads the configuration from `path`, creating a default file if it does not exist.
     ///
@@ -132,7 +142,9 @@ impl Config {
     pub async fn load_or_init() -> error::Result<Self> {
         let path = Self::path();
         if !path.exists() {
-            let default_kdl = r#"// Kosh Server Configuration
+            let socket_path = default_socket_path();
+            let default_kdl = format!(
+                r#"// Kosh Server Configuration
 
 // The root directory where all blobs, databases, and keys are stored.
 vault-path "./vault"
@@ -145,8 +157,9 @@ port 23342
 enable-tls false
 
 // Admin CLI socket
-socket-path "/tmp/kosh.sock"
-"#;
+socket-path "{socket_path}"
+"#
+            );
 
             if let Some(parent) = path.parent()
                 && !parent.as_os_str().is_empty()

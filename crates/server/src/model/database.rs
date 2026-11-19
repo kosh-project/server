@@ -10,8 +10,6 @@
 //! - **In-memory temp store (`temp_store = MEMORY`)**: Avoids temporary file creation during sorting and indexing.
 //! - **Foreign key enforcement (`foreign_keys = true`)**: Enforces relational constraints (e.g. cascading session invalidation).
 
-use std::str::FromStr;
-
 use crate::{error::boot::Result, info};
 use kosh_core::{config::Config, logger::Module};
 use sqlx::{
@@ -24,7 +22,7 @@ use sqlx::{
 
 /// Initializes the SQLite metadata database pool, configures high-performance PRAGMAs, and applies pending migrations.
 ///
-/// Constructs the connection string targeting `<vault_path>/metadata.db`, applies production
+/// Constructs the connection options targeting `<vault_path>/metadata.db`, applies production
 /// PRAGMAs (WAL journal mode, Normal synchronous mode, 30 GB mmap size, in-memory temp store,
 /// foreign key cascades), builds a connection pool with up to 50 concurrent connections,
 /// and executes all pending SQL schema migrations from `./migrations`.
@@ -38,9 +36,8 @@ use sqlx::{
 /// - Returns [`crate::error::boot::Error::Database`] if connecting to SQLite fails.
 /// - Returns [`crate::error::boot::Error::Migration`] if applying pending schema migrations fails.
 pub async fn init(config: &Config) -> Result<SqlitePool> {
-    let db_path =
-        format!("sqlite://{}/metadata.db", config.vault_path.display());
-    let options = SqliteConnectOptions::from_str(&db_path)?
+    let options = SqliteConnectOptions::new()
+        .filename(config.vault_path.join("metadata.db"))
         .journal_mode(SqliteJournalMode::Wal)
         .synchronous(SqliteSynchronous::Normal)
         .pragma("mmap_size", "30000000000")

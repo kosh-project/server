@@ -72,7 +72,10 @@ async fn load_or_init_creates_fresh_file_and_loads() -> anyhow::Result<()> {
     assert_eq!(config.port, 23342);
     assert_eq!(config.host, "0.0.0.0");
     assert!(!config.enable_tls);
+    #[cfg(unix)]
     assert_eq!(config.socket_path, "/tmp/kosh.sock");
+    #[cfg(not(unix))]
+    assert_eq!(config.socket_path, "127.0.0.1:23343");
     assert_eq!(config.passkey.id, "localhost");
     assert_eq!(config.passkey.origin, "http://localhost:23342");
     assert_eq!(config.passkey.name, "Kosh Vault");

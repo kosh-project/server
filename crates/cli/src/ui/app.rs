@@ -9,6 +9,7 @@ use crossterm::{
     event::{Event, KeyCode, KeyEvent},
     terminal,
 };
+use kosh_core::logger::format_date_time;
 use kosh_core::{config::Config, logger::Telemetry};
 use ratatui::{
     buffer::Buffer,
@@ -17,7 +18,6 @@ use ratatui::{
     text::Line,
     widgets::{Block, Paragraph, Widget},
 };
-use server::logger::format_date_time;
 use tokio::time::Instant;
 
 use crate::ui::{

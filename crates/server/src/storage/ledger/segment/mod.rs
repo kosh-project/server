@@ -21,7 +21,7 @@ pub const ROTATION_SIZE_THRESHOLD: u64 = 2_000_000; // 2 MB
 /// Active append-only writer handle for a specific user and namespace.
 #[derive(Debug)]
 pub struct ActiveSegment {
-    pub file: File,
+    pub file: Option<File>,
     pub dir: PathBuf,
     pub current_size: u64,
     pub first_seq: u64,
@@ -62,7 +62,7 @@ impl ActiveSegment {
             recover_active_seq(&mut file, file_len, header.first_seq).await?;
 
         Ok(Self {
-            file,
+            file: Some(file),
             dir: dir.to_path_buf(),
             current_size: file_len,
             first_seq: header.first_seq,
@@ -90,7 +90,7 @@ impl ActiveSegment {
         file.sync_data().await.map_err(Error::IoError)?;
 
         Ok(Self {
-            file,
+            file: Some(file),
             dir: dir.to_path_buf(),
             current_size: Header::SIZE_U64,
             first_seq,
@@ -109,7 +109,11 @@ impl ActiveSegment {
         frame.extend_from_slice(&seq.to_be_bytes());
         frame.extend_from_slice(payload);
 
-        self.file.write_all(&frame).await.map_err(Error::IoError)?;
+        let file = self
+            .file
+            .as_mut()
+            .ok_or(CorruptedSegment("Active segment file is closed"))?;
+        file.write_all(&frame).await.map_err(Error::IoError)?;
         self.current_size += u64::try_from(frame.len())?;
         self.next_seq += 1;
 
@@ -128,7 +132,10 @@ impl ActiveSegment {
     /// Rotates the segment in place: syncs old file, renames it to `{first_seq:016x}.log`,
     /// and opens a fresh `current.log` starting at `self.next_seq`.
     pub async fn rotate(&mut self) -> Result<()> {
-        self.file.sync_all().await.map_err(Error::IoError)?;
+        if let Some(file) = self.file.take() {
+            file.sync_all().await.map_err(Error::IoError)?;
+            drop(file);
+        }
 
         let sealed_name = format!("{:016x}.log", self.first_seq);
         let sealed_path = self.dir.join(&sealed_name);
@@ -145,6 +152,10 @@ impl ActiveSegment {
     }
 
     pub async fn sync(&self) -> Result<()> {
-        self.file.sync_all().await.map_err(Error::IoError)
+        if let Some(file) = &self.file {
+            file.sync_all().await.map_err(Error::IoError)
+        } else {
+            Ok(())
+        }
     }
 }

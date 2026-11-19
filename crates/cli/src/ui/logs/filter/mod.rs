@@ -1,9 +1,9 @@
 use crossterm::event::{KeyCode, KeyEvent};
+use kosh_core::logger::{Level, Module};
 use ratatui::{
     style::{Color, Style, Stylize},
     text::Span,
 };
-use server::logger::{Level, Module};
 
 mod selected;
 use selected::Selected;
@@ -183,7 +183,7 @@ const fn lvl_str(lvl: Option<Level>) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use server::logger::Entry as LogEntry;
+    use kosh_core::logger::Entry as LogEntry;
 
     fn dummy_entry(module: Module, level: Level, msg: &str) -> Entry {
         Entry::from(LogEntry {

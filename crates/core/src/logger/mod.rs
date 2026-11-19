@@ -106,5 +106,26 @@ pub enum Telemetry {
     Heartbeat,
 }
 
+use chrono::{DateTime, Datelike};
+
+/// Produces the filename for a daily log file given a Unix timestamp in milliseconds.
+///
+/// The filename takes the form `log_YYYY-M-D.bin`. It is derived entirely from the
+/// provided timestamp rather than from `Utc::now()`, ensuring that entries processed
+/// after midnight due to channel queue lag are still written to the correct file.
+///
+/// If the timestamp cannot be converted to a valid [`DateTime`], the function falls back
+/// to the Unix epoch (1970-01-01) via `unwrap_or_default`.
+///
+/// # Arguments
+///
+/// * `time_stamp_millis` - UTC epoch timestamp in milliseconds.
+#[must_use]
+pub fn format_date_time(time_stamp_millis: i64) -> String {
+    let time =
+        DateTime::from_timestamp_millis(time_stamp_millis).unwrap_or_default();
+    format!("log_{}-{}-{}.bin", time.year(), time.month(), time.day())
+}
+
 #[cfg(test)]
 mod test;

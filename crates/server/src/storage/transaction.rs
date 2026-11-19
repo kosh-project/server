@@ -161,10 +161,16 @@ impl Transaction {
             .into());
         }
 
-        self.write(&file).await
+        file.flush().await.map_err(|e| WriteChunkFailure {
+            path: self.temp.clone(),
+            source: e,
+        })?;
+        drop(file);
+
+        self.write().await
     }
 
-    async fn write(&self, file: &File) -> Result<Metadata> {
+    async fn write(&self) -> Result<Metadata> {
         let hash = self.hasher.finalize();
         let hash_str = hash.to_string();
 
@@ -186,11 +192,12 @@ impl Transaction {
             })?;
 
         rename(&self.temp, &target).await.map_err(|e| RenameError {
-            path: target,
+            path: target.clone(),
             source: e,
         })?;
 
-        Metadata::try_new(&file.metadata().await?, hash)
+        let meta = fs::metadata(&target).await?;
+        Metadata::try_new(&meta, hash)
     }
 
     /// Reads all chunks from the stream, writes them to disk, and returns the total bytes written.

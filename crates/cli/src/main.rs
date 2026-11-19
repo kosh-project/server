@@ -15,9 +15,36 @@ use crossterm::{
 use futures::StreamExt;
 use kosh_core::config::Config;
 use ratatui::{DefaultTerminal, widgets::Widget};
-use tokio::{fs, net::UnixDatagram, time::interval};
+#[cfg(unix)]
+use tokio::fs;
+#[cfg(not(unix))]
+use tokio::net::UdpSocket;
+#[cfg(unix)]
+use tokio::net::UnixDatagram;
+use tokio::time::interval;
 
 use crate::ui::app::App;
+
+#[cfg(unix)]
+async fn bind_telemetry_socket(
+    socket_path: &str,
+) -> anyhow::Result<UnixDatagram> {
+    let _ = fs::remove_file(socket_path).await;
+    let socket = UnixDatagram::bind(socket_path)?;
+    Ok(socket)
+}
+
+#[cfg(not(unix))]
+async fn bind_telemetry_socket(socket_path: &str) -> anyhow::Result<UdpSocket> {
+    let addr =
+        socket_path
+            .parse::<std::net::SocketAddr>()
+            .unwrap_or_else(|_| {
+                std::net::SocketAddr::from(([127, 0, 0, 1], 23343))
+            });
+    let socket = UdpSocket::bind(addr).await?;
+    Ok(socket)
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -62,8 +89,7 @@ async fn app(
         .ok_or_else(|| anyhow!("Failed to initiate app"))?;
 
     let mut event_stream = EventStream::new();
-    let _ = fs::remove_file(&config.socket_path).await;
-    let socket = UnixDatagram::bind(config.socket_path)?;
+    let socket = bind_telemetry_socket(&config.socket_path).await?;
 
     #[allow(clippy::large_stack_arrays)]
     let mut buffer = [0u8; 65536];

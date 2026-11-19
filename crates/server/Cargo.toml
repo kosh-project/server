@@ -43,6 +43,8 @@ url = "2.5.8"
 mdns-sd = { workspace = true }
 local-ip-address = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+openssl = { version = "0.10", features = ["vendored"] }
 
 [dev-dependencies]
 futures = "0.3.32"

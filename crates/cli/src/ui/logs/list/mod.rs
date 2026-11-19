@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
 use bincode_next::config;
+use kosh_core::logger;
 use ratatui::layout::Rect;
-use server::logger;
 
 mod input;
 mod render;
@@ -148,7 +148,7 @@ impl EntryList {
 
 #[cfg(test)]
 mod tests {
-    use server::logger::{Entry, Level, Module};
+    use kosh_core::logger::{Entry, Level, Module};
 
     use super::*;
 
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn perfect_payload_deserialization() {
         use bincode_next::config;
-        use server::logger::{Entry as LogEntry, Level, Module};
+        use kosh_core::logger::{Entry as LogEntry, Level, Module};
 
         let log1 = LogEntry {
             timestamp_ms: 100,

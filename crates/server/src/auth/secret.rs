@@ -1,9 +1,8 @@
 use crate::error::boot::{Error, Result};
 use kosh_core::config::Config;
-use std::{
-    fmt::Debug, fs::Permissions, io::ErrorKind, os::unix::fs::PermissionsExt,
-    path::Path,
-};
+use std::{fmt::Debug, io::ErrorKind, path::Path};
+#[cfg(unix)]
+use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 use tokio::fs;
 
 /// A 32-byte cryptographic secret key used for BLAKE3 keyed-hash MACs.
@@ -51,7 +50,7 @@ impl Secret {
         Ok(Self(key))
     }
 
-    /// Generates a new random secret and writes it to a file with `0o600` permissions.
+    /// Generates a new random secret and writes it to a file with `0o600` permissions on Unix.
     async fn create<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
@@ -59,6 +58,7 @@ impl Secret {
         let secret: [u8; 32] = rand::random();
 
         fs::write(path.as_ref(), secret).await?;
+        #[cfg(unix)]
         fs::set_permissions(path, Permissions::from_mode(0o600)).await?;
 
         Ok(Self(secret))

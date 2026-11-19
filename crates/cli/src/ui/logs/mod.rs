@@ -19,7 +19,7 @@ pub struct Entry {
     pub raw: logger::Entry,
 }
 
-use server::logger::{self, Level, Module};
+use kosh_core::logger::{self, Level, Module};
 
 const GREEN: Style = Style::new().fg(Color::Green);
 const RED: Style = Style::new().fg(Color::Red);
@@ -90,7 +90,7 @@ impl From<logger::Entry> for Entry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use server::logger::{Entry as LogEntry, Level, Module};
+    use kosh_core::logger::{Entry as LogEntry, Level, Module};
 
     #[test]
     fn test_corrupt_timestamp_panic() {

@@ -9,8 +9,14 @@ use bincode_next::config;
 use chrono::Utc;
 use kosh_core::{config::Config, logger::Level};
 use std::time::Duration;
+#[cfg(unix)]
+use tokio::net::UnixDatagram;
+
+#[cfg(not(unix))]
+use tokio::net::UdpSocket;
+
 use tmpdir::TmpDir;
-use tokio::{fs, net::UnixDatagram, time::timeout};
+use tokio::{fs, time::timeout};
 
 async fn with_temp_env<F, Fut, T>(f: F) -> anyhow::Result<T>
 where
@@ -107,6 +113,7 @@ async fn logger_commits_multiple_entries_to_disk() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn broadcasting_works_via_unix_socket() -> anyhow::Result<()> {
     with_temp_env(|config, sender, handle| async move {
@@ -162,6 +169,68 @@ async fn broadcasting_works_via_unix_socket() -> anyhow::Result<()> {
         handle.shutdown_with_grace(2).await;
 
         let _ = fs::remove_file(&config.socket_path).await;
+        Ok(())
+    })
+    .await?;
+
+    Ok(())
+}
+
+#[cfg(not(unix))]
+#[tokio::test]
+async fn broadcasting_works_via_udp_socket() -> anyhow::Result<()> {
+    with_temp_env(|mut config, sender, handle| async move {
+        let recv_socket = UdpSocket::bind("127.0.0.1:0")
+            .await
+            .context("failed to bind test udp socket")?;
+        let local_addr = recv_socket.local_addr().context("local addr")?;
+        config.socket_path = local_addr.to_string();
+
+        let mut buffer = [0u8; 512];
+
+        let entry = Entry {
+            module: Module::Api,
+            level: Level::Error,
+            message: "Bro where's socket??".into(),
+            timestamp_ms: 0,
+        };
+
+        sender
+            .send(entry.clone())
+            .await
+            .context("failed to send test entry to logger")?;
+
+        let entry = loop {
+            let (len, _) = recv_socket
+                .recv_from(&mut buffer)
+                .await
+                .context("failed to receive from udp socket")?;
+
+            let (telemetry, _): (kosh_core::logger::Telemetry, usize) =
+                bincode_next::decode_from_slice(
+                    &buffer[..len],
+                    config::standard(),
+                )
+                .context("bincode decoding broadcast should succeed")?;
+
+            match telemetry {
+                kosh_core::logger::Telemetry::Log(e) => {
+                    assert_eq!(e.message, "Bro where's socket??");
+                    break e;
+                }
+                kosh_core::logger::Telemetry::Heartbeat => {}
+            }
+        };
+
+        sender
+            .send(Entry {
+                level: Level::Shutdown,
+                ..entry
+            })
+            .await
+            .context("failed to send shutdown entry to logger")?;
+
+        handle.shutdown_with_grace(2).await;
         Ok(())
     })
     .await?;
