@@ -53,26 +53,38 @@ async fn main() -> anyhow::Result<()> {
 
     let mut term = ratatui::init();
 
-    execute!(
+    let keyboard_enhanced =
+        crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false)
+            && execute!(
+                std::io::stdout(),
+                PushKeyboardEnhancementFlags(
+                    KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+                )
+            )
+            .is_ok();
+
+    let _ = execute!(
         std::io::stdout(),
         // EnableMouseCapture,
         EnableBracketedPaste,
-        PushKeyboardEnhancementFlags(
-            KeyboardEnhancementFlags::REPORT_EVENT_TYPES
-        ),
         EnableFocusChange,
-    )?;
+    );
 
     #[allow(clippy::large_futures)]
     let result = app(&mut term, config).await;
 
-    execute!(
+    if keyboard_enhanced
+        && crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false)
+    {
+        let _ = execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
+    }
+
+    let _ = execute!(
         std::io::stdout(),
         // DisableMouseCapture,
         DisableBracketedPaste,
-        PopKeyboardEnhancementFlags,
         DisableFocusChange
-    )?;
+    );
 
     ratatui::restore();
     result?;

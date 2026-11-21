@@ -77,7 +77,7 @@ impl App {
     }
 
     fn handle_key(&mut self, key_event: &KeyEvent) {
-        if key_event.is_press() | key_event.is_repeat() {
+        if key_event.is_press() || key_event.is_repeat() {
             match key_event.code {
                 KeyCode::Esc => self.handle_esc(),
                 KeyCode::Char(_)
@@ -263,5 +263,37 @@ mod tests {
             app.should_quit,
             "'q' should quit the app when nothing is actively focused"
         );
+    }
+
+    #[test]
+    fn test_app_key_release_and_repeat() {
+        use crossterm::event::KeyEventKind;
+
+        let mut app = App {
+            show_help: false,
+            should_quit: false,
+            ..Default::default()
+        };
+
+        // Key release should be ignored completely
+        let release_q = KeyEvent::new_with_kind(
+            KeyCode::Char('q'),
+            KeyModifiers::empty(),
+            KeyEventKind::Release,
+        );
+        app.handle_key(&release_q);
+        assert!(
+            !app.should_quit,
+            "Key release event should not trigger actions"
+        );
+
+        // Key repeat should be recognized
+        let repeat_h = KeyEvent::new_with_kind(
+            KeyCode::Char('h'),
+            KeyModifiers::empty(),
+            KeyEventKind::Repeat,
+        );
+        app.handle_key(&repeat_h);
+        assert!(app.show_help, "Key repeat event should trigger actions");
     }
 }

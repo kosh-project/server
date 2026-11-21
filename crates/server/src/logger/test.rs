@@ -32,11 +32,20 @@ where
         port: 0,
         host: "127.0.0.1".to_string(),
         enable_tls: false,
-        socket_path: temp_dir
-            .to_path_buf()
-            .join("kosh.sock")
-            .to_string_lossy()
-            .into(),
+        socket_path: {
+            #[cfg(unix)]
+            {
+                temp_dir
+                    .to_path_buf()
+                    .join("kosh.sock")
+                    .to_string_lossy()
+                    .into()
+            }
+            #[cfg(not(unix))]
+            {
+                "127.0.0.1:23343".to_string()
+            }
+        },
         passkey: kosh_core::config::Passkey::default(),
         mdns: kosh_core::config::Mdns::default(),
     };
@@ -179,12 +188,10 @@ async fn broadcasting_works_via_unix_socket() -> anyhow::Result<()> {
 #[cfg(not(unix))]
 #[tokio::test]
 async fn broadcasting_works_via_udp_socket() -> anyhow::Result<()> {
-    with_temp_env(|mut config, sender, handle| async move {
-        let recv_socket = UdpSocket::bind("127.0.0.1:0")
+    with_temp_env(|_config, sender, handle| async move {
+        let recv_socket = UdpSocket::bind("127.0.0.1:23343")
             .await
             .context("failed to bind test udp socket")?;
-        let local_addr = recv_socket.local_addr().context("local addr")?;
-        config.socket_path = local_addr.to_string();
 
         let mut buffer = [0u8; 512];
 
